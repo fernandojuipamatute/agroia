@@ -508,8 +508,9 @@ def pesadas_recientes():
     # Si Supabase esta disponible, leer desde la base de datos
     if supabase:
         try:
-            # Convertir timestamp Unix a formato PostgreSQL
-            desde_dt = datetime.fromtimestamp(desde).isoformat()
+            # Convertir timestamp Unix a formato PostgreSQL con UTC explicito
+            from datetime import timezone
+            desde_dt = datetime.fromtimestamp(desde, tz=timezone.utc).isoformat()
             
             # Consultar pesadas creadas despues del timestamp
             result = supabase.table('pesadas')\
@@ -562,16 +563,18 @@ def pesadas_recientes():
 
 @app.route('/api/pesadas-todas', methods=['GET'])
 def pesadas_todas():
-    """Devuelve TODAS las pesadas guardadas en Supabase del dia actual.
+    """Devuelve TODAS las pesadas guardadas en Supabase de las ultimas 24 horas.
     Usado cuando la app se abre por primera vez para cargar el historico."""
     if supabase:
         try:
-            # Pesadas de hoy desde medianoche
-            hoy_inicio = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+            # Pesadas de las ultimas 24 horas (en UTC, sin importar zona horaria)
+            # Esto evita problemas de timezone entre el servidor (UTC) y el usuario (Lima)
+            from datetime import timezone, timedelta
+            desde = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
             
             result = supabase.table('pesadas')\
                 .select("*")\
-                .gt('timestamp_creacion', hoy_inicio)\
+                .gt('timestamp_creacion', desde)\
                 .order('timestamp_creacion', desc=False)\
                 .limit(500)\
                 .execute()
