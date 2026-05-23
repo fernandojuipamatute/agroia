@@ -563,24 +563,22 @@ def pesadas_recientes():
 
 @app.route('/api/pesadas-todas', methods=['GET'])
 def pesadas_todas():
-    """Devuelve TODAS las pesadas guardadas en Supabase de las ultimas 24 horas.
-    Usado cuando la app se abre por primera vez para cargar el historico."""
+    """Devuelve las 500 pesadas mas recientes de Supabase.
+    Usado cuando la app se abre para cargar el historico."""
     if supabase:
         try:
-            # Pesadas de las ultimas 24 horas (en UTC, sin importar zona horaria)
-            # Esto evita problemas de timezone entre el servidor (UTC) y el usuario (Lima)
-            from datetime import timezone, timedelta
-            desde = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-            
+            # Sin filtro de fecha - traer las pesadas mas recientes
+            # (evita problemas de zona horaria)
             result = supabase.table('pesadas')\
                 .select("*")\
-                .gt('timestamp_creacion', desde)\
-                .order('timestamp_creacion', desc=False)\
+                .order('timestamp_creacion', desc=True)\
                 .limit(500)\
                 .execute()
             
             pesadas_lista = []
-            for p in result.data:
+            # result.data viene en orden descendente (mas reciente primero)
+            # Lo invertimos para devolverlo en orden ascendente (cronologico)
+            for p in reversed(result.data):
                 ts_iso = p['timestamp_creacion']
                 ts_unix = datetime.fromisoformat(ts_iso.replace('Z', '+00:00')).timestamp()
                 
