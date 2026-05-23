@@ -1484,7 +1484,7 @@ tr:hover td {
 const SERVIDOR_URL = (
   window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:5000'
-    : 'https://agroi-api.onrender.com'  // <-- CAMBIA POR TU URL DE RENDER
+    : 'https://agroia-api.onrender.com'  // <-- CAMBIA POR TU URL DE RENDER
 );
 let servidorConectado = false;
 let ultimoTimestamp = Date.now() / 1000; // Para polling de pesadas nuevas
@@ -3054,6 +3054,13 @@ z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${
   }).then(ok => {
     if (ok) {
       mostrarToast('✅ Enviado a Datadog en tiempo real', 'green');
+      // Despues de 2 segundos recargar el historial desde Supabase
+      // para que las pesadas se sincronicen entre todos los dispositivos.
+      // El delay es para dar tiempo a que Supabase guarde la pesada.
+      setTimeout(() => {
+        console.log('[Sync] Recargando historial desde Supabase tras registro local...');
+        cargarHistorial();
+      }, 2000);
     } else {
       mostrarToast('⚠ Servidor no disponible (modo offline)', 'orange');
     }
@@ -3271,12 +3278,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // (cuando el servidor este listo, despues de unos segundos)
   setTimeout(cargarHistorial, 3000);
   
-  // Refrescar historial cada 30 segundos por si hay pesadas nuevas
-  // de otros usuarios
-  setInterval(cargarHistorial, 30000);
-  
-  // Tambien consultar polling rapido cada 5 segundos para nuevas
-  setInterval(consultarPesadasNuevas, 5000);
+  // Refrescar historial cada 10 segundos para sincronizar entre dispositivos
+  // (Se simplifico: una sola fuente de verdad, sin polling adicional)
+  setInterval(cargarHistorial, 10000);
   
   // Cerrar modales al click fuera
   document.querySelectorAll('.modal-overlay').forEach(m => {
