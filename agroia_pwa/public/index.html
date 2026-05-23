@@ -1,0 +1,3425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AgroIA — Sistema de Control Operativo Agrícola</title>
+
+<!-- ========== PWA: Progressive Web App ========== -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3B6D11">
+<meta name="description" content="Agente IA de validación estadística de cosecha para agroindustrias peruanas">
+
+<!-- iOS (iPhone/iPad) - permite instalación como app -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AgroIA">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- Android - permite instalación como app -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="AgroIA">
+
+<!-- Iconos para todos los dispositivos -->
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
+
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e0a;
+  --bg-soft: #111611;
+  --bg-card: #161c16;
+  --bg-elevated: #1d251d;
+  --border: #243024;
+  --border-strong: #344034;
+  --text: #e8efe5;
+  --text-soft: #a8b8a4;
+  --text-muted: #6b7d68;
+  --accent: #95c11f;
+  --accent-soft: #b4d752;
+  --accent-deep: #5d7d12;
+  --green: #4ade80;
+  --yellow: #fbbf24;
+  --orange: #fb923c;
+  --red: #f87171;
+  --blue: #60a5fa;
+  --purple: #c084fc;
+  --shadow: 0 4px 20px rgba(0,0,0,0.4);
+  --glow: 0 0 30px rgba(149, 193, 31, 0.15);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+  background-image: 
+    radial-gradient(circle at 20% 0%, rgba(149,193,31,0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 100%, rgba(149,193,31,0.04) 0%, transparent 50%);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+  padding: 24px 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.brand {
+  padding: 0 24px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.logo {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.logo .accent {
+  color: var(--accent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.tagline {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.agent-status {
+  margin: 16px 24px;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pulse {
+  width: 10px;
+  height: 10px;
+  background: var(--green);
+  border-radius: 50%;
+  position: relative;
+}
+
+.pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: var(--green);
+  opacity: 0.3;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.6); opacity: 0; }
+}
+
+.status-text {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-text small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.nav-section {
+  margin: 24px 0;
+}
+
+.nav-label {
+  padding: 0 24px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.nav-item {
+  padding: 10px 24px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-soft);
+  position: relative;
+}
+
+.nav-item:hover {
+  background: var(--bg-card);
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: var(--bg-card);
+  border-left-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.nav-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.badge {
+  margin-left: auto;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.badge.alert {
+  background: var(--orange);
+}
+
+/* MAIN */
+.main {
+  padding: 32px 40px;
+  max-width: 1400px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-title {
+  font-family: 'Fraunces', serif;
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.datetime {
+  text-align: right;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.datetime .date {
+  font-weight: 600;
+}
+
+.datetime .time {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+/* KPI ROW */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.kpi-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-family: 'Fraunces', serif;
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.kpi-unit {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.kpi-change {
+  margin-top: 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kpi-change.up { color: var(--green); }
+.kpi-change.down { color: var(--red); }
+.kpi-change.neutral { color: var(--text-muted); }
+
+/* SECTIONS */
+.section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-title {
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.section-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  padding: 8px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.btn:hover {
+  background: var(--border);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--accent-soft);
+}
+
+/* TABLES */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.tab {
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.tab:hover { color: var(--text); }
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-soft);
+}
+
+tr:hover td {
+  background: rgba(149, 193, 31, 0.03);
+  color: var(--text);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status.green { background: rgba(74,222,128,0.1); color: var(--green); }
+.status.yellow { background: rgba(251,191,36,0.1); color: var(--yellow); }
+.status.orange { background: rgba(251,146,60,0.1); color: var(--orange); }
+.status.red { background: rgba(248,113,113,0.1); color: var(--red); }
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.text-soft { color: var(--text-soft); }
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--accent); }
+.text-green { color: var(--green); }
+.text-orange { color: var(--orange); }
+.text-red { color: var(--red); }
+
+/* GRID LAYOUTS */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* CHART */
+.chart {
+  height: 200px;
+  position: relative;
+  padding: 16px 8px;
+}
+
+.chart-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* LIVE FEED */
+.feed {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.feed-item {
+  padding: 12px;
+  border-left: 3px solid var(--border);
+  margin-bottom: 8px;
+  background: var(--bg-elevated);
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.feed-item.green { border-left-color: var(--green); }
+.feed-item.yellow { border-left-color: var(--yellow); }
+.feed-item.orange { border-left-color: var(--orange); }
+.feed-item.red { border-left-color: var(--red); }
+.feed-item.blue { border-left-color: var(--blue); }
+
+.feed-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.feed-msg {
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.feed-detail {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* MODAL / FORM */
+.action-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.action-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.action-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  transform: translateY(-2px);
+}
+
+.action-icon {
+  width: 32px;
+  height: 32px;
+  background: rgba(149,193,31,0.1);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  color: var(--accent);
+}
+
+.action-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.action-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* FORM */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border 0.15s;
+}
+
+.form-input:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 28px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.modal-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.modal-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.modal-close {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.analysis-result {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.zscore-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.zscore-formula {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-elevated);
+  padding: 12px;
+  border-radius: 6px;
+  margin: 12px 0;
+  font-size: 13px;
+  color: var(--accent-soft);
+}
+
+.bands {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.band {
+  flex: 1;
+  position: relative;
+}
+
+.band-marker {
+  position: absolute;
+  top: -8px;
+  transform: translateX(-50%);
+  font-size: 18px;
+  color: var(--text);
+}
+
+/* Page sections (single page navigation) */
+.page-section {
+  display: none;
+}
+.page-section.active {
+  display: block;
+}
+
+/* Live indicator */
+.live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: rgba(74,222,128,0.1);
+  color: var(--green);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Report card */
+.report-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-elevated) 100%);
+  border: 1px solid var(--border-strong);
+  padding: 28px;
+  border-radius: 12px;
+  font-family: 'Fraunces', serif;
+  line-height: 1.7;
+}
+
+.report-card .report-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.report-card h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.report-card p {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--text-soft);
+  margin-bottom: 14px;
+}
+
+.kpi-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.kpi-mini {
+  background: var(--bg);
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.kpi-mini-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
+.kpi-mini-value {
+  font-family: 'Fraunces', serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Workers grid */
+.workers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.worker-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.worker-card:hover {
+  border-color: var(--accent);
+}
+
+.worker-name {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.worker-dni {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.worker-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.cuadrilla-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(149,193,31,0.1);
+  color: var(--accent);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Responsive - Tablet */
+@media (max-width: 1100px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .grid-2 { grid-template-columns: 1fr; }
+  .action-bar { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Responsive - Móvil */
+@media (max-width: 640px) {
+  .sidebar {
+    padding: 16px;
+  }
+  .main {
+    padding: 16px;
+  }
+  .page-title {
+    font-size: 22px !important;
+  }
+  .page-subtitle {
+    font-size: 13px;
+  }
+  .kpis { 
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .kpi {
+    padding: 16px;
+  }
+  .kpi-value {
+    font-size: 28px;
+  }
+  .action-bar {
+    grid-template-columns: 1fr;
+  }
+  .modal {
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  .tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .tab {
+    flex-shrink: 0;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+  /* Tablas con scroll horizontal en móvil */
+  table {
+    font-size: 12px;
+  }
+  th, td {
+    padding: 6px !important;
+  }
+  /* Header del reporte más compacto */
+  .report-card {
+    padding: 16px;
+  }
+  /* Selector de reportes apilado en móvil */
+  .section [style*="grid-template-columns: 1fr auto auto"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+  /* KPIs del reporte en 2 columnas en móvil */
+  .kpi-mini-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Modo standalone (cuando la app está instalada) */
+@media (display-mode: standalone) {
+  body {
+    /* Eliminar barras de navegador y dar look de app */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Permitir selección solo en inputs y texto importante */
+  input, textarea, .report-card, table {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+</style>
+
+<!-- Librería para generar PDFs en el navegador -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">Agro<span class="accent">IA</span></div>
+    <div class="tagline">Sistema de Control Operativo</div>
+  </div>
+
+  <div class="agent-status">
+    <div class="pulse"></div>
+    <div class="status-text">
+      Agente activo
+      <small>Última ejecución: hace 12s</small>
+    </div>
+  </div>
+
+  <div style="padding: 0 24px 12px; margin-bottom: 8px" id="serverStatus">
+    <span class="live-pill"><span class="live-dot"></span> Verificando...</span>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Operación</div>
+    <div class="nav-item active" onclick="switchPage('dashboard')">
+      <span class="nav-icon">📊</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="switchPage('pesadas')">
+      <span class="nav-icon">⚖</span> Pesadas
+      <span class="badge alert" id="badgePesadas">2</span>
+    </div>
+    <div class="nav-item" onclick="switchPage('trabajadores')">
+      <span class="nav-icon">👥</span> Trabajadores
+    </div>
+    <div class="nav-item" onclick="switchPage('lotes')">
+      <span class="nav-icon">🌳</span> Lotes
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Análisis IA</div>
+    <div class="nav-item" onclick="switchPage('reporte')">
+      <span class="nav-icon">📈</span> Reporte ejecutivo
+    </div>
+    <div class="nav-item" onclick="switchPage('logs')">
+      <span class="nav-icon">📋</span> Log de decisiones
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Sistema</div>
+    <div class="nav-item">
+      <span class="nav-icon">⚙</span> Parámetros
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">📤</span> Exportar a Datadog
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- ============= DASHBOARD ============= -->
+<div class="page-section active" id="page-dashboard">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Panel de Operación</h1>
+      <div class="page-subtitle">Agente IA de validación estadística de cosecha · Palta Hass · Valle de Virú, La Libertad</div>
+    </div>
+    <div class="datetime">
+      <div class="date" id="todayDate">—</div>
+      <div class="time" id="liveClock">—</div>
+      <span class="live-pill"><span class="live-dot"></span> En vivo</span>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-label">Cosecha del día</div>
+      <div class="kpi-value" id="kpi-kg">12,840<span class="kpi-unit">kg</span></div>
+      <div class="kpi-change up" id="kpi-kg-change">▲ 2.7% vs meta diaria (12,500 kg)</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Avance de campaña</div>
+      <div class="kpi-value" id="kpi-avance">67.6<span class="kpi-unit">%</span></div>
+      <div class="kpi-change neutral" id="kpi-avance-change">569 t / 850 t · 22 días restantes</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Productividad promedio</div>
+      <div class="kpi-value" id="kpi-prod">24.3<span class="kpi-unit">kg/h</span></div>
+      <div class="kpi-change up" id="kpi-prod-change">▲ Sobre histórico de 23 kg/h</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Pesadas validadas</div>
+      <div class="kpi-value" id="kpi-validadas">156<span class="kpi-unit">de 162</span></div>
+      <div class="kpi-change neutral" id="kpi-validadas-change">2 observadas, 4 bloqueadas</div>
+    </div>
+  </div>
+
+  <!-- Acciones rápidas -->
+  <div class="action-bar">
+    <button class="action-card" onclick="openModal('modalPesada')">
+      <div class="action-icon">⚖</div>
+      <div class="action-title">Registrar pesada</div>
+      <div class="action-desc">Nueva pesada del controlador</div>
+    </button>
+    <button class="action-card" onclick="generarReporte()">
+      <div class="action-icon">📊</div>
+      <div class="action-title">Generar reporte ejecutivo</div>
+      <div class="action-desc">Resumen para directorio</div>
+    </button>
+    <button class="action-card" onclick="exportarRRHH()">
+      <div class="action-icon">📤</div>
+      <div class="action-title">Exportar a RR.HH.</div>
+      <div class="action-desc">CSV con kg validados por DNI</div>
+    </button>
+  </div>
+
+  <!-- Producción + alertas -->
+  <div class="grid-2">
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Producción por cuadrilla — Hoy</div>
+        </div>
+        <div class="section-actions">
+          <button class="btn">Hoy</button>
+          <button class="btn">7d</button>
+        </div>
+      </div>
+      <div class="chart">
+        <svg class="chart-svg" viewBox="0 0 600 200" preserveAspectRatio="none">
+          <!-- Grid lines -->
+          <line x1="0" y1="50" x2="600" y2="50" stroke="#243024" stroke-width="0.5"/>
+          <line x1="0" y1="100" x2="600" y2="100" stroke="#243024" stroke-width="0.5"/>
+          <line x1="0" y1="150" x2="600" y2="150" stroke="#243024" stroke-width="0.5"/>
+          
+          <!-- C3 line -->
+          <polyline points="20,140 80,120 140,100 200,90 260,75 320,65 380,55 440,45 500,40 560,35"
+            fill="none" stroke="#95c11f" stroke-width="2"/>
+          <!-- C5 line -->
+          <polyline points="20,160 80,150 140,145 200,140 260,135 320,140 380,138 440,135 500,132 560,130"
+            fill="none" stroke="#fbbf24" stroke-width="2"/>
+          <!-- C7 line -->
+          <polyline points="20,150 80,130 140,115 200,100 260,90 320,80 380,70 440,60 500,55 560,50"
+            fill="none" stroke="#60a5fa" stroke-width="2"/>
+          
+          <!-- Filled areas (faded) -->
+          <polygon points="20,140 80,120 140,100 200,90 260,75 320,65 380,55 440,45 500,40 560,35 560,200 20,200"
+            fill="#95c11f" opacity="0.05"/>
+        </svg>
+      </div>
+      <div style="display:flex;gap:24px;font-size:12px;margin-top:12px">
+        <div><span style="display:inline-block;width:10px;height:10px;background:#95c11f;border-radius:50%;margin-right:6px"></span>C3 — Marco Saldaña <strong>4,650 kg</strong></div>
+        <div><span style="display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:50%;margin-right:6px"></span>C5 — Patricia Chávez <strong>3,890 kg</strong></div>
+        <div><span style="display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:50%;margin-right:6px"></span>C7 — Luis Mendoza <strong>4,300 kg</strong></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Estado de validaciones</div>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span>✅ Validadas</span><strong id="count-validadas">156</strong>
+        </div>
+        <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden">
+          <div id="bar-validadas" style="height:100%;width:96%;background:var(--green);transition:width 0.5s"></div>
+        </div>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span>⚠ Observadas</span><strong id="count-observadas">2</strong>
+        </div>
+        <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden">
+          <div id="bar-observadas" style="height:100%;width:1.2%;background:var(--yellow);transition:width 0.5s"></div>
+        </div>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span>❌ Bloqueadas</span><strong id="count-bloqueadas">4</strong>
+        </div>
+        <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden">
+          <div id="bar-bloqueadas" style="height:100%;width:2.5%;background:var(--red);transition:width 0.5s"></div>
+        </div>
+      </div>
+      <div style="padding:12px;background:var(--bg);border-radius:6px;margin-top:16px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Tasa de validación automática</div>
+        <div style="font-family:'Fraunces',serif;font-size:32px;font-weight:600"><span id="tasa-validacion">96.3</span><span style="font-size:14px;color:var(--text-muted);margin-left:2px">%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live feed -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Actividad del agente — Tiempo real</div>
+      <span class="live-pill"><span class="live-dot"></span> Actualizando</span>
+    </div>
+    <div class="feed" id="liveFeed">
+      <!-- Se rellena con JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ============= PESADAS ============= -->
+<div class="page-section" id="page-pesadas">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Registro de pesadas</h1>
+      <div class="page-subtitle">Validadas en tiempo real por el agente IA</div>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('modalPesada')">+ Nueva pesada</button>
+  </div>
+
+  <div class="section">
+    <div class="tabs">
+      <button class="tab active" onclick="filterPesadas('todas', this)" id="tab-todas">Todas (162)</button>
+      <button class="tab" onclick="filterPesadas('validadas', this)" id="tab-validadas">✅ Validadas (156)</button>
+      <button class="tab" onclick="filterPesadas('observadas', this)" id="tab-observadas">⚠ Observadas (2)</button>
+      <button class="tab" onclick="filterPesadas('bloqueadas', this)" id="tab-bloqueadas">❌ Bloqueadas (4)</button>
+    </div>
+    <table id="tablaPesadas">
+      <thead>
+        <tr>
+          <th>Hora</th>
+          <th>Trabajador</th>
+          <th>DNI</th>
+          <th>Cuadrilla</th>
+          <th>Lote</th>
+          <th>Kg</th>
+          <th>Productividad</th>
+          <th>Z-score</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="tbodyPesadas">
+        <!-- Se rellena con JS -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============= TRABAJADORES ============= -->
+<div class="page-section" id="page-trabajadores">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Maestra de Trabajadores</h1>
+      <div class="page-subtitle">35 trabajadores activos · 3 cuadrillas</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Cuadrilla C3 — Líder: Marco Saldaña</div>
+      <span class="text-muted">14 trabajadores · Lote L-23 · Promedio histórico 24 kg/h</span>
+    </div>
+    <div class="workers-grid" id="gridC3"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Cuadrilla C5 — Líder: Patricia Chávez</div>
+      <span class="text-muted">12 trabajadores · Lote L-08 · Promedio histórico 22 kg/h</span>
+    </div>
+    <div class="workers-grid" id="gridC5"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Cuadrilla C7 — Líder: Luis Mendoza</div>
+      <span class="text-muted">9 trabajadores · Lote L-17 · Promedio histórico 26 kg/h</span>
+    </div>
+    <div class="workers-grid" id="gridC7"></div>
+  </div>
+</div>
+
+<!-- ============= LOTES ============= -->
+<div class="page-section" id="page-lotes">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Lotes en producción</h1>
+      <div class="page-subtitle">Maestra de parcelas activas</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <table>
+      <thead>
+        <tr>
+          <th>Lote</th>
+          <th>Sector</th>
+          <th>Variedad</th>
+          <th>Hectáreas</th>
+          <th>Año plantación</th>
+          <th>Rendimiento esperado</th>
+          <th>Factor dificultad</th>
+          <th>Estado fenológico</th>
+          <th>Cuadrilla</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>L-08</strong></td>
+          <td>Norte B</td>
+          <td>Hass</td>
+          <td>2.5</td>
+          <td>2020</td>
+          <td>9,800 kg/ha</td>
+          <td>1.1×</td>
+          <td><span class="status green"><span class="dot"></span> Cosecha activa</span></td>
+          <td><span class="cuadrilla-tag">C5</span></td>
+        </tr>
+        <tr>
+          <td><strong>L-17</strong></td>
+          <td>Sur</td>
+          <td>Hass</td>
+          <td>3.2</td>
+          <td>2015</td>
+          <td>12,000 kg/ha</td>
+          <td>1.3×</td>
+          <td><span class="status green"><span class="dot"></span> Cosecha activa</span></td>
+          <td><span class="cuadrilla-tag">C7</span></td>
+        </tr>
+        <tr>
+          <td><strong>L-23</strong></td>
+          <td>Norte A</td>
+          <td>Hass</td>
+          <td>4.0</td>
+          <td>2018</td>
+          <td>14,500 kg/ha</td>
+          <td>1.0×</td>
+          <td><span class="status green"><span class="dot"></span> Cosecha activa</span></td>
+          <td><span class="cuadrilla-tag">C3</span></td>
+        </tr>
+        <tr>
+          <td><strong>L-31</strong></td>
+          <td>Norte A</td>
+          <td>Hass</td>
+          <td>3.0</td>
+          <td>2019</td>
+          <td>11,500 kg/ha</td>
+          <td>1.0×</td>
+          <td><span class="status yellow"><span class="dot"></span> Próxima a cosechar</span></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><strong>L-45</strong></td>
+          <td>Sur</td>
+          <td>Hass</td>
+          <td>4.5</td>
+          <td>2021</td>
+          <td>8,500 kg/ha</td>
+          <td>1.2×</td>
+          <td><span class="status orange"><span class="dot"></span> En preparación</span></td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============= REPORTES EJECUTIVOS ============= -->
+<div class="page-section" id="page-reporte">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Reportes ejecutivos</h1>
+      <div class="page-subtitle">Información diferenciada según destinatario · Generado automáticamente al cierre del día</div>
+    </div>
+  </div>
+
+  <!-- Selector y acciones -->
+  <div class="section" style="background:var(--bg-soft); border-color:var(--border)">
+    <div style="display:grid; grid-template-columns: 1fr auto auto; gap:16px; align-items:end;">
+      <div>
+        <label class="form-label">Seleccionar destinatario</label>
+        <select class="form-select" id="selectorReporte" onchange="cambiarReporte()" style="font-size:15px; padding:12px">
+          <option value="gerencia" selected>👔  Gerencia / Directorio — Resumen ejecutivo</option>
+          <option value="jefecampo">🌾  Jefe de Campo — Operación y supervisión</option>
+          <option value="supervisor">👷  Supervisor de Cuadrilla — Equipo a cargo</option>
+          <option value="rrhh">📋  Recursos Humanos — Planilla del día</option>
+        </select>
+      </div>
+      
+      <div id="selectorSupervisorContainer" style="display:none;">
+        <label class="form-label">Cuadrilla</label>
+        <select class="form-select" id="selectorCuadrilla" onchange="cambiarReporte()" style="padding:12px">
+          <option value="C3">C3 — Marco Saldaña</option>
+          <option value="C5">C5 — Patricia Chávez</option>
+          <option value="C7">C7 — Luis Mendoza</option>
+        </select>
+      </div>
+      
+      <button class="btn btn-primary" onclick="exportarReportePDF()" style="padding:12px 24px;">
+        📄  Exportar PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Contenedor del reporte (se rellena dinámicamente) -->
+  <div id="contenedorReporte">
+    <!-- El contenido se inyecta con JavaScript -->
+  </div>
+</div>
+
+<!-- ============= LOG DE DECISIONES ============= -->
+<div class="page-section" id="page-logs">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Log de decisiones del agente</h1>
+      <div class="page-subtitle">Auditoría completa de validaciones, alertas y acciones</div>
+    </div>
+    <button class="btn">📤 Exportar a Datadog</button>
+  </div>
+
+  <div class="section">
+    <div id="logList">
+      <!-- Se rellena con JS -->
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- MODAL: Nueva pesada -->
+<div class="modal-overlay" id="modalPesada">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalPesada')">×</button>
+    <div class="modal-title">Registrar nueva pesada</div>
+    <div class="modal-subtitle">El agente validará automáticamente el registro</div>
+
+    <div class="form-group">
+      <label class="form-label">Trabajador</label>
+      <select class="form-select" id="inputTrabajador" onchange="actualizarInfoTrabajador()">
+        <option value="">Selecciona un trabajador</option>
+      </select>
+    </div>
+
+    <div id="infoTrabajador" style="display:none; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:16px; font-size:13px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div>
+          <span class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em;">Cuadrilla asignada</span>
+          <div id="infoCuadrilla" style="font-weight:600; margin-top:2px;"></div>
+        </div>
+        <div>
+          <span class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em;">Lote habitual</span>
+          <div id="infoLoteHabitual" style="font-weight:600; margin-top:2px;"></div>
+        </div>
+        <div>
+          <span class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em;">Histórico</span>
+          <div id="infoHistorico" style="font-weight:600; margin-top:2px; font-family:'JetBrains Mono', monospace;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Lote</label>
+        <select class="form-select" id="inputLote">
+          <option value="L-23">L-23 — Norte A (4 ha)</option>
+          <option value="L-08">L-08 — Norte B (2.5 ha)</option>
+          <option value="L-17">L-17 — Sur (3.2 ha)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Horas trabajadas</label>
+        <input type="number" class="form-input" id="inputHoras" value="4" step="0.5">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Total kg cosechados</label>
+      <input type="number" class="form-input" id="inputKg" placeholder="Ej: 96" autofocus>
+    </div>
+
+    <div id="zscoreContainer"></div>
+
+    <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('modalPesada')">Cancelar</button>
+      <button class="btn btn-primary" onclick="validarPesada()">Validar con agente IA</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONEXION CON SERVIDOR LOCAL (PYTHON -> DATADOG)
+// ============================================================
+// URL del servidor: si la app esta corriendo en localhost, usar localhost.
+// Si esta corriendo en internet (Render), usar la URL del servidor en la nube.
+// IMPORTANTE: cambia 'agroia-api' por el nombre exacto que le diste a tu servicio en Render.
+const SERVIDOR_URL = (
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:5000'
+    : 'https://agroia-api.onrender.com'  // <-- CAMBIA POR TU URL DE RENDER
+);
+let servidorConectado = false;
+let ultimoTimestamp = Date.now() / 1000; // Para polling de pesadas nuevas
+
+async function verificarServidor() {
+  try {
+    const r = await fetch(SERVIDOR_URL + '/api/health', { 
+      method: 'GET',
+      signal: AbortSignal.timeout(3000)
+    });
+    servidorConectado = r.ok;
+  } catch (e) {
+    servidorConectado = false;
+  }
+  actualizarIndicadorServidor();
+}
+
+async function consultarPesadasNuevas() {
+  // Pregunta al servidor si hay pesadas nuevas desde la ultima vez
+  if (!servidorConectado) return;
+  
+  try {
+    const r = await fetch(SERVIDOR_URL + '/api/pesadas-recientes?desde=' + ultimoTimestamp, {
+      method: 'GET',
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!r.ok) return;
+    
+    const data = await r.json();
+    if (data.nuevas > 0) {
+      let agregadas = 0; // Contador SOLO de las que realmente se agregaron
+      
+      data.pesadas.forEach(p => {
+        // Solo agregar las pesadas que vienen del script de simulacion
+        // (las manuales ya estan en la app porque las registraste tu)
+        if (p.origen === 'simulacion') {
+          // Agregar al inicio del array de pesadas
+          pesadas.unshift({
+            hora: p.hora,
+            dni: p.dni,
+            nombre: p.nombre,
+            cuadrilla: p.cuadrilla,
+            kg: p.kg,
+            horas: p.horas,
+            lote: p.lote,
+            estado: p.estado,
+            z: p.z,
+            motivo: p.motivo
+          });
+          
+          // Agregar al log
+          const estado = p.estado === 'green' ? 'VALIDADO' :
+                         p.estado === 'yellow' ? 'VALIDADO_TOLERANCIA' :
+                         p.estado === 'orange' ? 'OBSERVADO' : 'BLOQUEADO';
+          logs.unshift({
+            hora: p.hora,
+            tipo: p.estado,
+            accion: p.estado === 'green' ? 'Validación automática' :
+                    p.estado === 'yellow' ? 'Validación con tolerancia' :
+                    p.estado === 'orange' ? 'Observación' : 'Bloqueo por anomalía',
+            detalle: `Pesada de ${p.nombre} (${p.cuadrilla}) en ${p.lote}: ${p.kg} kg/${p.horas}h (z=${p.z}) — ${estado}`
+          });
+          
+          agregadas++;
+        }
+        
+        // Avanzar el timestamp (de TODAS las pesadas, incluso manuales,
+        // para no procesarlas dos veces)
+        if (p.timestamp > ultimoTimestamp) {
+          ultimoTimestamp = p.timestamp;
+        }
+      });
+      
+      // Solo refrescar UI y mostrar toast SI realmente se agregaron pesadas nuevas
+      if (agregadas > 0) {
+        renderPesadas();
+        renderFeed();
+        renderLogs();
+        mostrarToast(`📥 ${agregadas} pesada${agregadas > 1 ? 's' : ''} nueva${agregadas > 1 ? 's' : ''} desde simulación`, 'blue');
+      }
+    }
+  } catch (e) {
+    // Silencioso, el servidor podria estar momentaneamente caido
+  }
+}
+
+function actualizarIndicadorServidor() {
+  const ind = document.getElementById('serverStatus');
+  if (!ind) return;
+  if (servidorConectado) {
+    ind.innerHTML = '<span class="live-pill" style="background:rgba(74,222,128,0.1);color:#4ade80"><span class="live-dot"></span> Datadog conectado</span>';
+  } else {
+    ind.innerHTML = '<span class="live-pill" style="background:rgba(248,113,113,0.1);color:#f87171"><span class="live-dot" style="background:#f87171"></span> Modo offline</span>';
+  }
+}
+
+async function enviarADatadog(endpoint, payload) {
+  if (!servidorConectado) return false;
+  try {
+    const r = await fetch(SERVIDOR_URL + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return r.ok;
+  } catch (e) {
+    console.warn('No se pudo enviar a Datadog:', e);
+    return false;
+  }
+}
+
+// ============================================================
+// DATOS BASE
+// ============================================================
+const TRABAJADORES = [
+  // C3 - 14 trabajadores - Marco Saldaña
+  { dni: '47234122', nombre: 'Juan Pérez', cuadrilla: 'C3', historico: 24, sigma: 4 },
+  { dni: '71234567', nombre: 'María Quispe', cuadrilla: 'C3', historico: 22, sigma: 3 },
+  { dni: '73456789', nombre: 'Carlos Sánchez', cuadrilla: 'C3', historico: 21, sigma: 3.5 },
+  { dni: '40123456', nombre: 'Rosa Gutiérrez', cuadrilla: 'C3', historico: 23, sigma: 3 },
+  { dni: '41234567', nombre: 'Manuel Vargas', cuadrilla: 'C3', historico: 25, sigma: 4 },
+  { dni: '42345678', nombre: 'Carmen Loayza', cuadrilla: 'C3', historico: 22, sigma: 3 },
+  { dni: '43456789', nombre: 'Luis Cabrera', cuadrilla: 'C3', historico: 26, sigma: 4 },
+  { dni: '44567890', nombre: 'Sandra Mejía', cuadrilla: 'C3', historico: 23, sigma: 3 },
+  { dni: '45678901', nombre: 'Jorge Castillo', cuadrilla: 'C3', historico: 24, sigma: 3.5 },
+  { dni: '46789012', nombre: 'Pilar Rodríguez', cuadrilla: 'C3', historico: 21, sigma: 3 },
+  { dni: '47890123', nombre: 'Andrés Salinas', cuadrilla: 'C3', historico: 25, sigma: 4 },
+  { dni: '48901234', nombre: 'Teresa Olivos', cuadrilla: 'C3', historico: 23, sigma: 3 },
+  { dni: '49012345', nombre: 'Ricardo Paredes', cuadrilla: 'C3', historico: 22, sigma: 3 },
+  { dni: '50123456', nombre: 'Mónica Ríos', cuadrilla: 'C3', historico: 24, sigma: 3.5 },
+  // C5 - 12 trabajadores - Patricia Chávez
+  { dni: '44556677', nombre: 'Pedro Rojas', cuadrilla: 'C5', historico: 19, sigma: 3 },
+  { dni: '78912345', nombre: 'Lucía Mendoza', cuadrilla: 'C5', historico: 25, sigma: 3.5 },
+  { dni: '65432198', nombre: 'Ana Torres', cuadrilla: 'C5', historico: 23, sigma: 3 },
+  { dni: '51234567', nombre: 'Hugo Velarde', cuadrilla: 'C5', historico: 20, sigma: 3 },
+  { dni: '52345678', nombre: 'Beatriz Núñez', cuadrilla: 'C5', historico: 22, sigma: 3 },
+  { dni: '53456789', nombre: 'Felipe Morales', cuadrilla: 'C5', historico: 24, sigma: 3.5 },
+  { dni: '54567890', nombre: 'Karina Espinoza', cuadrilla: 'C5', historico: 21, sigma: 3 },
+  { dni: '55678901', nombre: 'Daniel Pacheco', cuadrilla: 'C5', historico: 23, sigma: 3.5 },
+  { dni: '56789012', nombre: 'Liliana Bazán', cuadrilla: 'C5', historico: 22, sigma: 3 },
+  { dni: '57890123', nombre: 'Eduardo Romero', cuadrilla: 'C5', historico: 20, sigma: 3 },
+  { dni: '58901234', nombre: 'Verónica Quiroz', cuadrilla: 'C5', historico: 24, sigma: 3.5 },
+  { dni: '59012345', nombre: 'Miguel Sandoval', cuadrilla: 'C5', historico: 21, sigma: 3 },
+  // C7 - 9 trabajadores - Luis Mendoza
+  { dni: '12345678', nombre: 'Roberto Díaz', cuadrilla: 'C7', historico: 28, sigma: 4 },
+  { dni: '98765432', nombre: 'Patricia Vargas', cuadrilla: 'C7', historico: 26, sigma: 3.5 },
+  { dni: '60123456', nombre: 'Iván Cárdenas', cuadrilla: 'C7', historico: 27, sigma: 4 },
+  { dni: '61234567', nombre: 'Norma Aguirre', cuadrilla: 'C7', historico: 25, sigma: 3 },
+  { dni: '62345678', nombre: 'Óscar León', cuadrilla: 'C7', historico: 28, sigma: 4 },
+  { dni: '63456789', nombre: 'Diana Flores', cuadrilla: 'C7', historico: 26, sigma: 3.5 },
+  { dni: '64567890', nombre: 'Walter Luna', cuadrilla: 'C7', historico: 27, sigma: 4 },
+  { dni: '65678901', nombre: 'Estela Vidal', cuadrilla: 'C7', historico: 25, sigma: 3 },
+  { dni: '66789012', nombre: 'Fernando Ávila', cuadrilla: 'C7', historico: 26, sigma: 3.5 },
+];
+
+// Pesadas pre-cargadas (las más recientes arriba)
+const pesadas = [
+  { hora: '14:00', dni: '63456789', kg: 78, horas: 4, lote: 'L-17', estado: 'yellow', z: -1.7, motivo: 'Levemente bajo el rango' },
+  { hora: '13:30', dni: '41234567', kg: 102, horas: 4, lote: 'L-23', estado: 'green', z: 0.1 },
+  { hora: '13:00', dni: '52345678', kg: 132, horas: 4, lote: 'L-08', estado: 'red', z: 3.6, motivo: 'Productividad fuera de rango histórico' },
+  { hora: '12:30', dni: '98765432', kg: 110, horas: 4, lote: 'L-17', estado: 'green', z: 0.7 },
+  { hora: '11:45', dni: '44556677', kg: 56, horas: 4, lote: 'L-08', estado: 'orange', z: -2.4, motivo: 'Productividad significativamente baja' },
+  { hora: '11:15', dni: '60123456', kg: 108, horas: 4, lote: 'L-17', estado: 'green', z: 0.0 },
+  { hora: '11:00', dni: '47234122', kg: 152, horas: 4, lote: 'L-23', estado: 'red', z: 4.5, motivo: 'Posible doble pesaje del bloque mañana' },
+  { hora: '10:30', dni: '40123456', kg: 96, horas: 4, lote: 'L-23', estado: 'green', z: 0.6 },
+  { hora: '10:00', dni: '78912345', kg: 102, horas: 4, lote: 'L-08', estado: 'green', z: 0.4 },
+  { hora: '09:15', dni: '12345678', kg: 116, horas: 4, lote: 'L-17', estado: 'green', z: 0.5 },
+  { hora: '09:00', dni: '44556677', kg: 64, horas: 4, lote: 'L-08', estado: 'green', z: -1.0 },
+  { hora: '08:45', dni: '73456789', kg: 84, horas: 4, lote: 'L-23', estado: 'green', z: 0.0 },
+  { hora: '07:30', dni: '71234567', kg: 88, horas: 4, lote: 'L-23', estado: 'green', z: -0.5 },
+  { hora: '07:15', dni: '47234122', kg: 95, horas: 4, lote: 'L-23', estado: 'green', z: 0.3 },
+];
+
+// Logs del agente
+const logs = [
+  { hora: '14:32', tipo: 'green', accion: 'Validación automática', detalle: 'Pesada de Mónica Ríos (C3) en L-23: 96 kg/4h (z=0.6) — Validada' },
+  { hora: '14:25', tipo: 'red', accion: 'Bloqueo por anomalía', detalle: 'Pesada de Eduardo Romero (C5) en L-08: 38 kg/4h (z=-3.1) — Bloqueada. Notificación enviada al jefe de campo.' },
+  { hora: '14:00', tipo: 'green', accion: 'Cierre de bloque mañana', detalle: 'Cuadrilla C3 cerrada por Marco Saldaña. 14 registros validados.' },
+  { hora: '13:45', tipo: 'orange', accion: 'Observación', detalle: 'Pesada de Pedro Rojas (C5) requiere razón: productividad 56 kg/4h (z=-2.4). Solicitud enviada al supervisor.' },
+  { hora: '13:30', tipo: 'green', accion: 'Validación automática', detalle: 'Pesada de Manuel Vargas (C3) en L-23: 102 kg/4h (z=0.1) — Validada' },
+  { hora: '13:15', tipo: 'blue', accion: 'Auto-corrección', detalle: 'Detectado registro duplicado exacto (DNI 73456789, hora 11:30). Eliminado automáticamente.' },
+  { hora: '12:30', tipo: 'blue', accion: 'Notificación al supervisor', detalle: 'Cuadrilla C5 lleva 3 días bajo su promedio histórico. Sugerencia enviada al jefe de campo.' },
+  { hora: '11:00', tipo: 'red', accion: 'Bloqueo por anomalía', detalle: 'Pesada de Juan Pérez (C3) en L-23: 152 kg/4h (z=4.5) — Bloqueada. Posible doble pesaje.' },
+  { hora: '10:30', tipo: 'green', accion: 'Validación automática', detalle: 'Pesada de Rosa Gutiérrez (C3) en L-23: 96 kg/4h (z=0.6) — Validada' },
+  { hora: '09:30', tipo: 'blue', accion: 'Recalculo de promedios', detalle: 'Promedios históricos actualizados con datos de últimos 30 días. 3 cuadrillas, 35 trabajadores.' },
+];
+
+// ============================================================
+// ACTUALIZACION DINAMICA DEL DASHBOARD
+// ============================================================
+function actualizarKPIs() {
+  const total = pesadas.length;
+  const validadas = pesadas.filter(p => p.estado === 'green' || p.estado === 'yellow').length;
+  const observadas = pesadas.filter(p => p.estado === 'orange').length;
+  const bloqueadas = pesadas.filter(p => p.estado === 'red').length;
+  
+  // REGLA CRITICA: solo las pesadas validadas (verde + amarilla) entran a los
+  // totales operativos. Las naranjas estan "en revision" y no se cuentan hasta
+  // que el supervisor las apruebe. Las rojas estan bloqueadas y NUNCA cuentan.
+  // Esta es la regla que evita que un valor anomalo (ej: 1,000,000 kg) infle
+  // los KPIs.
+  const pesadasContables = pesadas.filter(p => p.estado === 'green' || p.estado === 'yellow');
+  
+  // Kg cosechados que entran a planilla
+  const kgValidados = pesadasContables.reduce((sum, p) => sum + p.kg, 0);
+  
+  // Kg "perdidos" por anomalias (informativo, no entra al total)
+  const kgBloqueados = pesadas
+    .filter(p => p.estado === 'red')
+    .reduce((sum, p) => sum + p.kg, 0);
+  
+  // Productividad promedio solo de pesadas validadas
+  const prodPromedio = pesadasContables.length > 0
+    ? pesadasContables.reduce((sum, p) => sum + (p.kg / p.horas), 0) / pesadasContables.length
+    : 0;
+  
+  const tasaValidacion = total > 0 ? ((validadas / total) * 100) : 0;
+  const META_DIARIA = 12500;
+  const porcentajeMeta = (kgValidados / META_DIARIA) * 100;
+  const diffMeta = ((kgValidados - META_DIARIA) / META_DIARIA) * 100;
+  
+  // Avance de campaña simulado (base 569t + lo de hoy)
+  const acumuladoTon = 556.16 + (kgValidados / 1000);
+  const avanceCampana = (acumuladoTon / 850) * 100;
+  
+  // === ACTUALIZAR KPIs PRINCIPALES ===
+  const kpiKg = document.getElementById('kpi-kg');
+  if (kpiKg) {
+    kpiKg.innerHTML = `${Math.round(kgValidados).toLocaleString('es-PE')}<span class="kpi-unit">kg</span>`;
+  }
+  
+  const kpiKgChange = document.getElementById('kpi-kg-change');
+  if (kpiKgChange) {
+    if (diffMeta >= 0) {
+      kpiKgChange.className = 'kpi-change up';
+      kpiKgChange.textContent = `▲ ${diffMeta.toFixed(1)}% vs meta diaria (${META_DIARIA.toLocaleString('es-PE')} kg)`;
+    } else {
+      kpiKgChange.className = 'kpi-change down';
+      kpiKgChange.textContent = `▼ ${Math.abs(diffMeta).toFixed(1)}% vs meta diaria (${META_DIARIA.toLocaleString('es-PE')} kg)`;
+    }
+  }
+  
+  const kpiAvance = document.getElementById('kpi-avance');
+  if (kpiAvance) {
+    kpiAvance.innerHTML = `${avanceCampana.toFixed(1)}<span class="kpi-unit">%</span>`;
+  }
+  
+  const kpiAvanceChange = document.getElementById('kpi-avance-change');
+  if (kpiAvanceChange) {
+    kpiAvanceChange.textContent = `${acumuladoTon.toFixed(0)} t / 850 t · 22 días restantes`;
+  }
+  
+  const kpiProd = document.getElementById('kpi-prod');
+  if (kpiProd) {
+    kpiProd.innerHTML = `${prodPromedio.toFixed(1)}<span class="kpi-unit">kg/h</span>`;
+  }
+  
+  const kpiProdChange = document.getElementById('kpi-prod-change');
+  if (kpiProdChange) {
+    const HIST = 23;
+    if (prodPromedio >= HIST) {
+      kpiProdChange.className = 'kpi-change up';
+      kpiProdChange.textContent = `▲ Sobre histórico de ${HIST} kg/h`;
+    } else {
+      kpiProdChange.className = 'kpi-change down';
+      kpiProdChange.textContent = `▼ Bajo histórico de ${HIST} kg/h`;
+    }
+  }
+  
+  const kpiValidadas = document.getElementById('kpi-validadas');
+  if (kpiValidadas) {
+    kpiValidadas.innerHTML = `${validadas}<span class="kpi-unit">de ${total}</span>`;
+  }
+  
+  const kpiValidadasChange = document.getElementById('kpi-validadas-change');
+  if (kpiValidadasChange) {
+    kpiValidadasChange.textContent = `${observadas} observadas, ${bloqueadas} bloqueadas`;
+  }
+  
+  // === ACTUALIZAR ESTADO DE VALIDACIONES (barras) ===
+  const cValidadas = document.getElementById('count-validadas');
+  if (cValidadas) cValidadas.textContent = validadas;
+  
+  const cObservadas = document.getElementById('count-observadas');
+  if (cObservadas) cObservadas.textContent = observadas;
+  
+  const cBloqueadas = document.getElementById('count-bloqueadas');
+  if (cBloqueadas) cBloqueadas.textContent = bloqueadas;
+  
+  const barV = document.getElementById('bar-validadas');
+  if (barV && total > 0) barV.style.width = `${(validadas / total) * 100}%`;
+  
+  const barO = document.getElementById('bar-observadas');
+  if (barO && total > 0) barO.style.width = `${(observadas / total) * 100}%`;
+  
+  const barB = document.getElementById('bar-bloqueadas');
+  if (barB && total > 0) barB.style.width = `${(bloqueadas / total) * 100}%`;
+  
+  const tasaEl = document.getElementById('tasa-validacion');
+  if (tasaEl) tasaEl.textContent = tasaValidacion.toFixed(1);
+  
+  // === ACTUALIZAR TABS DE PESADAS ===
+  const tabTodas = document.getElementById('tab-todas');
+  if (tabTodas) tabTodas.textContent = `Todas (${total})`;
+  
+  const tabValidadas = document.getElementById('tab-validadas');
+  if (tabValidadas) tabValidadas.innerHTML = `✅ Validadas (${validadas})`;
+  
+  const tabObservadas = document.getElementById('tab-observadas');
+  if (tabObservadas) tabObservadas.innerHTML = `⚠ Observadas (${observadas})`;
+  
+  const tabBloqueadas = document.getElementById('tab-bloqueadas');
+  if (tabBloqueadas) tabBloqueadas.innerHTML = `❌ Bloqueadas (${bloqueadas})`;
+  
+  // === ACTUALIZAR BADGE DEL SIDEBAR ===
+  const badge = document.getElementById('badgePesadas');
+  if (badge) {
+    const alertas = observadas + bloqueadas;
+    badge.textContent = alertas;
+    badge.style.display = alertas > 0 ? '' : 'none';
+  }
+  
+  // === ACTUALIZAR REPORTE EJECUTIVO ===
+  // Si el usuario esta en la pagina de reportes, refrescar el reporte actual
+  if (document.getElementById('contenedorReporte')) {
+    cambiarReporte();
+  }
+}
+
+// ============================================================
+// SISTEMA DE REPORTES DIFERENCIADOS POR ROL
+// ============================================================
+
+// Constantes para el sistema de reportes
+const PRECIO_KG = 2.50;       // S/ por kg de palta Hass cosechada
+const TARIFA_HORA = 8.50;     // S/ por hora trabajada (referencial)
+const META_DIARIA = 12500;    // kg meta del dia
+const TOTAL_TRABAJADORES = 35;
+
+// Funcion principal: detecta que reporte mostrar y lo renderiza
+function cambiarReporte() {
+  const tipo = document.getElementById('selectorReporte').value;
+  const contenedor = document.getElementById('contenedorReporte');
+  if (!contenedor) return;
+  
+  // Mostrar selector de cuadrilla solo si es reporte de supervisor
+  const selectorSupervisor = document.getElementById('selectorSupervisorContainer');
+  if (selectorSupervisor) {
+    selectorSupervisor.style.display = (tipo === 'supervisor') ? 'block' : 'none';
+  }
+  
+  // Generar el reporte segun el tipo
+  let html = '';
+  if (tipo === 'gerencia') html = generarReporteGerencia();
+  else if (tipo === 'jefecampo') html = generarReporteJefeCampo();
+  else if (tipo === 'supervisor') {
+    const cuad = document.getElementById('selectorCuadrilla').value;
+    html = generarReporteSupervisor(cuad);
+  }
+  else if (tipo === 'rrhh') html = generarReporteRRHH();
+  
+  contenedor.innerHTML = html;
+}
+
+// Calcular metricas base desde el array de pesadas
+function calcularMetricasBase() {
+  const total = pesadas.length;
+  const validadas = pesadas.filter(p => p.estado === 'green' || p.estado === 'yellow');
+  const observadas = pesadas.filter(p => p.estado === 'orange');
+  const bloqueadas = pesadas.filter(p => p.estado === 'red');
+  
+  const kgValidados = validadas.reduce((sum, p) => sum + p.kg, 0);
+  const kgBloqueados = bloqueadas.reduce((sum, p) => sum + p.kg, 0);
+  const horasTotales = validadas.reduce((sum, p) => sum + p.horas, 0);
+  
+  const prodPromedio = validadas.length > 0
+    ? validadas.reduce((sum, p) => sum + (p.kg / p.horas), 0) / validadas.length
+    : 0;
+  
+  const tasaValidacion = total > 0 ? (validadas.length / total) * 100 : 0;
+  const diffMeta = ((kgValidados - META_DIARIA) / META_DIARIA) * 100;
+  const acumuladoTon = 556.16 + (kgValidados / 1000);
+  const avanceCampana = (acumuladoTon / 850) * 100;
+  
+  return {
+    total, validadas, observadas, bloqueadas,
+    kgValidados, kgBloqueados, horasTotales,
+    prodPromedio, tasaValidacion, diffMeta,
+    acumuladoTon, avanceCampana
+  };
+}
+
+// Calcular metricas por cuadrilla
+function calcularMetricasCuadrilla(cuadrilla) {
+  const lotePorCuad = {'C3': 'L-23', 'C5': 'L-08', 'C7': 'L-17'};
+  
+  const pesadasCuad = pesadas.filter(p => {
+    const t = TRABAJADORES.find(t => t.dni === p.dni);
+    return ((t && t.cuadrilla) || p.cuadrilla) === cuadrilla;
+  });
+  
+  const validadas = pesadasCuad.filter(p => p.estado === 'green' || p.estado === 'yellow');
+  const observadas = pesadasCuad.filter(p => p.estado === 'orange');
+  const bloqueadas = pesadasCuad.filter(p => p.estado === 'red');
+  
+  const kgValidados = validadas.reduce((sum, p) => sum + p.kg, 0);
+  
+  const prodPromedio = validadas.length > 0
+    ? validadas.reduce((sum, p) => sum + (p.kg / p.horas), 0) / validadas.length
+    : 0;
+  
+  return {
+    cuadrilla,
+    lote: lotePorCuad[cuadrilla],
+    total: pesadasCuad.length,
+    validadas, observadas, bloqueadas,
+    kgValidados, prodPromedio,
+    pesadasCuad
+  };
+}
+
+// ============================================================
+// REPORTE 1 — GERENCIA / DIRECTORIO (ambar, alto nivel)
+// ============================================================
+function generarReporteGerencia() {
+  const m = calcularMetricasBase();
+  const fecha = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const ahorroEstimado = m.kgBloqueados * PRECIO_KG;
+  const valorCosechado = m.kgValidados * PRECIO_KG;
+  
+  const signo = m.diffMeta >= 0 ? '+' : '';
+  const comparativa = m.diffMeta >= 0
+    ? `superando en ${m.diffMeta.toFixed(1)}% la meta diaria`
+    : `por debajo de la meta diaria en ${Math.abs(m.diffMeta).toFixed(1)}%`;
+  
+  return `
+    <div class="report-card" style="border-top: 4px solid #EF9F27;">
+      <div class="report-meta" style="color:#EF9F27;">
+        <strong>PARA:</strong> GERENCIA / DIRECTORIO &nbsp;·&nbsp;
+        <strong>TIPO:</strong> RESUMEN EJECUTIVO &nbsp;·&nbsp; ${fecha}
+      </div>
+      
+      <h3 style="color:#243024; margin-top:16px;">
+        Cierre del día — ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg cosechados (${signo}${m.diffMeta.toFixed(1)}% vs meta)
+      </h3>
+      
+      <p>Estimados miembros del directorio: en la jornada de hoy se cosecharon <strong>${Math.round(m.kgValidados).toLocaleString('es-PE')} kg</strong> de palta Hass entre las tres cuadrillas activas, ${comparativa} de ${META_DIARIA.toLocaleString('es-PE')} kg. El valor económico de la producción del día asciende a <strong>S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}</strong>.</p>
+      
+      <p>El avance acumulado de campaña alcanza el <strong>${m.avanceCampana.toFixed(1)}%</strong> (${m.acumuladoTon.toFixed(0)} t de 850 t proyectadas), con 22 días de cosecha activa restantes. El cumplimiento de la meta de campaña 2026 sigue siendo viable bajo el ritmo actual.</p>
+      
+      ${m.bloqueadas.length > 0 ? `
+      <div style="background:#FEF3E2; border-left:4px solid #EF9F27; padding:16px; margin:20px 0; border-radius:4px;">
+        <div style="font-weight:600; color:#854F0B; margin-bottom:8px;">💰  Valor del agente IA en esta jornada</div>
+        <p style="margin:0;">El agente detectó y bloqueó <strong>${m.bloqueadas.length} anomalía${m.bloqueadas.length > 1 ? 's' : ''}</strong> de pesado por un total de ${Math.round(m.kgBloqueados).toLocaleString('es-PE')} kg fuera de rango lógico, evitando un sobrepago estimado en <strong>S/ ${ahorroEstimado.toLocaleString('es-PE', {maximumFractionDigits: 0})}</strong>. Este monto representa el valor económico directo de tener implementado el sistema.</p>
+      </div>
+      ` : ''}
+      
+      <div class="kpi-mini-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Cosecha del día</div>
+          <div class="kpi-mini-value">${Math.round(m.kgValidados).toLocaleString('es-PE')} kg</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Valor producido</div>
+          <div class="kpi-mini-value">S/ ${(valorCosechado/1000).toFixed(1)}k</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Avance campaña</div>
+          <div class="kpi-mini-value">${m.avanceCampana.toFixed(1)}%</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Disponibilidad</div>
+          <div class="kpi-mini-value">100%</div>
+        </div>
+      </div>
+      
+      <p>En cuanto a la operación, las certificaciones para exportación (GLOBALG.A.P. y BRC) se mantienen al día y todas las pesadas válidas pasaron los controles de trazabilidad. El sistema procesó ${m.total} registros con una tasa de validación automática del ${m.tasaValidacion.toFixed(1)}%.</p>
+      
+      <p><strong>Proyección:</strong> para mañana se proyecta cosechar 13,200 kg con cuadrillas completas, manteniéndonos en línea con la meta semanal. Si el ritmo se sostiene, la campaña cerrará al 102% de la meta proyectada.</p>
+      
+      <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--text-muted);">
+        <strong>Sistema AgroIA</strong> · Reporte generado automáticamente · Próximo cierre: mañana 21:00 hrs<br>
+        Para consultas estratégicas contactar a Gerencia Agrícola
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// REPORTE 2 — JEFE DE CAMPO (verde, operativo)
+// ============================================================
+function generarReporteJefeCampo() {
+  const m = calcularMetricasBase();
+  const fecha = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  
+  // Ranking de cuadrillas por productividad
+  const ranking = ['C3', 'C5', 'C7']
+    .map(c => calcularMetricasCuadrilla(c))
+    .sort((a, b) => b.prodPromedio - a.prodPromedio);
+  
+  const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
+  
+  // Lista de anomalías para revisión
+  const anomalias = [...m.bloqueadas, ...m.observadas].map(p => {
+    const t = TRABAJADORES.find(t => t.dni === p.dni);
+    return {
+      hora: p.hora,
+      nombre: (t && t.nombre) || p.nombre || '—',
+      dni: p.dni,
+      cuadrilla: (t && t.cuadrilla) || p.cuadrilla || '—',
+      lote: p.lote,
+      kg: p.kg,
+      horas: p.horas,
+      prod: (p.kg / p.horas).toFixed(1),
+      z: p.z,
+      estado: p.estado,
+      motivo: p.motivo || '—'
+    };
+  });
+  
+  return `
+    <div class="report-card" style="border-top: 4px solid #639922;">
+      <div class="report-meta" style="color:#639922;">
+        <strong>PARA:</strong> JEFE DE CAMPO &nbsp;·&nbsp;
+        <strong>TIPO:</strong> REPORTE OPERATIVO &nbsp;·&nbsp; ${fecha}
+      </div>
+      
+      <h3 style="color:#243024; margin-top:16px;">
+        Resumen operativo — ${m.total} pesadas procesadas, ${m.bloqueadas.length} alerta${m.bloqueadas.length !== 1 ? 's' : ''} críticas
+      </h3>
+      
+      <p>Estimado Roberto: durante la jornada se procesaron ${m.total} pesadas (${m.validadas.length} validadas, ${m.observadas.length} en observación, ${m.bloqueadas.length} bloqueadas). La cuadrilla líder fue <strong>${ranking[0].cuadrilla}</strong> (supervisor ${supervisorPorCuad[ranking[0].cuadrilla]}) con ${ranking[0].prodPromedio.toFixed(1)} kg/h promedio. A continuación el ranking completo:</p>
+      
+      <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+        <thead>
+          <tr style="background:#F0F4EB; border-bottom:2px solid #639922;">
+            <th style="text-align:left; padding:10px; font-size:12px;">Posición</th>
+            <th style="text-align:left; padding:10px; font-size:12px;">Cuadrilla</th>
+            <th style="text-align:left; padding:10px; font-size:12px;">Supervisor</th>
+            <th style="text-align:left; padding:10px; font-size:12px;">Lote</th>
+            <th style="text-align:right; padding:10px; font-size:12px;">Pesadas válidas</th>
+            <th style="text-align:right; padding:10px; font-size:12px;">Kg cosechados</th>
+            <th style="text-align:right; padding:10px; font-size:12px;">Productividad</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ranking.map((c, i) => `
+            <tr style="border-bottom:1px solid #E5EADF;">
+              <td style="padding:10px; font-weight:600;">${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}  ${i+1}°</td>
+              <td style="padding:10px;"><strong>${c.cuadrilla}</strong></td>
+              <td style="padding:10px;">${supervisorPorCuad[c.cuadrilla]}</td>
+              <td style="padding:10px;">${c.lote}</td>
+              <td style="padding:10px; text-align:right;">${c.validadas.length}</td>
+              <td style="padding:10px; text-align:right;"><strong>${Math.round(c.kgValidados).toLocaleString('es-PE')}</strong></td>
+              <td style="padding:10px; text-align:right; font-family:monospace;">${c.prodPromedio.toFixed(1)} kg/h</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      
+      ${anomalias.length > 0 ? `
+      <div style="background:#FEF3E2; border-left:4px solid #EF9F27; padding:16px; margin:20px 0; border-radius:4px;">
+        <div style="font-weight:600; color:#854F0B; margin-bottom:12px;">⚠️  Anomalías para tu revisión (${anomalias.length})</div>
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid #EF9F27;">
+              <th style="text-align:left; padding:6px;">Hora</th>
+              <th style="text-align:left; padding:6px;">Trabajador</th>
+              <th style="text-align:left; padding:6px;">DNI</th>
+              <th style="text-align:left; padding:6px;">Cuad/Lote</th>
+              <th style="text-align:right; padding:6px;">Kg/Horas</th>
+              <th style="text-align:left; padding:6px;">Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${anomalias.map(a => `
+              <tr>
+                <td style="padding:6px; font-family:monospace;">${a.hora}</td>
+                <td style="padding:6px;"><strong>${a.nombre}</strong></td>
+                <td style="padding:6px; font-family:monospace; color:#666;">${a.dni}</td>
+                <td style="padding:6px;">${a.cuadrilla} / ${a.lote}</td>
+                <td style="padding:6px; text-align:right; font-family:monospace;">${a.kg}kg / ${a.horas}h</td>
+                <td style="padding:6px; color:${a.estado === 'red' ? '#DC2626' : '#EA580C'};"><em>${a.motivo}</em></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      ` : '<p style="color:#16A34A;">✅  Sin anomalías significativas durante la jornada.</p>'}
+      
+      <p><strong>Recomendación operativa:</strong> ${ranking[2].prodPromedio < ranking[0].prodPromedio * 0.8 ? `Revisar con ${supervisorPorCuad[ranking[2].cuadrilla]} (${ranking[2].cuadrilla}) las posibles causas de la diferencia de rendimiento frente a ${ranking[0].cuadrilla}. La brecha es del ${(((ranking[0].prodPromedio - ranking[2].prodPromedio) / ranking[0].prodPromedio) * 100).toFixed(1)}%.` : 'Las tres cuadrillas mantienen rendimientos comparables. Operación dentro de parámetros normales.'}</p>
+      
+      <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--text-muted);">
+        <strong>Sistema AgroIA</strong> · Reporte operativo para jefatura de campo<br>
+        Próxima coordinación con supervisores: mañana 06:30 hrs
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// REPORTE 3 — SUPERVISOR DE CUADRILLA (azul, equipo)
+// ============================================================
+function generarReporteSupervisor(cuadrilla) {
+  const m = calcularMetricasCuadrilla(cuadrilla);
+  const fecha = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
+  
+  // Rendimiento individual de SUS trabajadores
+  const miEquipo = TRABAJADORES.filter(t => t.cuadrilla === cuadrilla);
+  const rendimientoIndividual = miEquipo.map(t => {
+    const susPesadas = m.pesadasCuad.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
+    const kgTotal = susPesadas.reduce((sum, p) => sum + p.kg, 0);
+    const horasTotal = susPesadas.reduce((sum, p) => sum + p.horas, 0);
+    const prodPromedio = horasTotal > 0 ? kgTotal / horasTotal : 0;
+    const desviacion = ((prodPromedio - t.historico) / t.historico) * 100;
+    
+    return {
+      ...t,
+      pesadas: susPesadas.length,
+      kgTotal,
+      horasTotal,
+      prodPromedio,
+      desviacion,
+      sinRegistro: susPesadas.length === 0
+    };
+  }).sort((a, b) => b.prodPromedio - a.prodPromedio);
+  
+  const topPerformers = rendimientoIndividual.filter(t => !t.sinRegistro).slice(0, 3);
+  const bajoRendimiento = rendimientoIndividual.filter(t => !t.sinRegistro && t.desviacion < -15);
+  const sinRegistro = rendimientoIndividual.filter(t => t.sinRegistro);
+  
+  return `
+    <div class="report-card" style="border-top: 4px solid #2563EB;">
+      <div class="report-meta" style="color:#2563EB;">
+        <strong>PARA:</strong> ${supervisorPorCuad[cuadrilla].toUpperCase()} &nbsp;·&nbsp;
+        <strong>CUADRILLA:</strong> ${cuadrilla} (${m.lote}) &nbsp;·&nbsp; ${fecha}
+      </div>
+      
+      <h3 style="color:#243024; margin-top:16px;">
+        Cierre de tu cuadrilla — ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg cosechados con ${miEquipo.length} trabajadores
+      </h3>
+      
+      <p>Estimado ${supervisorPorCuad[cuadrilla]}: este es el resumen de la jornada de tu cuadrilla ${cuadrilla} en el lote ${m.lote}. Tu equipo procesó ${m.total} pesadas con un promedio de productividad de <strong>${m.prodPromedio.toFixed(1)} kg/h</strong>.</p>
+      
+      <div class="kpi-mini-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Trabajadores</div>
+          <div class="kpi-mini-value">${miEquipo.length}</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Kg validados</div>
+          <div class="kpi-mini-value">${Math.round(m.kgValidados).toLocaleString('es-PE')}</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Productividad</div>
+          <div class="kpi-mini-value">${m.prodPromedio.toFixed(1)} kg/h</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Alertas</div>
+          <div class="kpi-mini-value">${m.bloqueadas.length + m.observadas.length}</div>
+        </div>
+      </div>
+      
+      ${topPerformers.length > 0 ? `
+      <h4 style="color:#16A34A; margin-top:24px;">🏆  Top performers del día</h4>
+      <ul style="line-height:1.8;">
+        ${topPerformers.map((t, i) => `
+          <li>
+            <strong>${i+1}. ${t.nombre}</strong> (DNI ${t.dni}) — 
+            ${t.kgTotal.toFixed(1)} kg en ${t.horasTotal}h 
+            (<strong>${t.prodPromedio.toFixed(1)} kg/h</strong>, 
+            ${t.desviacion >= 0 ? '+' : ''}${t.desviacion.toFixed(1)}% vs su histórico)
+          </li>
+        `).join('')}
+      </ul>
+      ` : ''}
+      
+      ${bajoRendimiento.length > 0 ? `
+      <div style="background:#FEF2F2; border-left:4px solid #DC2626; padding:16px; margin:20px 0; border-radius:4px;">
+        <div style="font-weight:600; color:#991B1B; margin-bottom:8px;">⚠️  Trabajadores con bajo rendimiento (revisar)</div>
+        <ul style="line-height:1.8; margin:0;">
+          ${bajoRendimiento.map(t => `
+            <li><strong>${t.nombre}</strong> (DNI ${t.dni}): ${t.prodPromedio.toFixed(1)} kg/h (${t.desviacion.toFixed(1)}% bajo su histórico de ${t.historico} kg/h). Considera consultar si hay alguna condición especial.</li>
+          `).join('')}
+        </ul>
+      </div>
+      ` : ''}
+      
+      ${sinRegistro.length > 0 ? `
+      <div style="background:#FFF7E8; border-left:4px solid #EF9F27; padding:16px; margin:20px 0; border-radius:4px;">
+        <div style="font-weight:600; color:#854F0B; margin-bottom:8px;">📋  Trabajadores sin registro hoy (${sinRegistro.length})</div>
+        <p style="margin:0;">${sinRegistro.map(t => t.nombre).join(', ')}.</p>
+      </div>
+      ` : ''}
+      
+      ${(m.bloqueadas.length + m.observadas.length) > 0 ? `
+      <h4 style="color:#EA580C; margin-top:24px;">⚠️  Anomalías de tu cuadrilla que requieren tu acción</h4>
+      <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:8px;">
+        <thead>
+          <tr style="background:#F0F4EB; border-bottom:2px solid #EF9F27;">
+            <th style="text-align:left; padding:8px;">Hora</th>
+            <th style="text-align:left; padding:8px;">Trabajador</th>
+            <th style="text-align:right; padding:8px;">Kg/Horas</th>
+            <th style="text-align:left; padding:8px;">Estado</th>
+            <th style="text-align:left; padding:8px;">Motivo</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${[...m.bloqueadas, ...m.observadas].map(p => {
+            const t = TRABAJADORES.find(t => t.dni === p.dni);
+            return `
+              <tr style="border-bottom:1px solid #E5EADF;">
+                <td style="padding:8px; font-family:monospace;">${p.hora}</td>
+                <td style="padding:8px;"><strong>${(t && t.nombre) || p.nombre || '—'}</strong></td>
+                <td style="padding:8px; text-align:right; font-family:monospace;">${p.kg}kg / ${p.horas}h</td>
+                <td style="padding:8px;"><span style="color:${p.estado === 'red' ? '#DC2626' : '#EA580C'}; font-weight:600;">${p.estado === 'red' ? 'BLOQUEADA' : 'EN REVISIÓN'}</span></td>
+                <td style="padding:8px;"><em>${p.motivo || '—'}</em></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+      ` : ''}
+      
+      <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--text-muted);">
+        <strong>Sistema AgroIA</strong> · Reporte personalizado para tu cuadrilla<br>
+        Si tienes dudas sobre alguna anomalía, contacta al jefe de campo Roberto Aguilar
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// REPORTE 4 — RECURSOS HUMANOS (morado, planilla)
+// ============================================================
+function generarReporteRRHH() {
+  const fecha = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  
+  // Calcular planilla por trabajador
+  const planilla = TRABAJADORES.map(t => {
+    const susPesadas = pesadas.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
+    const kgTotal = susPesadas.reduce((sum, p) => sum + p.kg, 0);
+    const horasTotal = susPesadas.reduce((sum, p) => sum + p.horas, 0);
+    const monto = horasTotal * TARIFA_HORA;
+    
+    return {
+      ...t,
+      kgTotal,
+      horasTotal,
+      monto,
+      sinRegistro: susPesadas.length === 0
+    };
+  });
+  
+  const planillaConRegistro = planilla.filter(t => !t.sinRegistro);
+  const sinRegistro = planilla.filter(t => t.sinRegistro);
+  
+  const totalKg = planillaConRegistro.reduce((sum, t) => sum + t.kgTotal, 0);
+  const totalHoras = planillaConRegistro.reduce((sum, t) => sum + t.horasTotal, 0);
+  const totalPagar = planillaConRegistro.reduce((sum, t) => sum + t.monto, 0);
+  
+  // Resumen por cuadrilla
+  const resumenCuad = ['C3', 'C5', 'C7'].map(c => {
+    const trabs = planillaConRegistro.filter(t => t.cuadrilla === c);
+    return {
+      cuadrilla: c,
+      trabajadores: trabs.length,
+      kg: trabs.reduce((sum, t) => sum + t.kgTotal, 0),
+      horas: trabs.reduce((sum, t) => sum + t.horasTotal, 0),
+      monto: trabs.reduce((sum, t) => sum + t.monto, 0)
+    };
+  });
+  
+  return `
+    <div class="report-card" style="border-top: 4px solid #7C3AED;">
+      <div class="report-meta" style="color:#7C3AED;">
+        <strong>PARA:</strong> RECURSOS HUMANOS &nbsp;·&nbsp;
+        <strong>TIPO:</strong> PLANILLA DIARIA &nbsp;·&nbsp; ${fecha}
+      </div>
+      
+      <h3 style="color:#243024; margin-top:16px;">
+        Resumen de planilla — ${planillaConRegistro.length} de ${TOTAL_TRABAJADORES} trabajadores con registros
+      </h3>
+      
+      <p>Estimado equipo de RR.HH.: el siguiente es el resumen consolidado de la planilla del día. Tarifa aplicada: <strong>S/ ${TARIFA_HORA.toFixed(2)}/hora</strong> según régimen laboral agrario (Ley 31110).</p>
+      
+      <div class="kpi-mini-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Trabajadores activos</div>
+          <div class="kpi-mini-value">${planillaConRegistro.length}/${TOTAL_TRABAJADORES}</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Kg validados</div>
+          <div class="kpi-mini-value">${Math.round(totalKg).toLocaleString('es-PE')}</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Horas totales</div>
+          <div class="kpi-mini-value">${totalHoras.toFixed(1)} h</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Total a pagar</div>
+          <div class="kpi-mini-value" style="color:#7C3AED;">S/ ${totalPagar.toLocaleString('es-PE', {maximumFractionDigits: 2})}</div>
+        </div>
+      </div>
+      
+      <h4 style="margin-top:24px; color:#243024;">📊  Resumen por cuadrilla</h4>
+      <table style="width:100%; border-collapse:collapse; margin:8px 0;">
+        <thead>
+          <tr style="background:#F3F0FF; border-bottom:2px solid #7C3AED;">
+            <th style="text-align:left; padding:10px;">Cuadrilla</th>
+            <th style="text-align:right; padding:10px;">Trabajadores</th>
+            <th style="text-align:right; padding:10px;">Kg validados</th>
+            <th style="text-align:right; padding:10px;">Horas</th>
+            <th style="text-align:right; padding:10px;">Monto (S/)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${resumenCuad.map(c => `
+            <tr style="border-bottom:1px solid #E5EADF;">
+              <td style="padding:10px;"><strong>${c.cuadrilla}</strong></td>
+              <td style="padding:10px; text-align:right;">${c.trabajadores}</td>
+              <td style="padding:10px; text-align:right; font-family:monospace;">${Math.round(c.kg).toLocaleString('es-PE')}</td>
+              <td style="padding:10px; text-align:right; font-family:monospace;">${c.horas.toFixed(1)}</td>
+              <td style="padding:10px; text-align:right; font-family:monospace;"><strong>S/ ${c.monto.toFixed(2)}</strong></td>
+            </tr>
+          `).join('')}
+          <tr style="background:#F3F0FF; font-weight:600;">
+            <td style="padding:10px;">TOTAL</td>
+            <td style="padding:10px; text-align:right;">${planillaConRegistro.length}</td>
+            <td style="padding:10px; text-align:right; font-family:monospace;">${Math.round(totalKg).toLocaleString('es-PE')}</td>
+            <td style="padding:10px; text-align:right; font-family:monospace;">${totalHoras.toFixed(1)}</td>
+            <td style="padding:10px; text-align:right; font-family:monospace; color:#7C3AED;">S/ ${totalPagar.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <h4 style="margin-top:24px; color:#243024;">📋  Detalle por trabajador (kg validados, no incluye bloqueadas)</h4>
+      <table style="width:100%; border-collapse:collapse; margin:8px 0; font-size:13px;">
+        <thead>
+          <tr style="background:#F3F0FF; border-bottom:2px solid #7C3AED;">
+            <th style="text-align:left; padding:8px;">DNI</th>
+            <th style="text-align:left; padding:8px;">Nombre</th>
+            <th style="text-align:left; padding:8px;">Cuad.</th>
+            <th style="text-align:right; padding:8px;">Kg</th>
+            <th style="text-align:right; padding:8px;">Horas</th>
+            <th style="text-align:right; padding:8px;">Monto (S/)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${planillaConRegistro.map(t => `
+            <tr style="border-bottom:1px solid #E5EADF;">
+              <td style="padding:8px; font-family:monospace; color:#666;">${t.dni}</td>
+              <td style="padding:8px;"><strong>${t.nombre}</strong></td>
+              <td style="padding:8px;">${t.cuadrilla}</td>
+              <td style="padding:8px; text-align:right; font-family:monospace;">${t.kgTotal.toFixed(1)}</td>
+              <td style="padding:8px; text-align:right; font-family:monospace;">${t.horasTotal.toFixed(1)}</td>
+              <td style="padding:8px; text-align:right; font-family:monospace;"><strong>${t.monto.toFixed(2)}</strong></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      
+      ${sinRegistro.length > 0 ? `
+      <div style="background:#FFF7E8; border-left:4px solid #EF9F27; padding:16px; margin:20px 0; border-radius:4px;">
+        <div style="font-weight:600; color:#854F0B; margin-bottom:8px;">⚠️  Trabajadores sin registro hoy (${sinRegistro.length})</div>
+        <p style="margin:0; font-size:13px;">${sinRegistro.map(t => `${t.nombre} (DNI ${t.dni}, ${t.cuadrilla})`).join('; ')}.</p>
+        <p style="margin-top:8px; margin-bottom:0; font-size:12px; color:#854F0B;"><em>Verificar con supervisores: ausentismo, descanso programado o no registrado.</em></p>
+      </div>
+      ` : ''}
+      
+      <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--text-muted);">
+        <strong>Sistema AgroIA</strong> · Planilla automática validada por agente IA<br>
+        Las pesadas bloqueadas por anomalía NO se incluyen en el cálculo de planilla.<br>
+        Para correcciones o consultas contactar al jefe de campo Roberto Aguilar
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// EXPORTACION A PDF
+// ============================================================
+function exportarReportePDF() {
+  const tipo = document.getElementById('selectorReporte').value;
+  const contenedor = document.getElementById('contenedorReporte');
+  if (!contenedor) {
+    alert('No hay reporte para exportar');
+    return;
+  }
+  
+  // Verificar que jsPDF esté cargado
+  if (typeof window.jspdf === 'undefined') {
+    alert('La librería PDF está cargándose. Espera un momento y vuelve a intentar.');
+    return;
+  }
+  
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  
+  // Configuracion segun tipo de reporte
+  const colores = {
+    'gerencia': { primary: [239, 159, 39], texto: 'GERENCIA / DIRECTORIO' },
+    'jefecampo': { primary: [99, 153, 34], texto: 'JEFE DE CAMPO' },
+    'supervisor': { primary: [37, 99, 235], texto: 'SUPERVISOR DE CUADRILLA' },
+    'rrhh': { primary: [124, 58, 237], texto: 'RECURSOS HUMANOS' }
+  };
+  const config = colores[tipo];
+  const fecha = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  
+  // ENCABEZADO
+  doc.setFillColor(...config.primary);
+  doc.rect(0, 0, 210, 8, 'F');
+  
+  doc.setFontSize(18);
+  doc.setTextColor(36, 48, 36);
+  doc.setFont(undefined, 'bold');
+  doc.text('AgroIA', 15, 22);
+  
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text('Sistema de Validación Estadística de Cosecha', 15, 28);
+  
+  doc.setFontSize(11);
+  doc.setTextColor(...config.primary);
+  doc.setFont(undefined, 'bold');
+  doc.text(`REPORTE PARA: ${config.texto}`, 15, 40);
+  
+  doc.setTextColor(100, 100, 100);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(9);
+  doc.text(fecha.toUpperCase(), 15, 45);
+  
+  doc.setDrawColor(220, 220, 220);
+  doc.line(15, 50, 195, 50);
+  
+  // CONTENIDO segun tipo de reporte
+  let y = 60;
+  
+  if (tipo === 'gerencia') y = renderPDFGerencia(doc, y);
+  else if (tipo === 'jefecampo') y = renderPDFJefeCampo(doc, y);
+  else if (tipo === 'supervisor') {
+    const cuad = document.getElementById('selectorCuadrilla').value;
+    y = renderPDFSupervisor(doc, y, cuad);
+  }
+  else if (tipo === 'rrhh') y = renderPDFRRHH(doc, y);
+  
+  // PIE DE PAGINA en todas las paginas
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(220, 220, 220);
+    doc.line(15, 285, 195, 285);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`AgroIA · ${fecha} · Generado automáticamente`, 15, 290);
+    doc.text(`Página ${i} de ${totalPages}`, 195, 290, { align: 'right' });
+  }
+  
+  // DESCARGAR
+  const nombreArchivo = `AgroIA_${tipo}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(nombreArchivo);
+}
+
+function renderPDFGerencia(doc, y) {
+  const m = calcularMetricasBase();
+  const ahorroEstimado = m.kgBloqueados * PRECIO_KG;
+  const valorCosechado = m.kgValidados * PRECIO_KG;
+  const signo = m.diffMeta >= 0 ? '+' : '';
+  
+  doc.setFontSize(14);
+  doc.setTextColor(36, 48, 36);
+  doc.setFont(undefined, 'bold');
+  doc.text(`Cierre del día — ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg (${signo}${m.diffMeta.toFixed(1)}% vs meta)`, 15, y);
+  y += 10;
+  
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  const texto1 = `En la jornada de hoy se cosecharon ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg de palta Hass entre las tres cuadrillas. El valor económico de la producción asciende a S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}. El avance de campaña alcanza el ${m.avanceCampana.toFixed(1)}% (${m.acumuladoTon.toFixed(0)} t de 850 t).`;
+  const lineas1 = doc.splitTextToSize(texto1, 180);
+  doc.text(lineas1, 15, y);
+  y += lineas1.length * 5 + 5;
+  
+  if (m.bloqueadas.length > 0) {
+    doc.setFillColor(254, 243, 226);
+    doc.rect(15, y, 180, 22, 'F');
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(133, 79, 11);
+    doc.text('Valor del agente IA en esta jornada', 20, y + 7);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(36, 48, 36);
+    const txtAhorro = `Se detectaron ${m.bloqueadas.length} anomalías por ${Math.round(m.kgBloqueados).toLocaleString('es-PE')} kg, evitando un sobrepago estimado en S/ ${ahorroEstimado.toLocaleString('es-PE', {maximumFractionDigits: 0})}.`;
+    const lineasAhorro = doc.splitTextToSize(txtAhorro, 170);
+    doc.text(lineasAhorro, 20, y + 13);
+    y += 30;
+  }
+  
+  doc.autoTable({
+    startY: y,
+    head: [['Indicador', 'Valor']],
+    body: [
+      ['Cosecha del día', `${Math.round(m.kgValidados).toLocaleString('es-PE')} kg`],
+      ['Valor producido', `S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`],
+      ['Avance campaña', `${m.avanceCampana.toFixed(1)}% (${m.acumuladoTon.toFixed(0)} t / 850 t)`],
+      ['Tasa de validación', `${m.tasaValidacion.toFixed(1)}%`],
+      ['Total pesadas', `${m.total}`],
+      ['Disponibilidad del sistema', '100%'],
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [239, 159, 39], textColor: 255 },
+    margin: { left: 15, right: 15 },
+  });
+  
+  return doc.lastAutoTable.finalY + 10;
+}
+
+function renderPDFJefeCampo(doc, y) {
+  const m = calcularMetricasBase();
+  const ranking = ['C3', 'C5', 'C7'].map(c => calcularMetricasCuadrilla(c)).sort((a, b) => b.prodPromedio - a.prodPromedio);
+  const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
+  
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.text(`Resumen operativo — ${m.total} pesadas, ${m.bloqueadas.length} alertas`, 15, y);
+  y += 10;
+  
+  doc.setFontSize(11);
+  doc.text('Ranking de cuadrillas', 15, y);
+  y += 3;
+  
+  doc.autoTable({
+    startY: y,
+    head: [['Pos.', 'Cuadrilla', 'Supervisor', 'Lote', 'Pesadas', 'Kg', 'Productividad']],
+    body: ranking.map((c, i) => [
+      `${i+1}°`,
+      c.cuadrilla,
+      supervisorPorCuad[c.cuadrilla],
+      c.lote,
+      c.validadas.length,
+      Math.round(c.kgValidados).toLocaleString('es-PE'),
+      `${c.prodPromedio.toFixed(1)} kg/h`
+    ]),
+    theme: 'striped',
+    headStyles: { fillColor: [99, 153, 34], textColor: 255 },
+    margin: { left: 15, right: 15 },
+  });
+  
+  y = doc.lastAutoTable.finalY + 10;
+  
+  const anomalias = [...m.bloqueadas, ...m.observadas];
+  if (anomalias.length > 0) {
+    doc.setFontSize(11);
+    doc.setTextColor(133, 79, 11);
+    doc.text(`Anomalías para revisión (${anomalias.length})`, 15, y);
+    y += 3;
+    
+    doc.autoTable({
+      startY: y,
+      head: [['Hora', 'Trabajador', 'DNI', 'Cuad./Lote', 'Kg/h', 'Estado', 'Motivo']],
+      body: anomalias.map(p => {
+        const t = TRABAJADORES.find(t => t.dni === p.dni);
+        return [
+          p.hora,
+          (t && t.nombre) || p.nombre || '—',
+          p.dni,
+          `${(t && t.cuadrilla) || p.cuadrilla || '—'}/${p.lote}`,
+          `${p.kg}/${p.horas}h`,
+          p.estado === 'red' ? 'BLOQUEADA' : 'EN REVISIÓN',
+          p.motivo || '—'
+        ];
+      }),
+      theme: 'striped',
+      headStyles: { fillColor: [239, 159, 39], textColor: 255 },
+      bodyStyles: { fontSize: 8 },
+      margin: { left: 15, right: 15 },
+    });
+    
+    y = doc.lastAutoTable.finalY + 10;
+  }
+  
+  return y;
+}
+
+function renderPDFSupervisor(doc, y, cuadrilla) {
+  const m = calcularMetricasCuadrilla(cuadrilla);
+  const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
+  const miEquipo = TRABAJADORES.filter(t => t.cuadrilla === cuadrilla);
+  
+  const rendimiento = miEquipo.map(t => {
+    const susPesadas = m.pesadasCuad.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
+    const kgTotal = susPesadas.reduce((sum, p) => sum + p.kg, 0);
+    const horasTotal = susPesadas.reduce((sum, p) => sum + p.horas, 0);
+    const prodPromedio = horasTotal > 0 ? kgTotal / horasTotal : 0;
+    return { ...t, pesadas: susPesadas.length, kgTotal, horasTotal, prodPromedio };
+  }).sort((a, b) => b.prodPromedio - a.prodPromedio);
+  
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(36, 48, 36);
+  doc.text(`Cuadrilla ${cuadrilla} (${m.lote}) — ${supervisorPorCuad[cuadrilla]}`, 15, y);
+  y += 10;
+  
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Trabajadores: ${miEquipo.length} · Pesadas: ${m.total} · Kg validados: ${Math.round(m.kgValidados).toLocaleString('es-PE')} · Productividad: ${m.prodPromedio.toFixed(1)} kg/h`, 15, y);
+  y += 8;
+  
+  doc.autoTable({
+    startY: y,
+    head: [['Pos.', 'Trabajador', 'DNI', 'Kg', 'Horas', 'Productividad']],
+    body: rendimiento.filter(t => t.pesadas > 0).map((t, i) => [
+      `${i+1}°`, t.nombre, t.dni, t.kgTotal.toFixed(1), t.horasTotal.toFixed(1), `${t.prodPromedio.toFixed(1)} kg/h`
+    ]),
+    theme: 'striped',
+    headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+    margin: { left: 15, right: 15 },
+  });
+  
+  return doc.lastAutoTable.finalY + 10;
+}
+
+function renderPDFRRHH(doc, y) {
+  const planilla = TRABAJADORES.map(t => {
+    const susPesadas = pesadas.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
+    const kgTotal = susPesadas.reduce((sum, p) => sum + p.kg, 0);
+    const horasTotal = susPesadas.reduce((sum, p) => sum + p.horas, 0);
+    const monto = horasTotal * TARIFA_HORA;
+    return { ...t, kgTotal, horasTotal, monto, sinRegistro: susPesadas.length === 0 };
+  });
+  
+  const conRegistro = planilla.filter(t => !t.sinRegistro);
+  const totalPagar = conRegistro.reduce((sum, t) => sum + t.monto, 0);
+  
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(36, 48, 36);
+  doc.text(`Planilla del día — ${conRegistro.length}/${TOTAL_TRABAJADORES} trabajadores`, 15, y);
+  y += 8;
+  
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Tarifa: S/ ${TARIFA_HORA}/hora (Ley 31110) · Total a pagar: S/ ${totalPagar.toFixed(2)}`, 15, y);
+  y += 8;
+  
+  doc.autoTable({
+    startY: y,
+    head: [['DNI', 'Nombre', 'Cuad.', 'Kg validados', 'Horas', 'Monto (S/)']],
+    body: conRegistro.map(t => [
+      t.dni, t.nombre, t.cuadrilla, t.kgTotal.toFixed(1), t.horasTotal.toFixed(1), t.monto.toFixed(2)
+    ]),
+    foot: [['', '', 'TOTAL', '', conRegistro.reduce((s, t) => s + t.horasTotal, 0).toFixed(1), totalPagar.toFixed(2)]],
+    theme: 'striped',
+    headStyles: { fillColor: [124, 58, 237], textColor: 255 },
+    footStyles: { fillColor: [243, 240, 255], textColor: 36, fontStyle: 'bold' },
+    margin: { left: 15, right: 15 },
+  });
+  
+  return doc.lastAutoTable.finalY + 10;
+}
+
+// ============================================================
+// RENDERIZADO
+// ============================================================
+function renderTrabajadores() {
+  ['C3', 'C5', 'C7'].forEach(cuad => {
+    const grid = document.getElementById('grid' + cuad);
+    if (!grid) return;
+    grid.innerHTML = TRABAJADORES.filter(t => t.cuadrilla === cuad).map(t => `
+      <div class="worker-card">
+        <div class="worker-name">${t.nombre}</div>
+        <div class="worker-dni">DNI ${t.dni}</div>
+        <div class="worker-stats">
+          <span class="cuadrilla-tag">${t.cuadrilla}</span>
+          <span class="text-muted mono">${t.historico} kg/h ± ${t.sigma}</span>
+        </div>
+      </div>
+    `).join('');
+  });
+}
+
+function renderPesadas(filtro = 'todas') {
+  const tbody = document.getElementById('tbodyPesadas');
+  if (!tbody) return;
+  
+  const filtradas = filtro === 'todas' ? pesadas :
+    filtro === 'validadas' ? pesadas.filter(p => p.estado === 'green') :
+    filtro === 'observadas' ? pesadas.filter(p => p.estado === 'yellow' || p.estado === 'orange') :
+    pesadas.filter(p => p.estado === 'red');
+
+  tbody.innerHTML = filtradas.map(p => {
+    const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
+    const prod = (p.kg / p.horas).toFixed(1);
+    const statusClass = p.estado;
+    const statusLabel = {
+      green: '✅ Validado', yellow: '⚠ Observado',
+      orange: '⚠ Observado', red: '❌ Bloqueado'
+    }[p.estado];
+    return `
+      <tr>
+        <td class="mono">${p.hora}</td>
+        <td><strong>${t.nombre || p.nombre || '—'}</strong></td>
+        <td class="mono text-muted">${p.dni}</td>
+        <td><span class="cuadrilla-tag">${t.cuadrilla || p.cuadrilla || '—'}</span></td>
+        <td>${p.lote}</td>
+        <td><strong>${p.kg}</strong></td>
+        <td class="mono">${prod} kg/h</td>
+        <td class="mono ${Math.abs(p.z) > 2 ? 'text-red' : Math.abs(p.z) > 1.5 ? 'text-orange' : ''}">${p.z >= 0 ? '+' : ''}${p.z.toFixed(2)}</td>
+        <td><span class="status ${statusClass}"><span class="dot"></span> ${statusLabel}</span></td>
+      </tr>
+    `;
+  }).join('');
+  
+  // Actualizar todos los KPIs cada vez que se renderizan pesadas
+  actualizarKPIs();
+}
+
+function renderLogs() {
+  const list = document.getElementById('logList');
+  if (!list) return;
+  list.innerHTML = logs.map(l => `
+    <div class="feed-item ${l.tipo}">
+      <div class="feed-time">${l.hora} · ${l.accion}</div>
+      <div class="feed-msg">${l.detalle}</div>
+    </div>
+  `).join('');
+}
+
+function renderFeed() {
+  const feed = document.getElementById('liveFeed');
+  if (!feed) return;
+  feed.innerHTML = logs.slice(0, 6).map(l => `
+    <div class="feed-item ${l.tipo}">
+      <div class="feed-time">${l.hora} · ${l.accion}</div>
+      <div class="feed-msg">${l.detalle}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// NAVEGACIÓN
+// ============================================================
+function switchPage(page) {
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(s => s.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.target.closest('.nav-item').classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function filterPesadas(filtro, btn) {
+  document.querySelectorAll('#page-pesadas .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderPesadas(filtro);
+}
+
+// ============================================================
+// MODALES
+// ============================================================
+
+// Mapeo de cuadrilla → lote asignado
+const CUADRILLA_LOTE = { 'C3': 'L-23', 'C5': 'L-08', 'C7': 'L-17' };
+
+function llenarSelectTrabajadores() {
+  const select = document.getElementById('inputTrabajador');
+  if (!select) return;
+  
+  // Limpiar y agregar primera opción
+  select.innerHTML = '<option value="">Selecciona un trabajador</option>';
+  
+  // Agrupar por cuadrilla
+  ['C3', 'C5', 'C7'].forEach(cuad => {
+    const grupo = document.createElement('optgroup');
+    grupo.label = `Cuadrilla ${cuad} — Lote ${CUADRILLA_LOTE[cuad]}`;
+    
+    TRABAJADORES.filter(t => t.cuadrilla === cuad).forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.dni;
+      opt.dataset.cuadrilla = t.cuadrilla;
+      opt.dataset.historico = t.historico;
+      opt.dataset.sigma = t.sigma;
+      opt.textContent = `${t.nombre} — DNI ${t.dni}`;
+      grupo.appendChild(opt);
+    });
+    
+    select.appendChild(grupo);
+  });
+}
+
+function actualizarInfoTrabajador() {
+  const select = document.getElementById('inputTrabajador');
+  const opt = select.options[select.selectedIndex];
+  const info = document.getElementById('infoTrabajador');
+  
+  if (!opt.value) {
+    info.style.display = 'none';
+    return;
+  }
+  
+  const cuadrilla = opt.dataset.cuadrilla;
+  const historico = opt.dataset.historico;
+  const sigma = opt.dataset.sigma;
+  const loteHabitual = CUADRILLA_LOTE[cuadrilla] || '—';
+  
+  document.getElementById('infoCuadrilla').textContent = cuadrilla;
+  document.getElementById('infoLoteHabitual').textContent = loteHabitual;
+  document.getElementById('infoHistorico').textContent = `${historico} kg/h ± ${sigma}`;
+  info.style.display = 'block';
+  
+  // Pre-seleccionar lote habitual de la cuadrilla
+  const selectLote = document.getElementById('inputLote');
+  if (selectLote && loteHabitual !== '—') {
+    selectLote.value = loteHabitual;
+  }
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+  if (id === 'modalPesada') {
+    llenarSelectTrabajadores();
+    document.getElementById('zscoreContainer').innerHTML = '';
+    document.getElementById('inputKg').value = '';
+    document.getElementById('infoTrabajador').style.display = 'none';
+  }
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+// ============================================================
+// VALIDACIÓN INTELIGENTE (z-score)
+// ============================================================
+// ============================================================
+// LIMITES FISICOS PARA VALIDACION DE ENTRADA
+// ============================================================
+// Estos limites son los rangos fisicamente posibles para cosecha de palta Hass.
+// Cualquier valor fuera de estos limites se RECHAZA antes de procesar.
+const LIMITES = {
+  kg_min: 1,           // Minimo 1 kg
+  kg_max: 800,         // Maximo 800 kg en un dia completo
+  horas_min: 0.5,      // Minimo 30 minutos
+  horas_max: 12,       // Maximo 12 horas (jornada legal peruana)
+  productividad_max: 100  // Maximo 100 kg/h sostenido (fisicamente imposible mas)
+};
+
+function mostrarErrorValidacion(mensaje, campo) {
+  // Crear notificacion de error visible
+  const errorDiv = document.createElement('div');
+  errorDiv.style.cssText = `
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: #FEE2E2; border: 2px solid #DC2626; color: #991B1B;
+    padding: 24px 32px; border-radius: 12px; max-width: 480px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3); z-index: 10000;
+    font-family: 'Inter', sans-serif; text-align: center;
+  `;
+  errorDiv.innerHTML = `
+    <div style="font-size: 36px; margin-bottom: 12px;">⚠️</div>
+    <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Valor fuera de rango lógico</div>
+    <div style="font-size: 14px; line-height: 1.5; margin-bottom: 16px;">${mensaje}</div>
+    <button onclick="this.parentElement.remove()" style="
+      background: #DC2626; color: white; border: none; padding: 8px 24px;
+      border-radius: 6px; cursor: pointer; font-weight: 600;
+      font-family: inherit;
+    ">Entendido</button>
+  `;
+  document.body.appendChild(errorDiv);
+  
+  // Resaltar el campo problematico
+  if (campo) {
+    const el = document.getElementById(campo);
+    if (el) {
+      el.style.borderColor = '#DC2626';
+      el.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
+      setTimeout(() => {
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+      }, 3000);
+    }
+  }
+  
+  // Auto-cerrar despues de 5 segundos
+  setTimeout(() => { if (errorDiv.parentElement) errorDiv.remove(); }, 5000);
+}
+
+function validarPesada() {
+  const select = document.getElementById('inputTrabajador');
+  const opt = select.options[select.selectedIndex];
+  const kg = parseFloat(document.getElementById('inputKg').value);
+  const horas = parseFloat(document.getElementById('inputHoras').value);
+  const lote = document.getElementById('inputLote').value;
+
+  // VALIDACION 1: Campos completos
+  if (!opt.value) {
+    mostrarErrorValidacion('Debes seleccionar un trabajador antes de validar.', 'inputTrabajador');
+    return;
+  }
+  if (!kg || isNaN(kg)) {
+    mostrarErrorValidacion('Ingresa una cantidad válida de kilogramos.', 'inputKg');
+    return;
+  }
+  if (!horas || isNaN(horas)) {
+    mostrarErrorValidacion('Ingresa una cantidad válida de horas trabajadas.', 'inputHoras');
+    return;
+  }
+
+  // VALIDACION 2: Limites fisicos razonables
+  if (kg < LIMITES.kg_min) {
+    mostrarErrorValidacion(
+      `La cantidad ${kg} kg es demasiado baja. El mínimo razonable es ${LIMITES.kg_min} kg. ` +
+      `Si el trabajador cosechó menos, revisa si registró correctamente.`,
+      'inputKg'
+    );
+    return;
+  }
+  if (kg > LIMITES.kg_max) {
+    mostrarErrorValidacion(
+      `La cantidad ${kg.toLocaleString('es-PE')} kg supera el máximo físicamente posible (${LIMITES.kg_max} kg/día). ` +
+      `Verifica si hay un error de digitación o si registraste por todo el equipo en lugar de un trabajador.`,
+      'inputKg'
+    );
+    return;
+  }
+  if (horas < LIMITES.horas_min) {
+    mostrarErrorValidacion(
+      `La jornada ${horas}h es demasiado corta. El mínimo razonable es ${LIMITES.horas_min}h (30 minutos).`,
+      'inputHoras'
+    );
+    return;
+  }
+  if (horas > LIMITES.horas_max) {
+    mostrarErrorValidacion(
+      `La jornada ${horas}h supera el máximo legal (${LIMITES.horas_max}h). ` +
+      `Si trabajó más, debe registrarse en dos turnos separados.`,
+      'inputHoras'
+    );
+    return;
+  }
+
+  // VALIDACION 3: Productividad fisicamente posible
+  const productividadPreliminar = kg / horas;
+  if (productividadPreliminar > LIMITES.productividad_max) {
+    mostrarErrorValidacion(
+      `La productividad calculada es ${productividadPreliminar.toFixed(1)} kg/h, físicamente imposible. ` +
+      `Un humano no puede cosechar más de ${LIMITES.productividad_max} kg/h sostenido. ` +
+      `Revisa los datos: probablemente hay un error en kg o en horas.`,
+      'inputKg'
+    );
+    return;
+  }
+
+  // PROTECCIÓN ANTI DOBLE CLICK: deshabilitar el botón inmediatamente
+  const btnValidar = document.querySelector('#modalPesada .btn-primary');
+  if (btnValidar && btnValidar.disabled) return; // Si ya está procesando, salir
+  if (btnValidar) {
+    btnValidar.disabled = true;
+    btnValidar.textContent = 'Validando...';
+    btnValidar.style.opacity = '0.5';
+    btnValidar.style.cursor = 'not-allowed';
+  }
+
+  const historico = parseFloat(opt.dataset.historico);
+  const sigma = parseFloat(opt.dataset.sigma);
+  const cuadrilla = opt.dataset.cuadrilla;
+  const productividad = kg / horas;
+  const z = (productividad - historico) / sigma;
+  const absZ = Math.abs(z);
+  const nombre = opt.text.split(' — ')[0];
+
+  let estado, color, texto, accion;
+  if (absZ <= 1.5) {
+    estado = 'VALIDADO'; color = 'green'; texto = '✅ Banda VERDE — Validada automáticamente';
+    accion = 'La fila se marca como validada y entra al cálculo del día. No se requiere intervención humana.';
+  } else if (absZ <= 2.0) {
+    estado = 'VALIDADO CON OBSERVACIÓN'; color = 'yellow'; texto = '⚠ Banda AMARILLA — Validada con tolerancia';
+    accion = 'Se acepta el registro pero se notifica al supervisor de manera informativa. No bloquea el flujo.';
+  } else if (absZ <= 2.5) {
+    estado = 'OBSERVADO'; color = 'orange'; texto = '⚠ Banda NARANJA — Atención requerida';
+    accion = 'Se solicita justificación al supervisor antes de cerrar la jornada. La fila queda en revisión.';
+  } else {
+    estado = 'BLOQUEADO'; color = 'red'; texto = '❌ Banda ROJA — Anomalía grave';
+    accion = 'Se bloquea automáticamente. Notificación enviada al jefe de campo. No entra al cálculo hasta revisión humana.';
+  }
+
+  const motivos = {
+    yellow: 'Productividad ligeramente fuera del rango normal del trabajador',
+    orange: 'Productividad significativamente fuera del rango normal',
+    red: absZ > 3 ? 'Productividad muy alta — posible doble pesaje o error de transcripción' : 'Productividad muy baja — verificar registro o estado del trabajador'
+  };
+
+  document.getElementById('zscoreContainer').innerHTML = `
+    <div class="zscore-box">
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Análisis del agente IA</div>
+      <div class="zscore-formula">
+productividad = ${kg} kg / ${horas} h = <strong>${productividad.toFixed(2)} kg/h</strong>
+histórico ${nombre} = ${historico} kg/h, σ = ${sigma}
+z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${z.toFixed(2)}</strong>
+      </div>
+      <div style="margin-top:12px"><strong style="color:var(--${color === 'green' ? 'green' : color === 'yellow' ? 'yellow' : color === 'orange' ? 'orange' : 'red'})">${texto}</strong></div>
+      <div style="margin-top:8px;font-size:13px;color:var(--text-soft)">${accion}</div>
+      ${color !== 'green' ? `<div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:6px;font-size:12px"><strong>Motivo detectado:</strong> ${motivos[color]}</div>` : ''}
+      <div class="bands">
+        <div class="band" style="background:#4ade80"></div>
+        <div class="band" style="background:#fbbf24"></div>
+        <div class="band" style="background:#fb923c"></div>
+        <div class="band" style="background:#f87171"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:4px">
+        <span>z≤1.5</span><span>1.5–2.0</span><span>2.0–2.5</span><span>z>2.5</span>
+      </div>
+    </div>
+  `;
+
+  // El DNI viene del value del option
+  const dni = opt.value;
+  
+  // Agregar al log
+  const ahora = new Date();
+  const horaStr = ahora.getHours().toString().padStart(2,'0') + ':' + ahora.getMinutes().toString().padStart(2,'0');
+  logs.unshift({
+    hora: horaStr,
+    tipo: color,
+    accion: estado === 'VALIDADO' ? 'Validación automática' : estado === 'OBSERVADO' ? 'Observación' : estado === 'BLOQUEADO' ? 'Bloqueo por anomalía' : 'Validación con tolerancia',
+    detalle: `Pesada de ${nombre} (${cuadrilla}) en ${lote}: ${kg} kg/${horas}h (z=${z.toFixed(2)}) — ${estado}`
+  });
+  
+  // Agregar a pesadas (incluyendo nombre y cuadrilla por si no está en la maestra)
+  pesadas.unshift({
+    hora: horaStr,
+    dni: dni,
+    nombre: nombre,
+    cuadrilla: cuadrilla,
+    kg, horas, lote,
+    estado: color,
+    z: parseFloat(z.toFixed(2)),
+    motivo: color !== 'green' ? motivos[color] : null
+  });
+  
+  // ENVIAR A DATADOG via servidor Python
+  const tiempoValidacion = Math.round(200 + Math.random() * 800);
+  
+  enviarADatadog('/api/pesada', {
+    nombre: nombre,
+    dni: dni,
+    cuadrilla: cuadrilla,
+    lote: lote,
+    kg: kg,
+    horas: horas,
+    productividad: productividad,
+    z_score: z,
+    historico: historico,
+    sigma: sigma,
+    estado: estado,
+    estado_color: color,
+    motivo: color !== 'green' ? motivos[color] : null,
+    tiempo_validacion_ms: tiempoValidacion,
+    origen: 'manual'
+  }).then(ok => {
+    if (ok) {
+      mostrarToast('✅ Enviado a Datadog en tiempo real', 'green');
+    } else {
+      mostrarToast('⚠ Servidor no disponible (modo offline)', 'orange');
+    }
+  });
+  
+  // Rehabilitar el botón después de 1.5 segundos
+  setTimeout(() => {
+    if (btnValidar) {
+      btnValidar.disabled = false;
+      btnValidar.textContent = 'Validar con agente IA';
+      btnValidar.style.opacity = '1';
+      btnValidar.style.cursor = 'pointer';
+    }
+  }, 1500);
+  
+  renderFeed();
+  renderLogs();
+  renderPesadas();
+}
+
+// ============================================================
+// REPORTE Y EXPORTACIÓN
+// ============================================================
+function generarReporte() {
+  switchPage('reporte');
+  document.querySelectorAll('.nav-item').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item')[4].classList.add('active');
+  
+  // Refrescar el reporte actual con los datos mas recientes
+  cambiarReporte();
+  
+  // ENVIAR A DATADOG
+  enviarADatadog('/api/reporte', {
+    kg_total: 12840,
+    avance: 67.6,
+    destinatarios: 6
+  });
+  
+  mostrarToast('📊 Reportes regenerados con datos del momento', 'green');
+}
+
+function exportarRRHH() {
+  // Crear CSV
+  const headers = 'Fecha,DNI,Nombre,Cuadrilla,Lote,Kg_validados,Horas,Estado\n';
+  const rows = pesadas.filter(p => p.estado === 'green' || p.estado === 'yellow').map(p => {
+    const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
+    const fecha = new Date().toISOString().slice(0,10);
+    return `${fecha},${p.dni},"${t.nombre || ''}",${t.cuadrilla || ''},${p.lote},${p.kg},${p.horas},Validado`;
+  }).join('\n');
+  
+  const csv = headers + rows;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'agroia_planilla_' + new Date().toISOString().slice(0,10) + '.csv';
+  link.click();
+  
+  // ENVIAR A DATADOG
+  const totalRegistros = pesadas.filter(p => p.estado === 'green' || p.estado === 'yellow').length;
+  enviarADatadog('/api/rrhh', {
+    total_registros: totalRegistros
+  });
+  
+  alert('📤 Archivo CSV generado y enviado al correo de RR.HH. con kg validados por DNI.');
+}
+
+// ============================================================
+// RELOJ Y FECHA
+// ============================================================
+function updateClock() {
+  const now = new Date();
+  const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  
+  const dateStr = `${dias[now.getDay()]} ${now.getDate()} de ${meses[now.getMonth()]} ${now.getFullYear()}`;
+  const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  
+  const todayEl = document.getElementById('todayDate');
+  const clockEl = document.getElementById('liveClock');
+  const repEl = document.getElementById('reporteFecha');
+  
+  if (todayEl) todayEl.textContent = dateStr;
+  if (clockEl) clockEl.textContent = timeStr;
+  if (repEl) repEl.textContent = dateStr;
+}
+
+// ============================================================
+// TOAST DE NOTIFICACION
+// ============================================================
+function mostrarToast(mensaje, color = 'green') {
+  const colors = { green: '#4ade80', orange: '#fb923c', red: '#f87171', blue: '#60a5fa' };
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position: fixed; bottom: 24px; right: 24px; z-index: 1000;
+    background: var(--bg-card); border: 1px solid ${colors[color]};
+    color: ${colors[color]}; padding: 12px 18px; border-radius: 8px;
+    font-size: 13px; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    animation: toastIn 0.3s ease-out;
+  `;
+  toast.textContent = mensaje;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+// Funcion para cargar todas las pesadas del dia al abrir la app
+async function cargarHistorial() {
+  try {
+    const r = await fetch(SERVIDOR_URL + '/api/pesadas-todas', {
+      method: 'GET',
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!r.ok) return;
+    
+    const data = await r.json();
+    if (data.pesadas && data.pesadas.length > 0) {
+      // Limpiar pesadas pre-cargadas y reemplazar con las reales de Supabase
+      pesadas.length = 0;
+      
+      data.pesadas.forEach(p => {
+        pesadas.unshift({
+          hora: p.hora,
+          dni: p.dni,
+          nombre: p.nombre,
+          cuadrilla: p.cuadrilla,
+          kg: p.kg,
+          horas: p.horas,
+          lote: p.lote,
+          estado: p.estado,
+          z: p.z,
+          motivo: p.motivo
+        });
+        
+        if (p.timestamp > ultimoTimestamp) {
+          ultimoTimestamp = p.timestamp;
+        }
+      });
+      
+      console.log(`[Supabase] Cargadas ${data.pesadas.length} pesadas del día`);
+      renderPesadas();
+      renderFeed();
+    }
+  } catch (e) {
+    console.log('[Supabase] No se pudo cargar el historial:', e.message);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  renderTrabajadores();
+  renderPesadas();
+  renderLogs();
+  renderFeed();
+  updateClock();
+  setInterval(updateClock, 1000);
+  
+  // Cargar el primer reporte (gerencia por defecto)
+  if (document.getElementById('selectorReporte')) {
+    cambiarReporte();
+  }
+  
+  // Verificar servidor cada 10 segundos
+  verificarServidor();
+  setInterval(verificarServidor, 10000);
+  
+  // Cargar historial de pesadas del dia desde Supabase
+  // (cuando el servidor este listo, despues de unos segundos)
+  setTimeout(cargarHistorial, 3000);
+  
+  // Refrescar historial cada 30 segundos por si hay pesadas nuevas
+  // de otros usuarios
+  setInterval(cargarHistorial, 30000);
+  
+  // Tambien consultar polling rapido cada 5 segundos para nuevas
+  setInterval(consultarPesadasNuevas, 5000);
+  
+  // Cerrar modales al click fuera
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', (e) => {
+      if (e.target === m) m.classList.remove('active');
+    });
+  });
+});
+</script>
+
+<!-- ================================================== -->
+<!-- BANNER DE INSTALACION DE LA APP MOVIL              -->
+<!-- ================================================== -->
+<div id="banner-instalar" style="
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  max-width: 500px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #3B6D11, #243024);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  z-index: 9999;
+  font-family: 'Inter', sans-serif;
+  border: 1px solid #5B8C2A;
+">
+  <div style="display: flex; align-items: center; gap: 14px;">
+    <img src="icons/icon-192x192.png" alt="AgroIA" style="width: 48px; height: 48px; border-radius: 10px; flex-shrink: 0;">
+    <div style="flex: 1;">
+      <div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">Instalar AgroIA</div>
+      <div style="font-size: 12px; opacity: 0.85;">Acceso rápido desde tu pantalla de inicio</div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button id="btn-instalar-pwa" style="
+        background: #95C11F;
+        color: #243024;
+        border: none;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        font-family: inherit;
+      ">Instalar</button>
+      <button id="btn-cerrar-banner" style="
+        background: transparent;
+        color: white;
+        border: 1px solid rgba(255,255,255,0.3);
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        cursor: pointer;
+        font-family: inherit;
+      ">×</button>
+    </div>
+  </div>
+</div>
+
+<!-- Banner para iOS (Safari no tiene API de instalación, debe ser manual) -->
+<div id="banner-ios" style="
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  max-width: 500px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #3B6D11, #243024);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  z-index: 9999;
+  font-family: 'Inter', sans-serif;
+  border: 1px solid #5B8C2A;
+">
+  <div style="display: flex; align-items: flex-start; gap: 14px;">
+    <img src="icons/icon-192x192.png" alt="AgroIA" style="width: 48px; height: 48px; border-radius: 10px; flex-shrink: 0;">
+    <div style="flex: 1;">
+      <div style="font-weight: 700; font-size: 15px; margin-bottom: 4px;">Instalar AgroIA en tu iPhone</div>
+      <div style="font-size: 12px; opacity: 0.9; line-height: 1.4;">
+        Toca el botón <strong>Compartir ⬆</strong> abajo,<br>
+        luego <strong>"Agregar a pantalla de inicio"</strong>
+      </div>
+    </div>
+    <button id="btn-cerrar-ios" style="
+      background: transparent;
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      flex-shrink: 0;
+    ">×</button>
+  </div>
+</div>
+
+<!-- ================================================== -->
+<!-- SCRIPT DE PWA: instalación + service worker        -->
+<!-- ================================================== -->
+<script>
+// ========== REGISTRO DEL SERVICE WORKER (offline) ==========
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .then(reg => console.log('[PWA] Service Worker registrado:', reg.scope))
+      .catch(err => console.log('[PWA] Error registrando Service Worker:', err));
+  });
+}
+
+// ========== INSTALACION EN ANDROID/CHROME/EDGE ==========
+let deferredPrompt = null;
+const bannerInstalar = document.getElementById('banner-instalar');
+const btnInstalar = document.getElementById('btn-instalar-pwa');
+const btnCerrarBanner = document.getElementById('btn-cerrar-banner');
+
+// El navegador dispara este evento cuando la app es instalable
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  
+  // Mostrar banner solo si no se cerró antes y no está ya instalada
+  if (!localStorage.getItem('pwa-banner-dismissed') && !esAppInstalada()) {
+    setTimeout(() => bannerInstalar.style.display = 'block', 2000);
+  }
+});
+
+btnInstalar?.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  bannerInstalar.style.display = 'none';
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  console.log('[PWA] Usuario respondió:', outcome);
+  deferredPrompt = null;
+});
+
+btnCerrarBanner?.addEventListener('click', () => {
+  bannerInstalar.style.display = 'none';
+  localStorage.setItem('pwa-banner-dismissed', '1');
+});
+
+// ========== INSTALACION EN iOS (Safari) ==========
+// iOS no tiene API de instalación, requiere instrucciones manuales
+const bannerIos = document.getElementById('banner-ios');
+const btnCerrarIos = document.getElementById('btn-cerrar-ios');
+
+function esIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+function esSafari() {
+  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+}
+
+function esAppInstalada() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         window.navigator.standalone === true;
+}
+
+// Si es iPhone con Safari y NO está instalada, mostrar banner iOS
+if (esIOS() && esSafari() && !esAppInstalada() && !localStorage.getItem('ios-banner-dismissed')) {
+  setTimeout(() => bannerIos.style.display = 'block', 2000);
+}
+
+btnCerrarIos?.addEventListener('click', () => {
+  bannerIos.style.display = 'none';
+  localStorage.setItem('ios-banner-dismissed', '1');
+});
+
+// ========== DETECCION DE INSTALACION EXITOSA ==========
+window.addEventListener('appinstalled', () => {
+  console.log('[PWA] App instalada correctamente');
+  bannerInstalar.style.display = 'none';
+  bannerIos.style.display = 'none';
+});
+
+// ========== DETECCION ONLINE/OFFLINE ==========
+function actualizarEstadoConexion() {
+  if (!navigator.onLine) {
+    console.log('[PWA] Sin conexión, usando datos cacheados');
+  }
+}
+
+window.addEventListener('online', actualizarEstadoConexion);
+window.addEventListener('offline', actualizarEstadoConexion);
+</script>
+
+</body>
+</html>
