@@ -1484,7 +1484,7 @@ tr:hover td {
 const SERVIDOR_URL = (
   window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:5000'
-    : 'https://agroi-api.onrender.com'  // <-- CAMBIA POR TU URL DE RENDER
+    : 'https://agroia-api.onrender.com'  // <-- CAMBIA POR TU URL DE RENDER
 );
 let servidorConectado = false;
 let ultimoTimestamp = Date.now() / 1000; // Para polling de pesadas nuevas
@@ -3195,10 +3195,30 @@ async function cargarHistorial() {
     console.log(`[Supabase] Respuesta:`, data);
     
     if (data.fuente === 'supabase' && data.pesadas && data.pesadas.length > 0) {
-      // Limpiar pesadas pre-cargadas y reemplazar con las reales de Supabase
+      // ESTRATEGIA NO DESTRUCTIVA:
+      // En vez de borrar todo y reemplazar, hacemos un MERGE inteligente.
+      // Esto evita que las pesadas recien registradas (que aun no llegan a 
+      // Supabase) desaparezcan al recargar.
+      
+      // 1. Crear un set de identificadores unicos del servidor
+      const idsServidor = new Set();
+      data.pesadas.forEach(p => {
+        const id = `${p.dni}_${p.hora}_${p.kg}_${p.horas}`;
+        idsServidor.add(id);
+      });
+      
+      // 2. Identificar las pesadas LOCALES que NO estan en el servidor todavia
+      // (probablemente recien registradas, esperando llegar a Supabase)
+      const pesadasLocalesPendientes = pesadas.filter(p => {
+        const id = `${p.dni}_${p.hora}_${p.kg}_${p.horas}`;
+        return !idsServidor.has(id);
+      });
+      
+      // 3. Limpiar y reconstruir con: pesadas del servidor + locales pendientes
       pesadas.length = 0;
       
-      // Agregar de mas reciente a mas viejo (las del servidor vienen en orden cronologico)
+      // Agregar las del servidor (vienen en orden cronologico ascendente,
+      // hacemos unshift para que las mas recientes queden arriba)
       data.pesadas.forEach(p => {
         pesadas.unshift({
           hora: p.hora,
@@ -3218,24 +3238,26 @@ async function cargarHistorial() {
         }
       });
       
-      console.log(`[Supabase] Cargadas ${data.pesadas.length} pesadas del día`);
+      // Agregar las locales pendientes (al inicio, son las mas recientes)
+      pesadasLocalesPendientes.forEach(p => {
+        pesadas.unshift(p);
+      });
+      
+      console.log(`[Supabase] Cargadas ${data.pesadas.length} del servidor + ${pesadasLocalesPendientes.length} locales pendientes`);
       
       // Refrescar TODO en la UI
       renderPesadas();
       renderFeed();
       renderLogs();
-      actualizarKPIs();  // Importante: actualiza KPIs y reporte ejecutivo
+      actualizarKPIs();
       
-      // Resetear contador
       intentosHistorial = 0;
     } else if (data.fuente === 'supabase' && data.pesadas && data.pesadas.length === 0) {
       console.log('[Supabase] Conectado pero sin pesadas en la BD');
-      // Limpiar las pre-cargadas porque ya estamos sincronizados con BD vacia
-      if (intentosHistorial === 0) {
-        pesadas.length = 0;
-        renderPesadas();
-        renderFeed();
-        actualizarKPIs();
+      // Solo limpiar las pre-cargadas en el primer intento, despues NO
+      if (intentosHistorial === 0 && pesadas.length > 0) {
+        // Si ya hay pesadas locales que aun no llegan a Supabase, preservarlas
+        console.log('[Supabase] Preservando pesadas locales pendientes');
       }
       intentosHistorial = 0;
     } else if (data.fuente === 'memoria') {
