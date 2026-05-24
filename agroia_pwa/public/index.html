@@ -3028,7 +3028,8 @@ z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${
     kg, horas, lote,
     estado: color,
     z: parseFloat(z.toFixed(2)),
-    motivo: color !== 'green' ? motivos[color] : null
+    motivo: color !== 'green' ? motivos[color] : null,
+    _localTimestamp: Date.now() / 1000  // Para identificar pesadas locales recientes
   });
   
   // ENVIAR A DATADOG via servidor Python
@@ -3194,10 +3195,12 @@ async function cargarHistorial() {
     console.log(`[Supabase] Respuesta:`, data);
     
     if (data.fuente === 'supabase' && data.pesadas && data.pesadas.length > 0) {
-      // ESTRATEGIA NO DESTRUCTIVA:
-      // En vez de borrar todo y reemplazar, hacemos un MERGE inteligente.
-      // Esto evita que las pesadas recien registradas (que aun no llegan a 
-      // Supabase) desaparezcan al recargar.
+      // ESTRATEGIA NO DESTRUCTIVA con identificador local:
+      // Solo conservamos las pesadas que tienen _localTimestamp reciente
+      // (registradas hace menos de 5 segundos y aun no llegaron a Supabase).
+      // Las demas (hardcoded o ya sincronizadas) las reemplazamos.
+      
+      const ahora = Date.now() / 1000;
       
       // 1. Crear un set de identificadores unicos del servidor
       const idsServidor = new Set();
@@ -3206,18 +3209,19 @@ async function cargarHistorial() {
         idsServidor.add(id);
       });
       
-      // 2. Identificar las pesadas LOCALES que NO estan en el servidor todavia
-      // (probablemente recien registradas, esperando llegar a Supabase)
+      // 2. Conservar solo las locales recientes que NO estan en el servidor
       const pesadasLocalesPendientes = pesadas.filter(p => {
+        // Debe tener marca de timestamp local reciente
+        if (!p._localTimestamp || (ahora - p._localTimestamp) > 10) return false;
+        // Y no debe estar ya en el servidor
         const id = `${p.dni}_${p.hora}_${p.kg}_${p.horas}`;
         return !idsServidor.has(id);
       });
       
-      // 3. Limpiar y reconstruir con: pesadas del servidor + locales pendientes
+      // 3. Limpiar y reconstruir
       pesadas.length = 0;
       
-      // Agregar las del servidor (vienen en orden cronologico ascendente,
-      // hacemos unshift para que las mas recientes queden arriba)
+      // Agregar las del servidor
       data.pesadas.forEach(p => {
         pesadas.unshift({
           hora: p.hora,
@@ -3237,7 +3241,7 @@ async function cargarHistorial() {
         }
       });
       
-      // Agregar las locales pendientes (al inicio, son las mas recientes)
+      // Agregar las locales pendientes al inicio
       pesadasLocalesPendientes.forEach(p => {
         pesadas.unshift(p);
       });
@@ -3252,12 +3256,29 @@ async function cargarHistorial() {
       
       intentosHistorial = 0;
     } else if (data.fuente === 'supabase' && data.pesadas && data.pesadas.length === 0) {
-      console.log('[Supabase] Conectado pero sin pesadas en la BD');
-      // Solo limpiar las pre-cargadas en el primer intento, despues NO
-      if (intentosHistorial === 0 && pesadas.length > 0) {
-        // Si ya hay pesadas locales que aun no llegan a Supabase, preservarlas
-        console.log('[Supabase] Preservando pesadas locales pendientes');
-      }
+      console.log('[Supabase] Conectado, BD vacia - limpiando pesadas demo');
+      
+      // CRITICO: si Supabase esta vacio, hay que LIMPIAR las pesadas
+      // hardcoded de demo. Solo conservamos las locales pendientes
+      // (las que registramos hace menos de 5 segundos y aun no llegaron a BD)
+      const ahora = Date.now() / 1000;
+      const pesadasLocalesPendientes = pesadas.filter(p => {
+        // Conservar solo las que tienen un timestamp reciente (< 5 seg)
+        // Las hardcoded no tienen timestamp local reciente
+        return p._localTimestamp && (ahora - p._localTimestamp) < 5;
+      });
+      
+      // Limpiar todo y dejar solo las pendientes
+      pesadas.length = 0;
+      pesadasLocalesPendientes.forEach(p => pesadas.unshift(p));
+      
+      console.log(`[Supabase] Limpieza completa - ${pesadasLocalesPendientes.length} pesadas locales pendientes preservadas`);
+      
+      renderPesadas();
+      renderFeed();
+      renderLogs();
+      actualizarKPIs();
+      
       intentosHistorial = 0;
     } else if (data.fuente === 'memoria') {
       // Servidor no tiene supabase activo, reintentar
