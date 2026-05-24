@@ -1480,11 +1480,10 @@ tr:hover td {
 // ============================================================
 // URL del servidor: si la app esta corriendo en localhost, usar localhost.
 // Si esta corriendo en internet (Render), usar la URL del servidor en la nube.
-// IMPORTANTE: cambia 'agroia-api' por el nombre exacto que le diste a tu servicio en Render.
 const SERVIDOR_URL = (
   window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:5000'
-    : 'https://agroi-api.onrender.com'  // <-- CAMBIA POR TU URL DE RENDER
+    : 'https://agroi-api.onrender.com'  // URL real del backend en Render
 );
 let servidorConectado = false;
 let ultimoTimestamp = Date.now() / 1000; // Para polling de pesadas nuevas
