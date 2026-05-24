@@ -1,16 +1,14 @@
 // =====================================================
-// AgroIA Service Worker
-// Cachea los recursos de la app para funcionamiento offline
+// AgroIA Service Worker v2.0.0
+// Estrategia network-first para HTML (siempre actualizado)
+// Estrategia cache-first para assets estáticos (íconos, etc.)
 // =====================================================
 
-const CACHE_NAME = 'agroia-v1.0.0';
-const RUNTIME_CACHE = 'agroia-runtime';
+const CACHE_NAME = 'agroia-v2.0.0'; // Cambio de version fuerza actualizacion
+const RUNTIME_CACHE = 'agroia-runtime-v2';
 
-// Archivos que se cachean al instalar la PWA
+// Solo precacheamos assets estaticos, NO el HTML
 const PRECACHE_URLS = [
-  './',
-  './index.html',
-  './manifest.json',
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
   './icons/apple-touch-icon.png',
@@ -18,32 +16,35 @@ const PRECACHE_URLS = [
 ];
 
 // =====================================================
-// INSTALACION: cachear archivos esenciales
+// INSTALACION
 // =====================================================
 self.addEventListener('install', event => {
-  console.log('[ServiceWorker] Instalando...');
+  console.log('[ServiceWorker v2] Instalando...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('[ServiceWorker] Cacheando archivos esenciales');
+        console.log('[ServiceWorker v2] Cacheando assets estaticos');
         return cache.addAll(PRECACHE_URLS);
       })
-      .then(() => self.skipWaiting())
+      .then(() => {
+        // Forzar activacion inmediata sin esperar
+        return self.skipWaiting();
+      })
   );
 });
 
 // =====================================================
-// ACTIVACION: limpiar caches antiguos
+// ACTIVACION: limpiar caches viejos
 // =====================================================
 self.addEventListener('activate', event => {
-  console.log('[ServiceWorker] Activando...');
+  console.log('[ServiceWorker v2] Activando...');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames
           .filter(name => name !== CACHE_NAME && name !== RUNTIME_CACHE)
           .map(name => {
-            console.log('[ServiceWorker] Eliminando cache antiguo:', name);
+            console.log('[ServiceWorker v2] Eliminando cache viejo:', name);
             return caches.delete(name);
           })
       );
@@ -52,51 +53,69 @@ self.addEventListener('activate', event => {
 });
 
 // =====================================================
-// FETCH: estrategia "cache first, then network"
-// Si está en cache, devuelve del cache (rápido, offline)
-// Si no, va a la red y guarda copia en cache
+// FETCH: estrategias diferenciadas
 // =====================================================
 self.addEventListener('fetch', event => {
   // Solo cachear peticiones GET
   if (event.request.method !== 'GET') return;
   
-  // No cachear peticiones a APIs externas (Datadog, servidor local)
   const url = new URL(event.request.url);
+  
+  // NO interceptar peticiones a APIs externas
   if (url.hostname.includes('datadog') ||
+      url.hostname.includes('onrender.com') && url.pathname.includes('/api/') ||
       url.hostname.includes('localhost') ||
+      url.hostname.includes('cdnjs') ||
+      url.hostname.includes('supabase') ||
       url.protocol === 'chrome-extension:') {
     return;
   }
   
+  // ESTRATEGIA NETWORK-FIRST para HTML
+  // Siempre intentar version nueva, si falla usar cache
+  if (event.request.destination === 'document' || 
+      event.request.url.endsWith('.html') ||
+      event.request.url.endsWith('/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          // Guardar copia en cache para offline
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(RUNTIME_CACHE).then(cache => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Si falla la red, usar cache (modo offline real)
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+  
+  // ESTRATEGIA CACHE-FIRST para assets (iconos, manifest)
   event.respondWith(
     caches.match(event.request)
       .then(cachedResponse => {
-        // Si está en cache, devolverlo
         if (cachedResponse) {
           return cachedResponse;
         }
         
-        // Si no, ir a la red
         return fetch(event.request)
           .then(networkResponse => {
-            // Si la respuesta no es válida, no la cacheamos
             if (!networkResponse || networkResponse.status !== 200 || networkResponse.type === 'opaque') {
               return networkResponse;
             }
             
-            // Cachear la respuesta para siguiente vez
             const responseToCache = networkResponse.clone();
             caches.open(RUNTIME_CACHE).then(cache => {
               cache.put(event.request, responseToCache);
             });
             
             return networkResponse;
-          })
-          .catch(() => {
-            // Si falla todo, devolver página de error offline
-            if (event.request.destination === 'document') {
-              return caches.match('./index.html');
-            }
           });
       })
   );
