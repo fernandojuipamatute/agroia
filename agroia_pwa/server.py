@@ -29,6 +29,7 @@ USO:
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import requests  # Para llamar a APIs externas (Gemini, Claude)
 import time
 import json
 import urllib.request
@@ -51,6 +52,22 @@ from supabase import create_client, Client
 # En local, usa el valor por defecto
 API_KEY = os.environ.get("DATADOG_API_KEY", "PEGA_AQUI_TU_API_KEY")
 SITE = os.environ.get("DATADOG_SITE", "us5.datadoghq.com")
+
+# ============================================================
+# CONFIGURACION DE IA VISION
+# ============================================================
+# Soporta Gemini (Google) y Claude (Anthropic).
+# Cambia AI_PROVIDER en variables de entorno para migrar facilmente.
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "gemini").lower()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
+
+if AI_PROVIDER == "gemini" and GEMINI_API_KEY:
+    print(f"[IA] Proveedor: Gemini (configurado)")
+elif AI_PROVIDER == "claude" and CLAUDE_API_KEY:
+    print(f"[IA] Proveedor: Claude (configurado)")
+else:
+    print(f"[IA] No configurado - analisis de imagen no disponible")
 
 # ============================================================
 # CONEXION A SUPABASE (base de datos en la nube)
@@ -632,6 +649,184 @@ def listar_lotes():
             {"codigo": cod, **datos} for cod, datos in LOTES.items()
         ]
     })
+
+# ============================================================
+# ENDPOINT: ANALISIS DE IMAGEN CON IA (VISION)
+# ============================================================
+@app.route('/api/analizar-imagen', methods=['POST'])
+def analizar_imagen():
+    """Analiza una imagen usando IA (Gemini o Claude).
+    
+    Recibe: { "imagen_base64": "..." (sin prefijo data:image), "contexto": "opcional" }
+    Devuelve: { "exito": true, "analisis": {...}, "proveedor": "gemini" }
+    """
+    try:
+        data = request.json
+        if not data or 'imagen_base64' not in data:
+            return jsonify({"exito": False, "error": "Falta imagen_base64"}), 400
+        
+        imagen_b64 = data['imagen_base64']
+        contexto = data.get('contexto', 'Imagen de cosecha de palta Hass')
+        
+        # Prompt especializado en agricultura/palta Hass
+        prompt = """Eres un agente IA experto en agricultura de palta Hass (avocado) en Peru.
+Analiza esta imagen y responde EXCLUSIVAMENTE en formato JSON con esta estructura:
+
+{
+  "tipo_detectado": "palta_hass" | "otra_fruta" | "no_es_fruta" | "no_clasificable",
+  "calidad_aparente": "excelente" | "buena" | "regular" | "deficiente" | "no_aplicable",
+  "color_madurez": "verde_inmadura" | "verde_madura" | "morada_lista" | "muy_madura" | "no_aplicable",
+  "daños_visibles": ["lista", "de", "daños"] o [],
+  "posibles_plagas": ["lista", "de", "plagas"] o [],
+  "confianza": "alta" | "media" | "baja",
+  "resumen": "Descripcion breve en 1-2 oraciones",
+  "recomendacion": "Accion sugerida en 1 oracion",
+  "alerta": null | "texto de alerta si hay problema critico"
+}
+
+REGLAS IMPORTANTES:
+- Si la imagen NO es de palta o cosecha, marca "tipo_detectado" como "no_clasificable" o "otra_fruta"
+- Se honesto con la confianza: si la foto es borrosa o ambigua, marca "baja"
+- Para daños usa terminos como: "manchas_oscuras", "pudricion", "deshidratacion", "magulladuras", "daño_mecanico"
+- Para plagas comunes en palta: "trips", "chinche", "arañita_roja", "antracnosis", "phytophthora"
+- NO inventes datos: si no puedes determinar algo, usa "no_aplicable"
+- El JSON debe ser valido, sin texto antes ni despues"""
+
+        if AI_PROVIDER == "gemini" and GEMINI_API_KEY:
+            return _analizar_con_gemini(imagen_b64, prompt)
+        elif AI_PROVIDER == "claude" and CLAUDE_API_KEY:
+            return _analizar_con_claude(imagen_b64, prompt)
+        else:
+            return jsonify({
+                "exito": False,
+                "error": "IA no configurada en el servidor"
+            }), 503
+            
+    except Exception as e:
+        print(f"[IA] Error en analisis: {e}")
+        return jsonify({"exito": False, "error": str(e)}), 500
+
+
+def _analizar_con_gemini(imagen_b64, prompt):
+    """Llama a Gemini API para analisis visual"""
+    import requests as http_requests  # alias para no confundir con flask.request
+    import json
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={GEMINI_API_KEY}"
+    
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": imagen_b64
+                    }
+                }
+            ]
+        }],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 1000
+        }
+    }
+    
+    try:
+        response = http_requests.post(url, json=payload, timeout=30)
+        response.raise_for_status()
+        result = response.json()
+        
+        # Extraer el texto de la respuesta
+        texto_respuesta = result['candidates'][0]['content']['parts'][0]['text']
+        print(f"[IA Gemini] Respuesta cruda: {texto_respuesta[:200]}...")
+        
+        # Limpiar el JSON (a veces viene con ```json al inicio)
+        texto_limpio = texto_respuesta.strip()
+        if texto_limpio.startswith('```'):
+            # Quitar ```json y ```
+            lineas = texto_limpio.split('\n')
+            texto_limpio = '\n'.join(lineas[1:-1])
+        
+        # Parsear JSON
+        analisis = json.loads(texto_limpio)
+        
+        return jsonify({
+            "exito": True,
+            "analisis": analisis,
+            "proveedor": "gemini"
+        })
+        
+    except json.JSONDecodeError as e:
+        print(f"[IA Gemini] Error parseando JSON: {e}")
+        print(f"[IA Gemini] Texto crudo: {texto_respuesta}")
+        return jsonify({
+            "exito": False,
+            "error": "Respuesta de IA no es JSON valido",
+            "respuesta_cruda": texto_respuesta[:500]
+        }), 500
+    except Exception as e:
+        print(f"[IA Gemini] Error: {e}")
+        return jsonify({"exito": False, "error": str(e)}), 500
+
+
+def _analizar_con_claude(imagen_b64, prompt):
+    """Llama a Claude API para analisis visual"""
+    import requests as http_requests
+    import json
+    
+    url = "https://api.anthropic.com/v1/messages"
+    
+    headers = {
+        "x-api-key": CLAUDE_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    
+    payload = {
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 1000,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": imagen_b64
+                    }
+                },
+                {"type": "text", "text": prompt}
+            ]
+        }]
+    }
+    
+    try:
+        response = http_requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        result = response.json()
+        
+        texto_respuesta = result['content'][0]['text']
+        
+        # Limpiar JSON
+        texto_limpio = texto_respuesta.strip()
+        if texto_limpio.startswith('```'):
+            lineas = texto_limpio.split('\n')
+            texto_limpio = '\n'.join(lineas[1:-1])
+        
+        analisis = json.loads(texto_limpio)
+        
+        return jsonify({
+            "exito": True,
+            "analisis": analisis,
+            "proveedor": "claude"
+        })
+        
+    except Exception as e:
+        print(f"[IA Claude] Error: {e}")
+        return jsonify({"exito": False, "error": str(e)}), 500
+
 
 # ============================================================
 # INICIO DEL SERVIDOR
