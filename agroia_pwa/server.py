@@ -385,12 +385,17 @@ def recibir_pesada():
     estadisticas["pesadas_enviadas"] += 1
     estadisticas["logs_enviados"] += 1
     
-    # Guardar la pesada
-    ahora = datetime.now()
-    hora_str = ahora.strftime("%H:%M")
+    # Guardar la pesada con hora local de Peru (UTC-5)
+    from datetime import timezone, timedelta
+    PERU_TZ = timezone(timedelta(hours=-5))
+    ahora_peru = datetime.now(timezone.utc).astimezone(PERU_TZ)
+    
+    # Si el cliente envio su hora local, usarla (mas precisa)
+    # Si no, calcularla con UTC-5
+    hora_str = data.get("hora_local", ahora_peru.strftime("%d/%m %H:%M"))
     pesada_para_app = {
         "hora": hora_str,
-        "timestamp": ahora.timestamp(),
+        "timestamp": datetime.now(timezone.utc).timestamp(),
         "dni": dni,
         "nombre": nombre,
         "cuadrilla": cuadrilla,
