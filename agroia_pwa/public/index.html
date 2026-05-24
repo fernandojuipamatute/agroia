@@ -1033,6 +1033,9 @@ tr:hover td {
     <div class="nav-item" onclick="switchPage('logs')">
       <span class="nav-icon">📋</span> Log de decisiones
     </div>
+    <div class="nav-item" onclick="switchPage('vision')">
+      <span class="nav-icon">📷</span> Análisis Visual
+    </div>
   </div>
 
   <div class="nav-section">
@@ -1391,6 +1394,77 @@ tr:hover td {
   <!-- Contenedor del reporte (se rellena dinámicamente) -->
   <div id="contenedorReporte">
     <!-- El contenido se inyecta con JavaScript -->
+  </div>
+</div>
+
+<!-- ============= ANALISIS IA VISUAL ============= -->
+<div class="page-section" id="page-vision">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">📷 Análisis IA Visual</h1>
+      <div class="page-subtitle">Toma una foto y el agente IA analizará calidad, daños y madurez</div>
+    </div>
+  </div>
+
+  <div class="section" style="background: var(--bg-soft); border-color: var(--border);">
+    
+    <!-- Zona de carga de imagen -->
+    <div id="zonaVision" style="text-align: center; padding: 32px;">
+      
+      <!-- Imagen preview -->
+      <div id="previewContainer" style="display: none; margin-bottom: 24px;">
+        <img id="imagenPreview" style="max-width: 100%; max-height: 400px; border-radius: 12px; border: 2px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.3);" />
+        <div style="margin-top: 12px;">
+          <button class="btn" onclick="quitarImagen()">❌ Quitar imagen</button>
+        </div>
+      </div>
+      
+      <!-- Botones iniciales -->
+      <div id="botonesVision" style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+        
+        <!-- Tomar foto con cámara -->
+        <label for="inputCamara" style="cursor: pointer;">
+          <input type="file" id="inputCamara" accept="image/*" capture="environment" 
+                 style="display: none;" onchange="cargarImagen(event)">
+          <div class="btn btn-primary" style="padding: 24px 32px; font-size: 16px; display: inline-block;">
+            📷 Tomar foto con cámara
+          </div>
+        </label>
+        
+        <!-- Subir imagen de galería -->
+        <label for="inputArchivo" style="cursor: pointer;">
+          <input type="file" id="inputArchivo" accept="image/*" 
+                 style="display: none;" onchange="cargarImagen(event)">
+          <div class="btn" style="padding: 24px 32px; font-size: 16px; display: inline-block;">
+            📁 Subir desde galería
+          </div>
+        </label>
+      </div>
+      
+      <!-- Botón de análisis (aparece cuando hay imagen) -->
+      <div id="botonAnalizar" style="display: none; margin-top: 24px;">
+        <button class="btn btn-primary" onclick="analizarImagen()" 
+                style="padding: 16px 48px; font-size: 16px; background: linear-gradient(135deg, #95C11F, #639922);">
+          🔍 Analizar con agente IA
+        </button>
+      </div>
+      
+      <!-- Indicador de carga -->
+      <div id="indicadorCarga" style="display: none; margin-top: 24px;">
+        <div style="display: inline-block; padding: 20px 32px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border);">
+          <div style="font-size: 24px; margin-bottom: 8px;">🧠 Analizando...</div>
+          <div style="color: var(--text-muted); font-size: 13px;">El agente IA está procesando la imagen</div>
+        </div>
+      </div>
+      
+    </div>
+    
+    <!-- Resultado del análisis -->
+    <div id="resultadoVision" style="display: none; margin-top: 24px; padding: 24px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border);">
+      <h3 style="margin-top: 0; color: var(--text);">📋 Resultado del análisis</h3>
+      <div id="contenidoResultado"></div>
+    </div>
+    
   </div>
 </div>
 
@@ -2674,6 +2748,9 @@ function renderTrabajadores() {
   });
 }
 
+// Cache del último HTML renderizado para detectar cambios reales
+let _ultimoRenderPesadas = '';
+
 function renderPesadas(filtro = 'todas') {
   const tbody = document.getElementById('tbodyPesadas');
   if (!tbody) return;
@@ -2683,7 +2760,7 @@ function renderPesadas(filtro = 'todas') {
     filtro === 'observadas' ? pesadas.filter(p => p.estado === 'yellow' || p.estado === 'orange') :
     pesadas.filter(p => p.estado === 'red');
 
-  tbody.innerHTML = filtradas.map(p => {
+  const nuevoHTML = filtradas.map(p => {
     const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
     const prod = (p.kg / p.horas).toFixed(1);
     const statusClass = p.estado;
@@ -2706,8 +2783,13 @@ function renderPesadas(filtro = 'todas') {
     `;
   }).join('');
   
-  // Actualizar todos los KPIs cada vez que se renderizan pesadas
-  actualizarKPIs();
+  // ANTI-PARPADEO: solo actualizar el DOM si el HTML realmente cambio
+  // (evita re-renders innecesarios cada 10 segundos que causan parpadeo)
+  if (nuevoHTML !== _ultimoRenderPesadas) {
+    tbody.innerHTML = nuevoHTML;
+    _ultimoRenderPesadas = nuevoHTML;
+    actualizarKPIs();
+  }
 }
 
 function renderLogs() {
@@ -2735,6 +2817,223 @@ function renderFeed() {
 // ============================================================
 // NAVEGACIÓN
 // ============================================================
+// ============================================================
+// ANALISIS IA VISUAL - cargar foto y enviar a Gemini/Claude
+// ============================================================
+let imagenBase64 = null;
+
+function cargarImagen(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  // Validar que sea imagen
+  if (!file.type.startsWith('image/')) {
+    mostrarToast('❌ Por favor selecciona una imagen', 'red');
+    return;
+  }
+  
+  // Validar tamaño (máximo 4MB)
+  if (file.size > 4 * 1024 * 1024) {
+    mostrarToast('⚠ La imagen es muy grande (max 4MB)', 'orange');
+    return;
+  }
+  
+  // Leer la imagen como base64
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const dataURL = e.target.result;
+    
+    // Mostrar preview
+    document.getElementById('imagenPreview').src = dataURL;
+    document.getElementById('previewContainer').style.display = 'block';
+    document.getElementById('botonesVision').style.display = 'none';
+    document.getElementById('botonAnalizar').style.display = 'block';
+    document.getElementById('resultadoVision').style.display = 'none';
+    
+    // Guardar base64 sin el prefijo "data:image/jpeg;base64,"
+    imagenBase64 = dataURL.split(',')[1];
+  };
+  reader.readAsDataURL(file);
+}
+
+function quitarImagen() {
+  // Resetear todo
+  imagenBase64 = null;
+  document.getElementById('imagenPreview').src = '';
+  document.getElementById('previewContainer').style.display = 'none';
+  document.getElementById('botonesVision').style.display = 'flex';
+  document.getElementById('botonAnalizar').style.display = 'none';
+  document.getElementById('resultadoVision').style.display = 'none';
+  document.getElementById('indicadorCarga').style.display = 'none';
+  
+  // Limpiar los inputs file
+  document.getElementById('inputCamara').value = '';
+  document.getElementById('inputArchivo').value = '';
+}
+
+async function analizarImagen() {
+  if (!imagenBase64) {
+    mostrarToast('❌ Primero carga una imagen', 'red');
+    return;
+  }
+  
+  // Ocultar botón de analizar, mostrar indicador
+  document.getElementById('botonAnalizar').style.display = 'none';
+  document.getElementById('indicadorCarga').style.display = 'block';
+  document.getElementById('resultadoVision').style.display = 'none';
+  
+  try {
+    const response = await fetch(SERVIDOR_URL + '/api/analizar-imagen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imagen_base64: imagenBase64,
+        contexto: 'Imagen de cosecha de palta Hass - Valle de Viru, Peru'
+      }),
+      signal: AbortSignal.timeout(60000)  // 60 seg porque IA puede ser lenta
+    });
+    
+    const data = await response.json();
+    
+    // Ocultar indicador
+    document.getElementById('indicadorCarga').style.display = 'none';
+    
+    if (data.exito && data.analisis) {
+      mostrarResultadoIA(data.analisis, data.proveedor);
+    } else {
+      // Mostrar error
+      const contenido = document.getElementById('contenidoResultado');
+      contenido.innerHTML = `
+        <div style="padding: 16px; background: rgba(220, 38, 38, 0.1); border-left: 4px solid #DC2626; border-radius: 8px;">
+          <div style="font-weight: 700; color: #DC2626;">❌ Error en el análisis</div>
+          <div style="margin-top: 8px; color: var(--text-muted);">${data.error || 'Error desconocido'}</div>
+        </div>
+      `;
+      document.getElementById('resultadoVision').style.display = 'block';
+      document.getElementById('botonAnalizar').style.display = 'block';
+    }
+  } catch (error) {
+    document.getElementById('indicadorCarga').style.display = 'none';
+    document.getElementById('botonAnalizar').style.display = 'block';
+    mostrarToast('❌ Error de conexión: ' + error.message, 'red');
+  }
+}
+
+function mostrarResultadoIA(analisis, proveedor) {
+  // Determinar color de la calidad
+  const coloresCalidad = {
+    'excelente': { bg: 'rgba(34, 197, 94, 0.15)', border: '#22C55E', emoji: '🟢' },
+    'buena': { bg: 'rgba(149, 193, 31, 0.15)', border: '#95C11F', emoji: '🟢' },
+    'regular': { bg: 'rgba(251, 191, 36, 0.15)', border: '#FBBF24', emoji: '🟡' },
+    'deficiente': { bg: 'rgba(220, 38, 38, 0.15)', border: '#DC2626', emoji: '🔴' },
+    'no_aplicable': { bg: 'rgba(148, 163, 184, 0.15)', border: '#94A3B8', emoji: '⚪' }
+  };
+  
+  const c = coloresCalidad[analisis.calidad_aparente] || coloresCalidad['no_aplicable'];
+  
+  // Mapear tipo detectado
+  const tiposDetectados = {
+    'palta_hass': '🥑 Palta Hass',
+    'otra_fruta': '🍎 Otra fruta',
+    'no_es_fruta': '❌ No es fruta',
+    'no_clasificable': '❓ No clasificable'
+  };
+  
+  // Construir HTML del resultado
+  let html = `
+    <div style="display: grid; gap: 16px;">
+      
+      <!-- Tipo detectado -->
+      <div style="padding: 16px; background: var(--bg-soft); border-radius: 8px;">
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Tipo Detectado</div>
+        <div style="font-size: 20px; font-weight: 700; margin-top: 4px;">${tiposDetectados[analisis.tipo_detectado] || analisis.tipo_detectado}</div>
+      </div>
+      
+      <!-- Calidad aparente -->
+      <div style="padding: 16px; background: ${c.bg}; border-left: 4px solid ${c.border}; border-radius: 8px;">
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Calidad Aparente</div>
+        <div style="font-size: 18px; font-weight: 700; margin-top: 4px;">${c.emoji} ${(analisis.calidad_aparente || 'no_aplicable').toUpperCase().replace('_', ' ')}</div>
+      </div>
+      
+      <!-- Color y madurez -->
+      <div style="padding: 16px; background: var(--bg-soft); border-radius: 8px;">
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Color / Madurez</div>
+        <div style="font-size: 16px; margin-top: 4px;">${(analisis.color_madurez || 'no_aplicable').replace(/_/g, ' ')}</div>
+      </div>
+  `;
+  
+  // Daños visibles
+  if (analisis.daños_visibles && analisis.daños_visibles.length > 0) {
+    html += `
+      <div style="padding: 16px; background: rgba(251, 191, 36, 0.1); border-left: 4px solid #FBBF24; border-radius: 8px;">
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">⚠ Daños Visibles</div>
+        <div style="margin-top: 8px;">
+          ${analisis.daños_visibles.map(d => `<span style="display: inline-block; background: rgba(251, 191, 36, 0.3); padding: 4px 12px; border-radius: 12px; margin: 2px; font-size: 13px;">${d.replace(/_/g, ' ')}</span>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+  
+  // Posibles plagas
+  if (analisis.posibles_plagas && analisis.posibles_plagas.length > 0) {
+    html += `
+      <div style="padding: 16px; background: rgba(220, 38, 38, 0.1); border-left: 4px solid #DC2626; border-radius: 8px;">
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">🐛 Posibles Plagas</div>
+        <div style="margin-top: 8px;">
+          ${analisis.posibles_plagas.map(p => `<span style="display: inline-block; background: rgba(220, 38, 38, 0.3); padding: 4px 12px; border-radius: 12px; margin: 2px; font-size: 13px;">${p.replace(/_/g, ' ')}</span>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+  
+  // Resumen
+  if (analisis.resumen) {
+    html += `
+      <div style="padding: 16px; background: var(--bg-soft); border-radius: 8px;">
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">📝 Resumen</div>
+        <div style="margin-top: 4px; line-height: 1.5;">${analisis.resumen}</div>
+      </div>
+    `;
+  }
+  
+  // Recomendación
+  if (analisis.recomendacion) {
+    html += `
+      <div style="padding: 16px; background: rgba(149, 193, 31, 0.1); border-left: 4px solid #95C11F; border-radius: 8px;">
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">✅ Recomendación</div>
+        <div style="margin-top: 4px; font-weight: 600; line-height: 1.5;">${analisis.recomendacion}</div>
+      </div>
+    `;
+  }
+  
+  // Alerta crítica si existe
+  if (analisis.alerta) {
+    html += `
+      <div style="padding: 16px; background: rgba(220, 38, 38, 0.15); border: 2px solid #DC2626; border-radius: 8px;">
+        <div style="font-size: 12px; color: #DC2626; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">🚨 ALERTA CRÍTICA</div>
+        <div style="margin-top: 4px; font-weight: 700; color: #DC2626;">${analisis.alerta}</div>
+      </div>
+    `;
+  }
+  
+  // Footer con proveedor y confianza
+  html += `
+      <div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); margin-top: 8px;">
+        Análisis por <strong>${proveedor === 'gemini' ? 'Google Gemini' : 'Claude (Anthropic)'}</strong>
+        ${analisis.confianza ? ' · Confianza: <strong>' + analisis.confianza + '</strong>' : ''}
+      </div>
+      
+      <!-- Botón para analizar otra -->
+      <div style="text-align: center; margin-top: 8px;">
+        <button class="btn" onclick="quitarImagen()">🔄 Analizar otra imagen</button>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('contenidoResultado').innerHTML = html;
+  document.getElementById('resultadoVision').style.display = 'block';
+}
+
 function switchPage(page) {
   document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(s => s.classList.remove('active'));
@@ -3011,7 +3310,13 @@ z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${
   
   // Agregar al log
   const ahora = new Date();
-  const horaStr = ahora.getHours().toString().padStart(2,'0') + ':' + ahora.getMinutes().toString().padStart(2,'0');
+  // Formato: "23/05 14:23" - fecha + hora local del usuario
+  const dia = ahora.getDate().toString().padStart(2, '0');
+  const mes = (ahora.getMonth() + 1).toString().padStart(2, '0');
+  const hh = ahora.getHours().toString().padStart(2, '0');
+  const mm = ahora.getMinutes().toString().padStart(2, '0');
+  const horaStr = `${dia}/${mes} ${hh}:${mm}`;
+  
   logs.unshift({
     hora: horaStr,
     tipo: color,
@@ -3050,7 +3355,8 @@ z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${
     estado_color: color,
     motivo: color !== 'green' ? motivos[color] : null,
     tiempo_validacion_ms: tiempoValidacion,
-    origen: 'manual'
+    origen: 'manual',
+    hora_local: horaStr  // Enviar hora del usuario (zona horaria correcta)
   }).then(ok => {
     if (ok) {
       mostrarToast('✅ Enviado a Datadog en tiempo real', 'green');
