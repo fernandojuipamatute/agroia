@@ -2448,6 +2448,9 @@ function generarReporteRRHH() {
 // ============================================================
 // EXPORTACION A PDF
 // ============================================================
+// ============================================================
+// EXPORTACION A PDF (versión simple funcional)
+// ============================================================
 function exportarReportePDF() {
   const tipo = document.getElementById('selectorReporte').value;
   const contenedor = document.getElementById('contenedorReporte');
@@ -2456,7 +2459,6 @@ function exportarReportePDF() {
     return;
   }
   
-  // Verificar que jsPDF esté cargado
   if (typeof window.jspdf === 'undefined') {
     alert('La librería PDF está cargándose. Espera un momento y vuelve a intentar.');
     return;
@@ -2465,7 +2467,6 @@ function exportarReportePDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   
-  // Configuracion segun tipo de reporte
   const colores = {
     'gerencia': { primary: [239, 159, 39], texto: 'GERENCIA / DIRECTORIO' },
     'jefecampo': { primary: [99, 153, 34], texto: 'JEFE DE CAMPO' },
@@ -2475,36 +2476,28 @@ function exportarReportePDF() {
   const config = colores[tipo];
   const fecha = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   
-  // ENCABEZADO
   doc.setFillColor(...config.primary);
   doc.rect(0, 0, 210, 8, 'F');
-  
   doc.setFontSize(18);
   doc.setTextColor(36, 48, 36);
   doc.setFont(undefined, 'bold');
   doc.text('AgroIA', 15, 22);
-  
   doc.setFontSize(10);
   doc.setFont(undefined, 'normal');
   doc.setTextColor(100, 100, 100);
   doc.text('Sistema de Validación Estadística de Cosecha', 15, 28);
-  
   doc.setFontSize(11);
   doc.setTextColor(...config.primary);
   doc.setFont(undefined, 'bold');
   doc.text(`REPORTE PARA: ${config.texto}`, 15, 40);
-  
   doc.setTextColor(100, 100, 100);
   doc.setFont(undefined, 'normal');
   doc.setFontSize(9);
   doc.text(fecha.toUpperCase(), 15, 45);
-  
   doc.setDrawColor(220, 220, 220);
   doc.line(15, 50, 195, 50);
   
-  // CONTENIDO segun tipo de reporte
   let y = 60;
-  
   if (tipo === 'gerencia') y = renderPDFGerencia(doc, y);
   else if (tipo === 'jefecampo') y = renderPDFJefeCampo(doc, y);
   else if (tipo === 'supervisor') {
@@ -2513,7 +2506,6 @@ function exportarReportePDF() {
   }
   else if (tipo === 'rrhh') y = renderPDFRRHH(doc, y);
   
-  // PIE DE PAGINA en todas las paginas
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -2525,7 +2517,6 @@ function exportarReportePDF() {
     doc.text(`Página ${i} de ${totalPages}`, 195, 290, { align: 'right' });
   }
   
-  // DESCARGAR
   const nombreArchivo = `AgroIA_${tipo}_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(nombreArchivo);
 }
@@ -2536,48 +2527,159 @@ function renderPDFGerencia(doc, y) {
   const valorCosechado = m.kgValidados * PRECIO_KG;
   const signo = m.diffMeta >= 0 ? '+' : '';
   
+  // === RESUMEN EJECUTIVO ===
+  // Caja decorativa con borde lateral ambar
+  doc.setFillColor(239, 159, 39);
+  doc.rect(15, y, 3, 8, 'F');
   doc.setFontSize(14);
   doc.setTextColor(36, 48, 36);
   doc.setFont(undefined, 'bold');
-  doc.text(`Cierre del día — ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg (${signo}${m.diffMeta.toFixed(1)}% vs meta)`, 15, y);
-  y += 10;
+  doc.text('Resumen Ejecutivo', 22, y + 6);
+  y += 14;
   
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setFont(undefined, 'normal');
-  const texto1 = `En la jornada de hoy se cosecharon ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg de palta Hass entre las tres cuadrillas. El valor económico de la producción asciende a S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}. El avance de campaña alcanza el ${m.avanceCampana.toFixed(1)}% (${m.acumuladoTon.toFixed(0)} t de 850 t).`;
+  doc.setTextColor(60, 60, 60);
+  const texto1 = `En la jornada de hoy se cosecharon ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg de palta Hass, generando un valor económico de S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}. El avance acumulado de campaña alcanza el ${m.avanceCampana.toFixed(1)}% (${m.acumuladoTon.toFixed(0)} t de 850 t), con ${signo}${m.diffMeta.toFixed(1)}% respecto a la meta diaria.`;
   const lineas1 = doc.splitTextToSize(texto1, 180);
   doc.text(lineas1, 15, y);
-  y += lineas1.length * 5 + 5;
+  y += lineas1.length * 4.5 + 8;
   
+  // === KPIs en 4 cajas ===
+  const kpiBox = (x, titulo, valor, sub) => {
+    // Fondo crema claro
+    doc.setFillColor(255, 250, 240);
+    doc.roundedRect(x, y, 42, 28, 2, 2, 'F');
+    // Borde lateral ambar
+    doc.setFillColor(239, 159, 39);
+    doc.rect(x, y, 1.5, 28, 'F');
+    // Título
+    doc.setFontSize(7);
+    doc.setTextColor(180, 110, 20);
+    doc.setFont(undefined, 'bold');
+    doc.text(titulo.toUpperCase(), x + 5, y + 6);
+    // Valor grande
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(36, 48, 36);
+    doc.text(String(valor), x + 5, y + 16);
+    // Subtítulo
+    if (sub) {
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(sub, x + 5, y + 22);
+    }
+  };
+  
+  kpiBox(15, 'Cosecha', `${Math.round(m.kgValidados).toLocaleString('es-PE')} kg`, `Meta: ${META_DIARIA.toLocaleString('es-PE')} kg`);
+  kpiBox(60, 'Valor S/', `${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`, `${PRECIO_KG} S/ por kg`);
+  kpiBox(105, 'Avance', `${m.avanceCampana.toFixed(1)}%`, `${m.acumuladoTon.toFixed(0)}t de 850t`);
+  kpiBox(150, 'Validación', `${m.tasaValidacion.toFixed(0)}%`, `${m.total} pesadas`);
+  y += 35;
+  
+  // === CALLOUT: Valor del Agente IA ===
   if (m.bloqueadas.length > 0) {
+    // Fondo crema con borde lateral grueso
     doc.setFillColor(254, 243, 226);
-    doc.rect(15, y, 180, 22, 'F');
-    doc.setFontSize(11);
+    doc.roundedRect(15, y, 180, 26, 2, 2, 'F');
+    doc.setFillColor(239, 159, 39);
+    doc.rect(15, y, 3, 26, 'F');
+    
+    doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(133, 79, 11);
-    doc.text('Valor del agente IA en esta jornada', 20, y + 7);
-    doc.setFontSize(9);
+    doc.text('VALOR DEL AGENTE IA EN ESTA JORNADA', 22, y + 8);
+    
+    doc.setFontSize(8.5);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(36, 48, 36);
-    const txtAhorro = `Se detectaron ${m.bloqueadas.length} anomalías por ${Math.round(m.kgBloqueados).toLocaleString('es-PE')} kg, evitando un sobrepago estimado en S/ ${ahorroEstimado.toLocaleString('es-PE', {maximumFractionDigits: 0})}.`;
+    const txtAhorro = `Se detectaron ${m.bloqueadas.length} anomalías por ${Math.round(m.kgBloqueados).toLocaleString('es-PE')} kg, evitando un sobrepago estimado en S/ ${ahorroEstimado.toLocaleString('es-PE', {maximumFractionDigits: 0})}. Esto representa un retorno directo del sistema.`;
     const lineasAhorro = doc.splitTextToSize(txtAhorro, 170);
-    doc.text(lineasAhorro, 20, y + 13);
-    y += 30;
+    doc.text(lineasAhorro, 22, y + 15);
+    y += 32;
   }
+  
+  // === GRAFICO: Producción por cuadrilla ===
+  doc.setFillColor(239, 159, 39);
+  doc.rect(15, y, 3, 8, 'F');
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(36, 48, 36);
+  doc.text('Producción por Cuadrilla', 22, y + 6);
+  y += 13;
+  
+  const cuadrillas = ['C3', 'C5', 'C7'].map(c => {
+    const mc = calcularMetricasCuadrilla(c);
+    return { label: c, valor: Math.round(mc.kgValidados), trabajadores: mc.totalTrabajadores };
+  });
+  const maxKg = Math.max(...cuadrillas.map(c => c.valor), 5000);
+  
+  cuadrillas.forEach((c, i) => {
+    const yBar = y + i * 11;
+    const porcentaje = c.valor / maxKg;
+    const anchoBarra = 120 * porcentaje;
+    
+    // Label cuadrilla
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(36, 48, 36);
+    doc.text(c.label, 18, yBar + 6);
+    
+    // Subtítulo trabajadores
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(120, 120, 120);
+    doc.text(`(${c.trabajadores} trab.)`, 28, yBar + 6);
+    
+    // Barra de fondo gris
+    doc.setFillColor(240, 240, 240);
+    doc.roundedRect(55, yBar + 1, 120, 7, 1, 1, 'F');
+    
+    // Barra de valor ambar
+    doc.setFillColor(239, 159, 39);
+    doc.roundedRect(55, yBar + 1, Math.max(anchoBarra, 2), 7, 1, 1, 'F');
+    
+    // Valor a la derecha
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(36, 48, 36);
+    doc.text(`${c.valor.toLocaleString('es-PE')} kg`, 178, yBar + 6);
+  });
+  y += cuadrillas.length * 11 + 8;
+  
+  // === TABLA: Indicadores Operativos ===
+  doc.setFillColor(239, 159, 39);
+  doc.rect(15, y, 3, 8, 'F');
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(36, 48, 36);
+  doc.text('Indicadores Operativos', 22, y + 6);
+  y += 12;
   
   doc.autoTable({
     startY: y,
-    head: [['Indicador', 'Valor']],
+    head: [['Indicador', 'Valor', 'Estado']],
     body: [
-      ['Cosecha del día', `${Math.round(m.kgValidados).toLocaleString('es-PE')} kg`],
-      ['Valor producido', `S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`],
-      ['Avance campaña', `${m.avanceCampana.toFixed(1)}% (${m.acumuladoTon.toFixed(0)} t / 850 t)`],
-      ['Tasa de validación', `${m.tasaValidacion.toFixed(1)}%`],
-      ['Total pesadas', `${m.total}`],
-      ['Disponibilidad del sistema', '100%'],
+      ['Cosecha del día', `${Math.round(m.kgValidados).toLocaleString('es-PE')} kg`, m.diffMeta >= 0 ? 'Por encima de meta' : 'Por debajo de meta'],
+      ['Valor producido', `S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`, 'Registrado'],
+      ['Avance campaña', `${m.avanceCampana.toFixed(1)}%`, m.avanceCampana >= 60 ? 'En tiempo' : 'Retrasado'],
+      ['Tasa de validación automática', `${m.tasaValidacion.toFixed(1)}%`, m.tasaValidacion >= 90 ? 'Excelente' : 'Revisar'],
+      ['Pesadas registradas', `${m.total}`, 'Operativo'],
+      ['Anomalías detectadas', `${m.bloqueadas.length}`, m.bloqueadas.length === 0 ? 'Sin alertas' : 'Revisar'],
+      ['Ahorro estimado por agente IA', `S/ ${ahorroEstimado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`, 'Valor entregado'],
+      ['Disponibilidad del sistema', '100%', 'Operativo 24/7'],
     ],
-    theme: 'grid',
-    headStyles: { fillColor: [239, 159, 39], textColor: 255 },
+    theme: 'striped',
+    headStyles: { 
+      fillColor: [239, 159, 39], 
+      textColor: 255, 
+      fontSize: 9, 
+      fontStyle: 'bold',
+      cellPadding: 4
+    },
+    bodyStyles: { fontSize: 9, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [255, 250, 240] },
     margin: { left: 15, right: 15 },
   });
   
@@ -2591,60 +2693,56 @@ function renderPDFJefeCampo(doc, y) {
   
   doc.setFontSize(14);
   doc.setFont(undefined, 'bold');
-  doc.text(`Resumen operativo — ${m.total} pesadas, ${m.bloqueadas.length} alertas`, 15, y);
+  doc.setTextColor(36, 48, 36);
+  doc.text('Resumen operativo del día', 15, y);
   y += 10;
-  
-  doc.setFontSize(11);
-  doc.text('Ranking de cuadrillas', 15, y);
-  y += 3;
   
   doc.autoTable({
     startY: y,
-    head: [['Pos.', 'Cuadrilla', 'Supervisor', 'Lote', 'Pesadas', 'Kg', 'Productividad']],
-    body: ranking.map((c, i) => [
-      `${i+1}°`,
-      c.cuadrilla,
-      supervisorPorCuad[c.cuadrilla],
-      c.lote,
-      c.validadas.length,
-      Math.round(c.kgValidados).toLocaleString('es-PE'),
-      `${c.prodPromedio.toFixed(1)} kg/h`
+    head: [['#', 'Cuadrilla', 'Supervisor', 'Pesadas', 'Validadas', 'Kg', 'Productividad', 'Anomalías']],
+    body: ranking.map((r, i) => [
+      ['🥇', '🥈', '🥉'][i] + ' #' + (i+1),
+      r.cuadrilla,
+      supervisorPorCuad[r.cuadrilla],
+      r.total,
+      r.validadas.length,
+      Math.round(r.kgValidados).toLocaleString('es-PE'),
+      r.prodPromedio.toFixed(1) + ' kg/h',
+      r.bloqueadas.length
     ]),
     theme: 'striped',
     headStyles: { fillColor: [99, 153, 34], textColor: 255 },
     margin: { left: 15, right: 15 },
   });
-  
   y = doc.lastAutoTable.finalY + 10;
   
-  const anomalias = [...m.bloqueadas, ...m.observadas];
-  if (anomalias.length > 0) {
-    doc.setFontSize(11);
-    doc.setTextColor(133, 79, 11);
-    doc.text(`Anomalías para revisión (${anomalias.length})`, 15, y);
-    y += 3;
+  if (m.bloqueadas.length > 0 || m.observadas.length > 0) {
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Pesadas con alertas del agente IA', 15, y);
+    y += 6;
     
+    const alertas = [...m.bloqueadas, ...m.observadas].slice(0, 10);
     doc.autoTable({
       startY: y,
-      head: [['Hora', 'Trabajador', 'DNI', 'Cuad./Lote', 'Kg/h', 'Estado', 'Motivo']],
-      body: anomalias.map(p => {
-        const t = TRABAJADORES.find(t => t.dni === p.dni);
+      head: [['Hora', 'Trabajador', 'Cuad.', 'Kg/h', 'Z', 'Estado', 'Motivo']],
+      body: alertas.map(p => {
+        const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
+        const prod = (p.kg / p.horas).toFixed(1);
         return [
           p.hora,
-          (t && t.nombre) || p.nombre || '—',
-          p.dni,
-          `${(t && t.cuadrilla) || p.cuadrilla || '—'}/${p.lote}`,
-          `${p.kg}/${p.horas}h`,
-          p.estado === 'red' ? 'BLOQUEADA' : 'EN REVISIÓN',
+          t.nombre || p.nombre || '—',
+          p.cuadrilla,
+          prod,
+          (p.z >= 0 ? '+' : '') + p.z.toFixed(2),
+          p.estado === 'red' ? 'Bloqueado' : 'Observado',
           p.motivo || '—'
         ];
       }),
-      theme: 'striped',
-      headStyles: { fillColor: [239, 159, 39], textColor: 255 },
-      bodyStyles: { fontSize: 8 },
+      theme: 'grid',
+      headStyles: { fillColor: [249, 115, 22], textColor: 255 },
       margin: { left: 15, right: 15 },
     });
-    
     y = doc.lastAutoTable.finalY + 10;
   }
   
@@ -2652,40 +2750,37 @@ function renderPDFJefeCampo(doc, y) {
 }
 
 function renderPDFSupervisor(doc, y, cuadrilla) {
-  const m = calcularMetricasCuadrilla(cuadrilla);
+  const mc = calcularMetricasCuadrilla(cuadrilla);
   const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
-  const miEquipo = TRABAJADORES.filter(t => t.cuadrilla === cuadrilla);
-  
-  const rendimiento = miEquipo.map(t => {
-    const susPesadas = m.pesadasCuad.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
-    const kgTotal = susPesadas.reduce((sum, p) => sum + p.kg, 0);
-    const horasTotal = susPesadas.reduce((sum, p) => sum + p.horas, 0);
-    const prodPromedio = horasTotal > 0 ? kgTotal / horasTotal : 0;
-    return { ...t, pesadas: susPesadas.length, kgTotal, horasTotal, prodPromedio };
-  }).sort((a, b) => b.prodPromedio - a.prodPromedio);
   
   doc.setFontSize(14);
   doc.setFont(undefined, 'bold');
   doc.setTextColor(36, 48, 36);
-  doc.text(`Cuadrilla ${cuadrilla} (${m.lote}) — ${supervisorPorCuad[cuadrilla]}`, 15, y);
-  y += 10;
+  doc.text(`Cuadrilla ${cuadrilla} — ${supervisorPorCuad[cuadrilla]}`, 15, y);
+  y += 8;
   
   doc.setFontSize(10);
   doc.setFont(undefined, 'normal');
-  doc.text(`Trabajadores: ${miEquipo.length} · Pesadas: ${m.total} · Kg validados: ${Math.round(m.kgValidados).toLocaleString('es-PE')} · Productividad: ${m.prodPromedio.toFixed(1)} kg/h`, 15, y);
-  y += 8;
+  doc.text(`Total: ${mc.totalTrabajadores} trabajadores · ${mc.total} pesadas · ${Math.round(mc.kgValidados).toLocaleString('es-PE')} kg validados`, 15, y);
+  y += 10;
+  
+  const performers = TRABAJADORES.filter(t => t.cuadrilla === cuadrilla).map(t => {
+    const sus = pesadas.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
+    const kg = sus.reduce((s, p) => s + p.kg, 0);
+    const horas = sus.reduce((s, p) => s + p.horas, 0);
+    return { ...t, kg, horas, prod: horas > 0 ? kg/horas : 0 };
+  }).sort((a, b) => b.prod - a.prod).slice(0, 5);
   
   doc.autoTable({
     startY: y,
-    head: [['Pos.', 'Trabajador', 'DNI', 'Kg', 'Horas', 'Productividad']],
-    body: rendimiento.filter(t => t.pesadas > 0).map((t, i) => [
-      `${i+1}°`, t.nombre, t.dni, t.kgTotal.toFixed(1), t.horasTotal.toFixed(1), `${t.prodPromedio.toFixed(1)} kg/h`
+    head: [['#', 'DNI', 'Trabajador', 'Kg', 'Horas', 'Productividad']],
+    body: performers.map((t, i) => [
+      `#${i+1}`, t.dni, t.nombre, Math.round(t.kg), t.horas.toFixed(1), `${t.prod.toFixed(1)} kg/h`
     ]),
     theme: 'striped',
     headStyles: { fillColor: [37, 99, 235], textColor: 255 },
     margin: { left: 15, right: 15 },
   });
-  
   return doc.lastAutoTable.finalY + 10;
 }
 
