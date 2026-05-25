@@ -2748,7 +2748,7 @@ function renderPDFJefeCampo(doc, y) {
   doc.text('Ranking de Cuadrillas', 22, y + 6);
   y += 12;
   
-  const medallas = ['🥇 #1', '🥈 #2', '🥉 #3'];
+  const medallas = ['#1 ORO', '#2 PLATA', '#3 BRONCE'];
   doc.autoTable({
     startY: y,
     head: [['Pos.', 'Cuadrilla', 'Supervisor', 'Pesadas', 'Validadas', 'Kg', 'Productividad', 'Alertas']],
@@ -2911,7 +2911,7 @@ function renderPDFSupervisor(doc, y, cuadrilla) {
   }).filter(t => t.pesadas > 0).sort((a, b) => b.prod - a.prod).slice(0, 5);
   
   if (performers.length > 0) {
-    const estrellas = ['⭐⭐⭐', '⭐⭐', '⭐', '', ''];
+    const estrellas = ['*** TOP', '** ALTO', '* BUENO', '', ''];
     doc.autoTable({
       startY: y,
       head: [['Pos.', 'DNI', 'Trabajador', 'Kg', 'Horas', 'Productividad', 'Rating']],
