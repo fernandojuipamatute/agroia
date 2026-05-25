@@ -2448,54 +2448,15 @@ function generarReporteRRHH() {
 // ============================================================
 // EXPORTACION A PDF
 // ============================================================
-// ============================================================
-// SISTEMA DE REPORTES PDF PREMIUM v2.0
-// Diseño profesional tipo consultoría (McKinsey/Deloitte)
-// ============================================================
-
-// Paleta de colores corporativa AgroIA
-const PDF_COLORS = {
-  // Roles
-  gerencia: {
-    primary: [239, 159, 39],      // Ámbar dorado
-    dark: [180, 110, 20],
-    light: [255, 244, 218],
-    accent: [255, 215, 130]
-  },
-  jefecampo: {
-    primary: [99, 153, 34],       // Verde AgroIA
-    dark: [60, 100, 20],
-    light: [236, 245, 220],
-    accent: [180, 220, 130]
-  },
-  supervisor: {
-    primary: [37, 99, 235],       // Azul
-    dark: [25, 70, 175],
-    light: [219, 234, 254],
-    accent: [147, 197, 253]
-  },
-  rrhh: {
-    primary: [124, 58, 237],      // Morado
-    dark: [88, 28, 195],
-    light: [237, 233, 254],
-    accent: [196, 181, 253]
-  },
-  // Neutros
-  black: [15, 23, 42],
-  grayDark: [71, 85, 105],
-  grayMid: [148, 163, 184],
-  grayLight: [226, 232, 240],
-  white: [255, 255, 255],
-  // Estados
-  green: [34, 197, 94],
-  yellow: [251, 191, 36],
-  orange: [249, 115, 22],
-  red: [220, 38, 38]
-};
-
 function exportarReportePDF() {
   const tipo = document.getElementById('selectorReporte').value;
+  const contenedor = document.getElementById('contenedorReporte');
+  if (!contenedor) {
+    alert('No hay reporte para exportar');
+    return;
+  }
   
+  // Verificar que jsPDF esté cargado
   if (typeof window.jspdf === 'undefined') {
     alert('La librería PDF está cargándose. Espera un momento y vuelve a intentar.');
     return;
@@ -2503,666 +2464,127 @@ function exportarReportePDF() {
   
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
-  const colores = PDF_COLORS[tipo];
   
-  // Datos del header de cada rol
-  const titulos = {
-    'gerencia': { titulo: 'Reporte Ejecutivo', subtitulo: 'GERENCIA / DIRECTORIO', emoji: '📊' },
-    'jefecampo': { titulo: 'Reporte Operativo', subtitulo: 'JEFE DE CAMPO', emoji: '🌱' },
-    'supervisor': { titulo: 'Reporte de Cuadrilla', subtitulo: 'SUPERVISOR', emoji: '👥' },
-    'rrhh': { titulo: 'Reporte de Planilla', subtitulo: 'RECURSOS HUMANOS', emoji: '💼' }
+  // Configuracion segun tipo de reporte
+  const colores = {
+    'gerencia': { primary: [239, 159, 39], texto: 'GERENCIA / DIRECTORIO' },
+    'jefecampo': { primary: [99, 153, 34], texto: 'JEFE DE CAMPO' },
+    'supervisor': { primary: [37, 99, 235], texto: 'SUPERVISOR DE CUADRILLA' },
+    'rrhh': { primary: [124, 58, 237], texto: 'RECURSOS HUMANOS' }
   };
-  const info = titulos[tipo];
+  const config = colores[tipo];
+  const fecha = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   
-  // PORTADA
-  renderizarPortadaPDF(doc, colores, info, tipo);
+  // ENCABEZADO
+  doc.setFillColor(...config.primary);
+  doc.rect(0, 0, 210, 8, 'F');
   
-  // PÁGINA 2: Contenido
-  doc.addPage();
-  let y = renderizarHeaderPagina(doc, colores, info, 2);
-  
-  if (tipo === 'gerencia') y = renderPDFGerencia(doc, y, colores);
-  else if (tipo === 'jefecampo') y = renderPDFJefeCampo(doc, y, colores);
-  else if (tipo === 'supervisor') {
-    const cuad = document.getElementById('selectorCuadrilla').value;
-    y = renderPDFSupervisor(doc, y, cuad, colores);
-  }
-  else if (tipo === 'rrhh') y = renderPDFRRHH(doc, y, colores);
-  
-  // FOOTER en todas las paginas (excepto portada)
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 2; i <= totalPages; i++) {
-    doc.setPage(i);
-    renderizarFooterPagina(doc, colores, info, i, totalPages);
-  }
-  
-  // DESCARGAR
-  const fechaArchivo = new Date().toISOString().split('T')[0];
-  const nombreArchivo = `AgroIA_${info.subtitulo.replace(/[\s\/]/g, '_')}_${fechaArchivo}.pdf`;
-  doc.save(nombreArchivo);
-}
-
-// ============================================================
-// PORTADA - primera pagina del reporte
-// ============================================================
-function renderizarPortadaPDF(doc, colores, info, tipo) {
-  // Fondo con gradiente simulado (rectangulos superpuestos)
-  doc.setFillColor(...colores.primary);
-  doc.rect(0, 0, 210, 110, 'F');
-  
-  // Forma decorativa
-  doc.setFillColor(...colores.dark);
-  doc.rect(0, 105, 210, 5, 'F');
-  
-  // Triangulo decorativo arriba derecha
-  doc.setFillColor(...colores.dark);
-  doc.triangle(160, 0, 210, 0, 210, 50, 'F');
-  
-  // LOGO/MARCA AgroIA
-  doc.setFontSize(36);
-  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setTextColor(36, 48, 36);
   doc.setFont(undefined, 'bold');
-  doc.text('AgroIA', 15, 45);
+  doc.text('AgroIA', 15, 22);
   
   doc.setFontSize(10);
   doc.setFont(undefined, 'normal');
-  doc.text('Sistema de Control Operativo Agrícola', 15, 53);
-  doc.text('Agente IA de Validación Estadística', 15, 58);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Sistema de Validación Estadística de Cosecha', 15, 28);
   
-  // Linea separadora blanca
-  doc.setDrawColor(255, 255, 255);
-  doc.setLineWidth(0.5);
-  doc.line(15, 75, 100, 75);
-  
-  // TITULO DEL REPORTE
-  doc.setFontSize(28);
+  doc.setFontSize(11);
+  doc.setTextColor(...config.primary);
   doc.setFont(undefined, 'bold');
-  doc.text(info.titulo, 15, 88);
+  doc.text(`REPORTE PARA: ${config.texto}`, 15, 40);
   
-  doc.setFontSize(12);
+  doc.setTextColor(100, 100, 100);
   doc.setFont(undefined, 'normal');
-  doc.text(info.subtitulo, 15, 96);
-  
-  // CAJA DE INFORMACIÓN
-  doc.setFillColor(255, 255, 255);
-  doc.rect(15, 130, 180, 80, 'F');
-  
-  doc.setDrawColor(...colores.primary);
-  doc.setLineWidth(0.8);
-  doc.line(15, 130, 195, 130);
-  
-  // Contenido de la caja
-  const fecha = new Date();
-  const fechaStr = fecha.toLocaleDateString('es-PE', { 
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
-  });
-  const horaStr = fecha.toLocaleTimeString('es-PE', {hour: '2-digit', minute: '2-digit'});
-  
   doc.setFontSize(9);
-  doc.setTextColor(...colores.grayDark);
-  doc.text('PROYECTO', 25, 145);
-  doc.text('CULTIVO', 25, 165);
-  doc.text('UBICACIÓN', 25, 185);
-  doc.text('FECHA Y HORA', 110, 145);
-  doc.text('GENERADO POR', 110, 165);
-  doc.text('CLASIFICACIÓN', 110, 185);
+  doc.text(fecha.toUpperCase(), 15, 45);
   
-  doc.setFontSize(11);
-  doc.setTextColor(...colores.black);
-  doc.setFont(undefined, 'bold');
-  doc.text('AgroIA · Piloto Valle de Virú', 25, 152);
-  doc.text('Palta Hass', 25, 172);
-  doc.text('La Libertad, Perú', 25, 192);
-  doc.text(`${fechaStr}`, 110, 152);
-  doc.text('Agente IA Automático', 110, 172);
-  doc.text('USO INTERNO', 110, 192);
+  doc.setDrawColor(220, 220, 220);
+  doc.line(15, 50, 195, 50);
   
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...colores.grayDark);
-  doc.text(`Hora de emisión: ${horaStr}`, 110, 157);
+  // CONTENIDO segun tipo de reporte
+  let y = 60;
   
-  // BANDA INFERIOR
-  doc.setFillColor(...colores.primary);
-  doc.rect(0, 270, 210, 27, 'F');
-  
-  doc.setFontSize(8);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont(undefined, 'normal');
-  doc.text('Universidad César Vallejo · Trujillo, Perú', 15, 280);
-  doc.text('Proyecto académico - Curso de Inteligencia Artificial', 15, 285);
-  doc.text('Documento confidencial - Para uso interno del proyecto piloto', 15, 290);
-  
-  doc.setFont(undefined, 'bold');
-  doc.text('v2.0', 195, 290, { align: 'right' });
-}
-
-// ============================================================
-// HEADER de páginas internas
-// ============================================================
-function renderizarHeaderPagina(doc, colores, info, numeroPagina) {
-  // Banda superior
-  doc.setFillColor(...colores.primary);
-  doc.rect(0, 0, 210, 6, 'F');
-  
-  // Logo y titulo en linea
-  doc.setFontSize(14);
-  doc.setTextColor(...colores.black);
-  doc.setFont(undefined, 'bold');
-  doc.text('AgroIA', 15, 16);
-  
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...colores.grayDark);
-  doc.text('Sistema de Control Operativo', 15, 21);
-  
-  // Subtitulo del reporte (lado derecho)
-  doc.setFontSize(11);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(...colores.primary);
-  doc.text(info.subtitulo, 195, 16, { align: 'right' });
-  
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...colores.grayMid);
-  const fecha = new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
-  doc.text(fecha, 195, 21, { align: 'right' });
-  
-  // Linea separadora
-  doc.setDrawColor(...colores.grayLight);
-  doc.setLineWidth(0.3);
-  doc.line(15, 25, 195, 25);
-  
-  return 35; // Y inicial para contenido
-}
-
-// ============================================================
-// FOOTER de páginas internas
-// ============================================================
-function renderizarFooterPagina(doc, colores, info, paginaActual, totalPaginas) {
-  // Linea superior del footer
-  doc.setDrawColor(...colores.grayLight);
-  doc.setLineWidth(0.3);
-  doc.line(15, 280, 195, 280);
-  
-  // Texto izquierdo
-  doc.setFontSize(7);
-  doc.setTextColor(...colores.grayDark);
-  doc.text(`AgroIA · ${info.subtitulo} · Confidencial`, 15, 287);
-  
-  // Numero pagina centro
-  doc.setFont(undefined, 'bold');
-  doc.text(`${paginaActual - 1} / ${totalPaginas - 1}`, 105, 287, { align: 'center' });
-  doc.setFont(undefined, 'normal');
-  
-  // Generado automaticamente derecha
-  doc.text('Generado por agente IA', 195, 287, { align: 'right' });
-  
-  // Mini banda inferior con color
-  doc.setFillColor(...colores.primary);
-  doc.rect(0, 292, 210, 2, 'F');
-}
-
-// ============================================================
-// HELPER: Caja de KPI con icono y comparacion
-// ============================================================
-function dibujarKPI(doc, x, y, ancho, alto, titulo, valor, subtitulo, color, colorBg) {
-  // Fondo
-  doc.setFillColor(...(colorBg || color.light));
-  doc.roundedRect(x, y, ancho, alto, 2, 2, 'F');
-  
-  // Borde izquierdo de color
-  doc.setFillColor(...color.primary);
-  doc.rect(x, y, 1.5, alto, 'F');
-  
-  // Titulo
-  doc.setFontSize(7);
-  doc.setTextColor(...color.dark);
-  doc.setFont(undefined, 'bold');
-  doc.text(titulo.toUpperCase(), x + 5, y + 6);
-  
-  // Valor grande
-  doc.setFontSize(16);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(...PDF_COLORS.black);
-  doc.text(String(valor), x + 5, y + 16);
-  
-  // Subtitulo
-  if (subtitulo) {
-    doc.setFontSize(7);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(...PDF_COLORS.grayDark);
-    doc.text(subtitulo, x + 5, y + 22);
+  if (tipo === 'gerencia') y = renderPDFGerencia(doc, y);
+  else if (tipo === 'jefecampo') y = renderPDFJefeCampo(doc, y);
+  else if (tipo === 'supervisor') {
+    const cuad = document.getElementById('selectorCuadrilla').value;
+    y = renderPDFSupervisor(doc, y, cuad);
   }
-}
-
-// ============================================================
-// HELPER: Titulo de sección
-// ============================================================
-function dibujarTituloSeccion(doc, y, titulo, color) {
-  doc.setFillColor(...color.primary);
-  doc.rect(15, y, 3, 6, 'F');
+  else if (tipo === 'rrhh') y = renderPDFRRHH(doc, y);
   
-  doc.setFontSize(13);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(...PDF_COLORS.black);
-  doc.text(titulo, 22, y + 4.5);
-  
-  return y + 12;
-}
-
-// ============================================================
-// HELPER: Caja con texto destacado (callout box)
-// ============================================================
-function dibujarCallout(doc, x, y, ancho, titulo, texto, color, colorBg) {
-  // Fondo
-  doc.setFillColor(...(colorBg || color.light));
-  doc.roundedRect(x, y, ancho, 24, 2, 2, 'F');
-  
-  // Borde izquierdo grueso
-  doc.setFillColor(...color.primary);
-  doc.rect(x, y, 2, 24, 'F');
-  
-  // Titulo
-  doc.setFontSize(9);
-  doc.setTextColor(...color.dark);
-  doc.setFont(undefined, 'bold');
-  doc.text(titulo, x + 6, y + 7);
-  
-  // Texto
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...PDF_COLORS.black);
-  const lineas = doc.splitTextToSize(texto, ancho - 10);
-  doc.text(lineas, x + 6, y + 14);
-}
-
-// ============================================================
-// HELPER: Mini gráfico de barras horizontal en PDF
-// ============================================================
-function dibujarBarrasHorizontales(doc, x, y, ancho, datos, color) {
-  // datos: [{label, valor, max}]
-  const altoBarra = 7;
-  const espacio = 3;
-  const labelAncho = 35;
-  
-  datos.forEach((d, i) => {
-    const yBarra = y + i * (altoBarra + espacio);
-    const porcentaje = d.valor / d.max;
-    const anchoBarra = (ancho - labelAncho - 25) * porcentaje;
-    
-    // Label
+  // PIE DE PAGINA en todas las paginas
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(220, 220, 220);
+    doc.line(15, 285, 195, 285);
     doc.setFontSize(8);
-    doc.setTextColor(...PDF_COLORS.grayDark);
-    doc.setFont(undefined, 'normal');
-    doc.text(d.label, x, yBarra + 5);
-    
-    // Barra de fondo (gris claro)
-    doc.setFillColor(...PDF_COLORS.grayLight);
-    doc.roundedRect(x + labelAncho, yBarra, ancho - labelAncho - 25, altoBarra, 1, 1, 'F');
-    
-    // Barra de valor
-    doc.setFillColor(...color.primary);
-    doc.roundedRect(x + labelAncho, yBarra, Math.max(anchoBarra, 2), altoBarra, 1, 1, 'F');
-    
-    // Valor a la derecha
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(...PDF_COLORS.black);
-    doc.text(String(d.valor.toLocaleString('es-PE')), x + ancho - 22, yBarra + 5);
-  });
+    doc.setTextColor(150, 150, 150);
+    doc.text(`AgroIA · ${fecha} · Generado automáticamente`, 15, 290);
+    doc.text(`Página ${i} de ${totalPages}`, 195, 290, { align: 'right' });
+  }
   
-  return y + datos.length * (altoBarra + espacio) + 3;
+  // DESCARGAR
+  const nombreArchivo = `AgroIA_${tipo}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(nombreArchivo);
 }
 
-// ============================================================
-// REPORTE GERENCIA - DASHBOARD EJECUTIVO
-// ============================================================
-function renderPDFGerencia(doc, y, colores) {
+function renderPDFGerencia(doc, y) {
   const m = calcularMetricasBase();
   const ahorroEstimado = m.kgBloqueados * PRECIO_KG;
   const valorCosechado = m.kgValidados * PRECIO_KG;
   const signo = m.diffMeta >= 0 ? '+' : '';
   
-  // RESUMEN EJECUTIVO
-  y = dibujarTituloSeccion(doc, y, 'Resumen Ejecutivo', colores);
+  doc.setFontSize(14);
+  doc.setTextColor(36, 48, 36);
+  doc.setFont(undefined, 'bold');
+  doc.text(`Cierre del día — ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg (${signo}${m.diffMeta.toFixed(1)}% vs meta)`, 15, y);
+  y += 10;
   
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setFont(undefined, 'normal');
-  doc.setTextColor(...PDF_COLORS.black);
-  const resumen = `En la jornada de hoy se cosecharon ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg de palta Hass, generando un valor económico de S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}. El avance acumulado de campaña alcanza el ${m.avanceCampana.toFixed(1)}% (${m.acumuladoTon.toFixed(0)} t de 850 t), con ${signo}${m.diffMeta.toFixed(1)}% respecto a la meta diaria.`;
-  const lineas = doc.splitTextToSize(resumen, 180);
-  doc.text(lineas, 15, y);
-  y += lineas.length * 4.5 + 6;
+  const texto1 = `En la jornada de hoy se cosecharon ${Math.round(m.kgValidados).toLocaleString('es-PE')} kg de palta Hass entre las tres cuadrillas. El valor económico de la producción asciende a S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}. El avance de campaña alcanza el ${m.avanceCampana.toFixed(1)}% (${m.acumuladoTon.toFixed(0)} t de 850 t).`;
+  const lineas1 = doc.splitTextToSize(texto1, 180);
+  doc.text(lineas1, 15, y);
+  y += lineas1.length * 5 + 5;
   
-  // KPIs PRINCIPALES (4 cajas)
-  const anchoKPI = 42;
-  dibujarKPI(doc, 15, y, anchoKPI, 28, 'Cosecha', `${Math.round(m.kgValidados).toLocaleString('es-PE')} kg`, `Meta: ${META_DIARIA.toLocaleString('es-PE')} kg`, colores);
-  dibujarKPI(doc, 60, y, anchoKPI, 28, 'Valor S/', `${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`, `${PRECIO_KG} S//kg`, colores);
-  dibujarKPI(doc, 105, y, anchoKPI, 28, 'Avance', `${m.avanceCampana.toFixed(1)}%`, `${m.acumuladoTon.toFixed(0)}t de 850t`, colores);
-  dibujarKPI(doc, 150, y, anchoKPI, 28, 'Validación', `${m.tasaValidacion.toFixed(0)}%`, `${m.total} pesadas`, colores);
-  y += 36;
-  
-  // CALLOUT: VALOR DEL AGENTE IA
   if (m.bloqueadas.length > 0) {
-    dibujarCallout(doc, 15, y, 180, 
-      '🛡 VALOR DEL AGENTE IA EN ESTA JORNADA',
-      `Se detectaron ${m.bloqueadas.length} anomalías por ${Math.round(m.kgBloqueados).toLocaleString('es-PE')} kg, evitando un sobrepago estimado en S/ ${ahorroEstimado.toLocaleString('es-PE', {maximumFractionDigits: 0})}. Esto representa un retorno directo del sistema.`,
-      colores
-    );
+    doc.setFillColor(254, 243, 226);
+    doc.rect(15, y, 180, 22, 'F');
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(133, 79, 11);
+    doc.text('Valor del agente IA en esta jornada', 20, y + 7);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(36, 48, 36);
+    const txtAhorro = `Se detectaron ${m.bloqueadas.length} anomalías por ${Math.round(m.kgBloqueados).toLocaleString('es-PE')} kg, evitando un sobrepago estimado en S/ ${ahorroEstimado.toLocaleString('es-PE', {maximumFractionDigits: 0})}.`;
+    const lineasAhorro = doc.splitTextToSize(txtAhorro, 170);
+    doc.text(lineasAhorro, 20, y + 13);
     y += 30;
   }
   
-  // GRÁFICO: Producción por cuadrilla
-  y = dibujarTituloSeccion(doc, y, 'Producción por Cuadrilla', colores);
-  
-  const cuadrillas = ['C3', 'C5', 'C7'].map(c => {
-    const mc = calcularMetricasCuadrilla(c);
-    return { label: `${c} (${mc.totalTrabajadores} trab.)`, valor: Math.round(mc.kgValidados), max: 5000 };
-  });
-  
-  y = dibujarBarrasHorizontales(doc, 15, y, 180, cuadrillas, colores);
-  y += 5;
-  
-  // TABLA DE INDICADORES
-  y = dibujarTituloSeccion(doc, y, 'Indicadores Operativos', colores);
-  
   doc.autoTable({
     startY: y,
-    head: [['Indicador', 'Valor', 'Estado']],
+    head: [['Indicador', 'Valor']],
     body: [
-      ['Cosecha del día', `${Math.round(m.kgValidados).toLocaleString('es-PE')} kg`, m.diffMeta >= 0 ? '✓ Por encima de meta' : '⚠ Por debajo de meta'],
-      ['Valor producido', `S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`, '✓ Registrado'],
-      ['Avance campaña', `${m.avanceCampana.toFixed(1)}%`, m.avanceCampana >= 60 ? '✓ En tiempo' : '⚠ Retrasado'],
-      ['Tasa de validación automática', `${m.tasaValidacion.toFixed(1)}%`, m.tasaValidacion >= 90 ? '✓ Excelente' : '⚠ Revisar'],
-      ['Pesadas registradas', `${m.total}`, '✓ Operativo'],
-      ['Anomalías detectadas', `${m.bloqueadas.length}`, m.bloqueadas.length === 0 ? '✓ Sin alertas' : '⚠ Revisar'],
-      ['Ahorro estimado por agente IA', `S/ ${ahorroEstimado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`, '✓ Valor entregado'],
-      ['Disponibilidad del sistema', '100%', '✓ Operativo 24/7'],
+      ['Cosecha del día', `${Math.round(m.kgValidados).toLocaleString('es-PE')} kg`],
+      ['Valor producido', `S/ ${valorCosechado.toLocaleString('es-PE', {maximumFractionDigits: 0})}`],
+      ['Avance campaña', `${m.avanceCampana.toFixed(1)}% (${m.acumuladoTon.toFixed(0)} t / 850 t)`],
+      ['Tasa de validación', `${m.tasaValidacion.toFixed(1)}%`],
+      ['Total pesadas', `${m.total}`],
+      ['Disponibilidad del sistema', '100%'],
     ],
-    theme: 'striped',
-    headStyles: { 
-      fillColor: colores.primary, 
-      textColor: 255, 
-      fontSize: 9, 
-      fontStyle: 'bold',
-      cellPadding: 4
-    },
-    bodyStyles: { fontSize: 9, cellPadding: 3 },
-    alternateRowStyles: { fillColor: colores.light },
+    theme: 'grid',
+    headStyles: { fillColor: [239, 159, 39], textColor: 255 },
     margin: { left: 15, right: 15 },
   });
   
   return doc.lastAutoTable.finalY + 10;
 }
 
-// ============================================================
-// REPORTE JEFE DE CAMPO - OPERATIVO
-// ============================================================
-function renderPDFJefeCampo(doc, y, colores) {
-  const m = calcularMetricasBase();
-  const ranking = ['C3', 'C5', 'C7'].map(c => calcularMetricasCuadrilla(c)).sort((a, b) => b.prodPromedio - a.prodPromedio);
-  const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
-  
-  // RESUMEN
-  y = dibujarTituloSeccion(doc, y, 'Resumen Operativo', colores);
-  
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...PDF_COLORS.black);
-  const resumen = `Estado de las 3 cuadrillas activas en jornada de hoy. Se registraron ${m.total} pesadas con tasa de validación automática del ${m.tasaValidacion.toFixed(1)}%. Productividad promedio del campo: ${m.prodPromedio.toFixed(1)} kg/h.`;
-  const lineas = doc.splitTextToSize(resumen, 180);
-  doc.text(lineas, 15, y);
-  y += lineas.length * 4.5 + 6;
-  
-  // KPIs
-  dibujarKPI(doc, 15, y, 42, 28, 'Pesadas hoy', `${m.total}`, `${m.validadas.length} validadas`, colores);
-  dibujarKPI(doc, 60, y, 42, 28, 'Productividad', `${m.prodPromedio.toFixed(1)}`, 'kg/h promedio', colores);
-  dibujarKPI(doc, 105, y, 42, 28, 'Observadas', `${m.observadas.length}`, 'requieren revisión', colores);
-  dibujarKPI(doc, 150, y, 42, 28, 'Anomalías', `${m.bloqueadas.length}`, m.bloqueadas.length === 0 ? 'sin alertas' : 'bloqueadas', colores);
-  y += 36;
-  
-  // RANKING DE CUADRILLAS
-  y = dibujarTituloSeccion(doc, y, '🏆 Ranking de Cuadrillas', colores);
-  
-  const medallas = ['🥇', '🥈', '🥉'];
-  doc.autoTable({
-    startY: y,
-    head: [['Pos.', 'Cuadrilla', 'Supervisor', 'Pesadas', 'Kg validados', 'Productividad', 'Anomalías']],
-    body: ranking.map((r, i) => [
-      `${medallas[i]} ${i+1}`,
-      r.cuadrilla,
-      supervisorPorCuad[r.cuadrilla],
-      r.total,
-      `${Math.round(r.kgValidados).toLocaleString('es-PE')} kg`,
-      `${r.prodPromedio.toFixed(1)} kg/h`,
-      r.bloqueadas.length
-    ]),
-    theme: 'striped',
-    headStyles: { fillColor: colores.primary, textColor: 255, fontSize: 9, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 9 },
-    alternateRowStyles: { fillColor: colores.light },
-    margin: { left: 15, right: 15 },
-  });
-  y = doc.lastAutoTable.finalY + 10;
-  
-  // ANOMALÍAS DETECTADAS
-  if (m.bloqueadas.length > 0 || m.observadas.length > 0) {
-    y = dibujarTituloSeccion(doc, y, '⚠ Alertas del Agente IA', colores);
-    
-    const alertas = [...m.bloqueadas, ...m.observadas].slice(0, 10);
-    doc.autoTable({
-      startY: y,
-      head: [['Hora', 'Trabajador', 'Cuad.', 'Kg/h', 'Z-Score', 'Estado', 'Motivo']],
-      body: alertas.map(p => {
-        const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
-        const prod = (p.kg / p.horas).toFixed(1);
-        return [
-          p.hora,
-          t.nombre || p.nombre || '—',
-          p.cuadrilla,
-          prod,
-          (p.z >= 0 ? '+' : '') + p.z.toFixed(2),
-          p.estado === 'red' ? '🚫 Bloqueado' : '⚠ Observado',
-          p.motivo || '—'
-        ];
-      }),
-      theme: 'grid',
-      headStyles: { fillColor: PDF_COLORS.orange, textColor: 255, fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
-      margin: { left: 15, right: 15 },
-    });
-    y = doc.lastAutoTable.finalY + 10;
-  }
-  
-  // ACCIONES RECOMENDADAS
-  const lider = ranking[0];
-  const ultimo = ranking[ranking.length - 1];
-  
-  dibujarCallout(doc, 15, y, 180,
-    '📌 ACCIONES RECOMENDADAS',
-    `1. Replicar prácticas de cuadrilla ${lider.cuadrilla} (${lider.prodPromedio.toFixed(1)} kg/h) en ${ultimo.cuadrilla} (${ultimo.prodPromedio.toFixed(1)} kg/h). 2. Coordinar con supervisores la revisión de las ${m.observadas.length + m.bloqueadas.length} pesadas con alertas. 3. Validar resultados con sistema de pesaje físico al cierre.`,
-    colores
-  );
-  y += 30;
-  
-  return y;
-}
-
-// ============================================================
-// REPORTE SUPERVISOR
-// ============================================================
-function renderPDFSupervisor(doc, y, cuadrilla, colores) {
-  const mc = calcularMetricasCuadrilla(cuadrilla);
-  const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
-  
-  // ENCABEZADO ESPECIFICO
-  y = dibujarTituloSeccion(doc, y, `Cuadrilla ${cuadrilla} - ${supervisorPorCuad[cuadrilla]}`, colores);
-  
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...PDF_COLORS.black);
-  const resumen = `Reporte detallado de la cuadrilla ${cuadrilla} bajo supervisión de ${supervisorPorCuad[cuadrilla]}. Total de ${mc.totalTrabajadores} trabajadores, ${mc.total} pesadas registradas, ${Math.round(mc.kgValidados).toLocaleString('es-PE')} kg validados.`;
-  const lineas = doc.splitTextToSize(resumen, 180);
-  doc.text(lineas, 15, y);
-  y += lineas.length * 4.5 + 6;
-  
-  // KPIs cuadrilla
-  dibujarKPI(doc, 15, y, 42, 28, 'Mis trabajadores', `${mc.totalTrabajadores}`, 'asignados hoy', colores);
-  dibujarKPI(doc, 60, y, 42, 28, 'Pesadas', `${mc.total}`, `${mc.validadas.length} validadas`, colores);
-  dibujarKPI(doc, 105, y, 42, 28, 'Kg validados', `${Math.round(mc.kgValidados).toLocaleString('es-PE')}`, `${mc.prodPromedio.toFixed(1)} kg/h`, colores);
-  dibujarKPI(doc, 150, y, 42, 28, 'Alertas', `${mc.observadas.length + mc.bloqueadas.length}`, 'requieren revisión', colores);
-  y += 36;
-  
-  // TOP PERFORMERS
-  y = dibujarTituloSeccion(doc, y, '⭐ Top 5 Performers del Día', colores);
-  
-  const performers = TRABAJADORES.filter(t => t.cuadrilla === cuadrilla).map(t => {
-    const sus = pesadas.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
-    const kg = sus.reduce((s, p) => s + p.kg, 0);
-    const horas = sus.reduce((s, p) => s + p.horas, 0);
-    return { ...t, kg, horas, prod: horas > 0 ? kg/horas : 0 };
-  }).sort((a, b) => b.prod - a.prod).slice(0, 5);
-  
-  doc.autoTable({
-    startY: y,
-    head: [['Pos.', 'DNI', 'Trabajador', 'Kg', 'Horas', 'Productividad']],
-    body: performers.map((t, i) => [
-      `#${i+1}`,
-      t.dni,
-      t.nombre,
-      Math.round(t.kg),
-      t.horas.toFixed(1),
-      `${t.prod.toFixed(1)} kg/h`
-    ]),
-    theme: 'striped',
-    headStyles: { fillColor: colores.primary, textColor: 255, fontSize: 9, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 9 },
-    alternateRowStyles: { fillColor: colores.light },
-    margin: { left: 15, right: 15 },
-  });
-  y = doc.lastAutoTable.finalY + 10;
-  
-  // PESADAS RECIENTES DE LA CUADRILLA
-  const pesadasCuad = pesadas.filter(p => p.cuadrilla === cuadrilla).slice(0, 15);
-  if (pesadasCuad.length > 0) {
-    y = dibujarTituloSeccion(doc, y, 'Pesadas Recientes', colores);
-    
-    doc.autoTable({
-      startY: y,
-      head: [['Hora', 'DNI', 'Trabajador', 'Kg', 'Horas', 'Estado']],
-      body: pesadasCuad.map(p => {
-        const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
-        const estadoMap = { 
-          green: '✓ Validado', 
-          yellow: '✓ Validado*',
-          orange: '⚠ Observado', 
-          red: '🚫 Bloqueado'
-        };
-        return [
-          p.hora,
-          p.dni,
-          t.nombre || p.nombre || '—',
-          p.kg,
-          p.horas,
-          estadoMap[p.estado] || p.estado
-        ];
-      }),
-      theme: 'striped',
-      headStyles: { fillColor: colores.dark, textColor: 255, fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
-      alternateRowStyles: { fillColor: colores.light },
-      margin: { left: 15, right: 15 },
-    });
-    y = doc.lastAutoTable.finalY + 10;
-  }
-  
-  return y;
-}
-
-// ============================================================
-// REPORTE RR.HH. - PLANILLA
-// ============================================================
-function renderPDFRRHH(doc, y, colores) {
-  const planilla = TRABAJADORES.map(t => {
-    const susPesadas = pesadas.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
-    const kgTotal = susPesadas.reduce((sum, p) => sum + p.kg, 0);
-    const horasTotal = susPesadas.reduce((sum, p) => sum + p.horas, 0);
-    const monto = horasTotal * TARIFA_HORA;
-    return { ...t, kgTotal, horasTotal, monto, sinRegistro: susPesadas.length === 0 };
-  });
-  
-  const conRegistro = planilla.filter(t => !t.sinRegistro);
-  const sinRegistro = planilla.filter(t => t.sinRegistro);
-  const totalPagar = conRegistro.reduce((sum, t) => sum + t.monto, 0);
-  const totalHoras = conRegistro.reduce((sum, t) => sum + t.horasTotal, 0);
-  const totalKg = conRegistro.reduce((sum, t) => sum + t.kgTotal, 0);
-  
-  // RESUMEN
-  y = dibujarTituloSeccion(doc, y, 'Resumen de Planilla', colores);
-  
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(...PDF_COLORS.black);
-  const resumen = `Planilla del día con base en pesadas validadas por el agente IA. Tarifa aplicada: S/ ${TARIFA_HORA}/hora según Ley 31110. Total a pagar: S/ ${totalPagar.toFixed(2)}.`;
-  const lineas = doc.splitTextToSize(resumen, 180);
-  doc.text(lineas, 15, y);
-  y += lineas.length * 4.5 + 6;
-  
-  // KPIs RRHH
-  dibujarKPI(doc, 15, y, 42, 28, 'Trabajadores', `${conRegistro.length}/${TOTAL_TRABAJADORES}`, 'con registro', colores);
-  dibujarKPI(doc, 60, y, 42, 28, 'Total horas', `${totalHoras.toFixed(1)}`, 'trabajadas', colores);
-  dibujarKPI(doc, 105, y, 42, 28, 'Total Kg', `${Math.round(totalKg).toLocaleString('es-PE')}`, 'validados', colores);
-  dibujarKPI(doc, 150, y, 42, 28, 'Total a pagar', `S/ ${totalPagar.toFixed(0)}`, `S/${TARIFA_HORA}/h`, colores);
-  y += 36;
-  
-  // TABLA PRINCIPAL DE PLANILLA
-  y = dibujarTituloSeccion(doc, y, 'Detalle de Planilla', colores);
-  
-  doc.autoTable({
-    startY: y,
-    head: [['DNI', 'Apellidos y Nombres', 'Cuadrilla', 'Kg validados', 'Horas', 'Monto (S/)']],
-    body: conRegistro.map(t => [
-      t.dni,
-      t.nombre,
-      t.cuadrilla,
-      t.kgTotal.toFixed(1),
-      t.horasTotal.toFixed(1),
-      t.monto.toFixed(2)
-    ]),
-    foot: [['', '', 'TOTAL', totalKg.toFixed(1), totalHoras.toFixed(1), totalPagar.toFixed(2)]],
-    theme: 'striped',
-    headStyles: { fillColor: colores.primary, textColor: 255, fontSize: 9, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 9 },
-    footStyles: { fillColor: colores.dark, textColor: 255, fontStyle: 'bold', fontSize: 9 },
-    alternateRowStyles: { fillColor: colores.light },
-    margin: { left: 15, right: 15 },
-  });
-  y = doc.lastAutoTable.finalY + 10;
-  
-  // TRABAJADORES SIN REGISTRO
-  if (sinRegistro.length > 0) {
-    dibujarCallout(doc, 15, y, 180,
-      `⚠ ${sinRegistro.length} TRABAJADORES SIN REGISTRO`,
-      `Los siguientes trabajadores no tienen pesadas validadas hoy: ${sinRegistro.map(t => t.nombre.split(' ')[0]).join(', ')}. Verificar asistencia con sus supervisores antes del cierre de planilla.`,
-      { primary: PDF_COLORS.yellow, dark: [180, 130, 0], light: [255, 248, 220] }
-    );
-    y += 30;
-  }
-  
-  // FIRMA Y APROBACION
-  y += 5;
-  doc.setDrawColor(...PDF_COLORS.grayLight);
-  doc.line(20, y + 15, 80, y + 15);
-  doc.line(115, y + 15, 175, y + 15);
-  
-  doc.setFontSize(8);
-  doc.setTextColor(...PDF_COLORS.grayDark);
-  doc.text('Elaborado por Sistema AgroIA', 50, y + 20, { align: 'center' });
-  doc.text('Aprobado por Jefe de RR.HH.', 145, y + 20, { align: 'center' });
-  
-  return y + 30;
-}
+function renderPDFJefeCampo(doc, y) {
   const m = calcularMetricasBase();
   const ranking = ['C3', 'C5', 'C7'].map(c => calcularMetricasCuadrilla(c)).sort((a, b) => b.prodPromedio - a.prodPromedio);
   const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
@@ -3227,6 +2649,83 @@ function renderPDFRRHH(doc, y, colores) {
   }
   
   return y;
+}
+
+function renderPDFSupervisor(doc, y, cuadrilla) {
+  const m = calcularMetricasCuadrilla(cuadrilla);
+  const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
+  const miEquipo = TRABAJADORES.filter(t => t.cuadrilla === cuadrilla);
+  
+  const rendimiento = miEquipo.map(t => {
+    const susPesadas = m.pesadasCuad.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
+    const kgTotal = susPesadas.reduce((sum, p) => sum + p.kg, 0);
+    const horasTotal = susPesadas.reduce((sum, p) => sum + p.horas, 0);
+    const prodPromedio = horasTotal > 0 ? kgTotal / horasTotal : 0;
+    return { ...t, pesadas: susPesadas.length, kgTotal, horasTotal, prodPromedio };
+  }).sort((a, b) => b.prodPromedio - a.prodPromedio);
+  
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(36, 48, 36);
+  doc.text(`Cuadrilla ${cuadrilla} (${m.lote}) — ${supervisorPorCuad[cuadrilla]}`, 15, y);
+  y += 10;
+  
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Trabajadores: ${miEquipo.length} · Pesadas: ${m.total} · Kg validados: ${Math.round(m.kgValidados).toLocaleString('es-PE')} · Productividad: ${m.prodPromedio.toFixed(1)} kg/h`, 15, y);
+  y += 8;
+  
+  doc.autoTable({
+    startY: y,
+    head: [['Pos.', 'Trabajador', 'DNI', 'Kg', 'Horas', 'Productividad']],
+    body: rendimiento.filter(t => t.pesadas > 0).map((t, i) => [
+      `${i+1}°`, t.nombre, t.dni, t.kgTotal.toFixed(1), t.horasTotal.toFixed(1), `${t.prodPromedio.toFixed(1)} kg/h`
+    ]),
+    theme: 'striped',
+    headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+    margin: { left: 15, right: 15 },
+  });
+  
+  return doc.lastAutoTable.finalY + 10;
+}
+
+function renderPDFRRHH(doc, y) {
+  const planilla = TRABAJADORES.map(t => {
+    const susPesadas = pesadas.filter(p => p.dni === t.dni && (p.estado === 'green' || p.estado === 'yellow'));
+    const kgTotal = susPesadas.reduce((sum, p) => sum + p.kg, 0);
+    const horasTotal = susPesadas.reduce((sum, p) => sum + p.horas, 0);
+    const monto = horasTotal * TARIFA_HORA;
+    return { ...t, kgTotal, horasTotal, monto, sinRegistro: susPesadas.length === 0 };
+  });
+  
+  const conRegistro = planilla.filter(t => !t.sinRegistro);
+  const totalPagar = conRegistro.reduce((sum, t) => sum + t.monto, 0);
+  
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(36, 48, 36);
+  doc.text(`Planilla del día — ${conRegistro.length}/${TOTAL_TRABAJADORES} trabajadores`, 15, y);
+  y += 8;
+  
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Tarifa: S/ ${TARIFA_HORA}/hora (Ley 31110) · Total a pagar: S/ ${totalPagar.toFixed(2)}`, 15, y);
+  y += 8;
+  
+  doc.autoTable({
+    startY: y,
+    head: [['DNI', 'Nombre', 'Cuad.', 'Kg validados', 'Horas', 'Monto (S/)']],
+    body: conRegistro.map(t => [
+      t.dni, t.nombre, t.cuadrilla, t.kgTotal.toFixed(1), t.horasTotal.toFixed(1), t.monto.toFixed(2)
+    ]),
+    foot: [['', '', 'TOTAL', '', conRegistro.reduce((s, t) => s + t.horasTotal, 0).toFixed(1), totalPagar.toFixed(2)]],
+    theme: 'striped',
+    headStyles: { fillColor: [124, 58, 237], textColor: 255 },
+    footStyles: { fillColor: [243, 240, 255], textColor: 36, fontStyle: 'bold' },
+    margin: { left: 15, right: 15 },
+  });
+  
+  return doc.lastAutoTable.finalY + 10;
 }
 
 // ============================================================
