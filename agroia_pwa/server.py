@@ -669,28 +669,23 @@ def analizar_imagen():
         contexto = data.get('contexto', 'Imagen de cosecha de palta Hass')
         
         # Prompt especializado en agricultura/palta Hass
-        prompt = """Eres un agente IA experto en agricultura de palta Hass (avocado) en Peru.
-Analiza esta imagen y responde EXCLUSIVAMENTE en formato JSON con esta estructura:
+        prompt = """Eres un agente IA experto en palta Hass de Peru. Analiza la imagen y devuelve SOLO este JSON:
 
 {
-  "tipo_detectado": "palta_hass" | "otra_fruta" | "no_es_fruta" | "no_clasificable",
-  "calidad_aparente": "excelente" | "buena" | "regular" | "deficiente" | "no_aplicable",
-  "color_madurez": "verde_inmadura" | "verde_madura" | "morada_lista" | "muy_madura" | "no_aplicable",
-  "daños_visibles": ["lista", "de", "daños"] o [],
-  "posibles_plagas": ["lista", "de", "plagas"] o [],
+  "tipo_detectado": "palta_hass" | "otra_fruta" | "no_es_fruta",
+  "calidad_aparente": "excelente" | "buena" | "regular" | "deficiente",
+  "color_madurez": "verde_inmadura" | "verde_madura" | "morada_lista" | "muy_madura",
+  "daños_visibles": ["array de daños o vacio"],
+  "posibles_plagas": ["array de plagas o vacio"],
   "confianza": "alta" | "media" | "baja",
-  "resumen": "Descripcion breve en 1-2 oraciones",
-  "recomendacion": "Accion sugerida en 1 oracion",
-  "alerta": null | "texto de alerta si hay problema critico"
+  "resumen": "1-2 oraciones describiendo lo que ves",
+  "recomendacion": "1 oracion con accion sugerida",
+  "alerta": null
 }
 
-REGLAS IMPORTANTES:
-- Si la imagen NO es de palta o cosecha, marca "tipo_detectado" como "no_clasificable" o "otra_fruta"
-- Se honesto con la confianza: si la foto es borrosa o ambigua, marca "baja"
-- Para daños usa terminos como: "manchas_oscuras", "pudricion", "deshidratacion", "magulladuras", "daño_mecanico"
-- Para plagas comunes en palta: "trips", "chinche", "arañita_roja", "antracnosis", "phytophthora"
-- NO inventes datos: si no puedes determinar algo, usa "no_aplicable"
-- El JSON debe ser valido, sin texto antes ni despues"""
+Daños comunes: manchas_oscuras, pudricion, magulladuras, deshidratacion, daño_mecanico.
+Plagas comunes en palta: trips, chinche, arañita_roja, antracnosis, phytophthora.
+Si no es palta, marca tipo_detectado correctamente. Se honesto con la confianza."""
 
         if AI_PROVIDER == "gemini" and GEMINI_API_KEY:
             return _analizar_con_gemini(imagen_b64, prompt)
@@ -728,7 +723,7 @@ def _analizar_con_gemini(imagen_b64, prompt):
         }],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 1000,
+            "maxOutputTokens": 2048,
             "responseMimeType": "application/json"  # FORZAR JSON nativo
         }
     }
