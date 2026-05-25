@@ -2611,9 +2611,12 @@ function renderPDFGerencia(doc, y) {
   
   const cuadrillas = ['C3', 'C5', 'C7'].map(c => {
     const mc = calcularMetricasCuadrilla(c);
-    return { label: c, valor: Math.round(mc.kgValidados), trabajadores: mc.totalTrabajadores };
+    const trabajadoresEnCuad = TRABAJADORES.filter(t => t.cuadrilla === c).length;
+    return { label: c, valor: Math.round(mc.kgValidados), trabajadores: trabajadoresEnCuad };
   });
-  const maxKg = Math.max(...cuadrillas.map(c => c.valor), 5000);
+  // Escala dinámica: si las barras son pequeñas, usa el max + 20% para que se vean
+  const valorMax = Math.max(...cuadrillas.map(c => c.valor));
+  const maxKg = valorMax > 0 ? Math.max(valorMax * 1.2, 100) : 5000;
   
   cuadrillas.forEach((c, i) => {
     const yBar = y + i * 11;
