@@ -2694,17 +2694,66 @@ function renderPDFJefeCampo(doc, y) {
   const ranking = ['C3', 'C5', 'C7'].map(c => calcularMetricasCuadrilla(c)).sort((a, b) => b.prodPromedio - a.prodPromedio);
   const supervisorPorCuad = {'C3': 'Marco Saldaña', 'C5': 'Patricia Chávez', 'C7': 'Luis Mendoza'};
   
+  // === RESUMEN OPERATIVO ===
+  doc.setFillColor(99, 153, 34);
+  doc.rect(15, y, 3, 8, 'F');
   doc.setFontSize(14);
+  doc.setTextColor(36, 48, 36);
+  doc.setFont(undefined, 'bold');
+  doc.text('Resumen Operativo del Día', 22, y + 6);
+  y += 14;
+  
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(60, 60, 60);
+  const resumen = `Estado de las 3 cuadrillas activas en la jornada. Se registraron ${m.total} pesadas con tasa de validación automática del ${m.tasaValidacion.toFixed(1)}%. Productividad promedio del campo: ${m.prodPromedio.toFixed(1)} kg/h.`;
+  const lineas = doc.splitTextToSize(resumen, 180);
+  doc.text(lineas, 15, y);
+  y += lineas.length * 4.5 + 8;
+  
+  // === KPIs OPERATIVOS (4 cajas verdes) ===
+  const kpiBoxVerde = (x, titulo, valor, sub) => {
+    doc.setFillColor(236, 245, 220);
+    doc.roundedRect(x, y, 42, 28, 2, 2, 'F');
+    doc.setFillColor(99, 153, 34);
+    doc.rect(x, y, 1.5, 28, 'F');
+    doc.setFontSize(7);
+    doc.setTextColor(60, 100, 20);
+    doc.setFont(undefined, 'bold');
+    doc.text(titulo.toUpperCase(), x + 5, y + 6);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(36, 48, 36);
+    doc.text(String(valor), x + 5, y + 16);
+    if (sub) {
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(sub, x + 5, y + 22);
+    }
+  };
+  
+  kpiBoxVerde(15, 'Pesadas hoy', `${m.total}`, `${m.validadas.length} validadas`);
+  kpiBoxVerde(60, 'Productividad', `${m.prodPromedio.toFixed(1)}`, 'kg/h promedio');
+  kpiBoxVerde(105, 'Observadas', `${m.observadas.length}`, 'requieren revisión');
+  kpiBoxVerde(150, 'Bloqueadas', `${m.bloqueadas.length}`, m.bloqueadas.length === 0 ? 'sin alertas' : 'anomalías');
+  y += 35;
+  
+  // === RANKING DE CUADRILLAS ===
+  doc.setFillColor(99, 153, 34);
+  doc.rect(15, y, 3, 8, 'F');
+  doc.setFontSize(13);
   doc.setFont(undefined, 'bold');
   doc.setTextColor(36, 48, 36);
-  doc.text('Resumen operativo del día', 15, y);
-  y += 10;
+  doc.text('Ranking de Cuadrillas', 22, y + 6);
+  y += 12;
   
+  const medallas = ['🥇 #1', '🥈 #2', '🥉 #3'];
   doc.autoTable({
     startY: y,
-    head: [['#', 'Cuadrilla', 'Supervisor', 'Pesadas', 'Validadas', 'Kg', 'Productividad', 'Anomalías']],
+    head: [['Pos.', 'Cuadrilla', 'Supervisor', 'Pesadas', 'Validadas', 'Kg', 'Productividad', 'Alertas']],
     body: ranking.map((r, i) => [
-      ['🥇', '🥈', '🥉'][i] + ' #' + (i+1),
+      medallas[i],
       r.cuadrilla,
       supervisorPorCuad[r.cuadrilla],
       r.total,
@@ -2714,21 +2763,33 @@ function renderPDFJefeCampo(doc, y) {
       r.bloqueadas.length
     ]),
     theme: 'striped',
-    headStyles: { fillColor: [99, 153, 34], textColor: 255 },
+    headStyles: { 
+      fillColor: [99, 153, 34], 
+      textColor: 255, 
+      fontSize: 9, 
+      fontStyle: 'bold',
+      cellPadding: 4
+    },
+    bodyStyles: { fontSize: 9, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [236, 245, 220] },
     margin: { left: 15, right: 15 },
   });
   y = doc.lastAutoTable.finalY + 10;
   
+  // === ALERTAS DEL AGENTE IA ===
   if (m.bloqueadas.length > 0 || m.observadas.length > 0) {
-    doc.setFontSize(12);
+    doc.setFillColor(249, 115, 22);
+    doc.rect(15, y, 3, 8, 'F');
+    doc.setFontSize(13);
     doc.setFont(undefined, 'bold');
-    doc.text('Pesadas con alertas del agente IA', 15, y);
-    y += 6;
+    doc.setTextColor(36, 48, 36);
+    doc.text('Alertas del Agente IA', 22, y + 6);
+    y += 12;
     
     const alertas = [...m.bloqueadas, ...m.observadas].slice(0, 10);
     doc.autoTable({
       startY: y,
-      head: [['Hora', 'Trabajador', 'Cuad.', 'Kg/h', 'Z', 'Estado', 'Motivo']],
+      head: [['Hora', 'Trabajador', 'Cuad.', 'Kg/h', 'Z-Score', 'Estado', 'Motivo']],
       body: alertas.map(p => {
         const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
         const prod = (p.kg / p.horas).toFixed(1);
@@ -2743,10 +2804,40 @@ function renderPDFJefeCampo(doc, y) {
         ];
       }),
       theme: 'grid',
-      headStyles: { fillColor: [249, 115, 22], textColor: 255 },
+      headStyles: { 
+        fillColor: [249, 115, 22], 
+        textColor: 255, 
+        fontSize: 9, 
+        fontStyle: 'bold' 
+      },
+      bodyStyles: { fontSize: 8.5 },
       margin: { left: 15, right: 15 },
     });
     y = doc.lastAutoTable.finalY + 10;
+  }
+  
+  // === ACCIONES RECOMENDADAS (callout verde) ===
+  const lider = ranking[0];
+  const ultimo = ranking[ranking.length - 1];
+  
+  if (y < 240) {  // solo si hay espacio
+    doc.setFillColor(236, 245, 220);
+    doc.roundedRect(15, y, 180, 30, 2, 2, 'F');
+    doc.setFillColor(99, 153, 34);
+    doc.rect(15, y, 3, 30, 'F');
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(60, 100, 20);
+    doc.text('ACCIONES RECOMENDADAS', 22, y + 8);
+    
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(36, 48, 36);
+    const texto = `1. Replicar prácticas de cuadrilla ${lider.cuadrilla} (${lider.prodPromedio.toFixed(1)} kg/h) en ${ultimo.cuadrilla} (${ultimo.prodPromedio.toFixed(1)} kg/h). 2. Coordinar revisión de las ${m.observadas.length + m.bloqueadas.length} pesadas con alertas. 3. Validar resultados con sistema de pesaje físico al cierre.`;
+    const lineasAcc = doc.splitTextToSize(texto, 168);
+    doc.text(lineasAcc, 22, y + 15);
+    y += 36;
   }
   
   return y;
