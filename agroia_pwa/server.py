@@ -728,7 +728,8 @@ def _analizar_con_gemini(imagen_b64, prompt):
         }],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 1000
+            "maxOutputTokens": 1000,
+            "responseMimeType": "application/json"  # FORZAR JSON nativo
         }
     }
     
@@ -739,16 +740,30 @@ def _analizar_con_gemini(imagen_b64, prompt):
         
         # Extraer el texto de la respuesta
         texto_respuesta = result['candidates'][0]['content']['parts'][0]['text']
-        print(f"[IA Gemini] Respuesta cruda: {texto_respuesta[:200]}...")
+        print(f"[IA Gemini] Respuesta cruda: {texto_respuesta[:300]}...")
         
-        # Limpiar el JSON (a veces viene con ```json al inicio)
+        # LIMPIEZA ROBUSTA del JSON
         texto_limpio = texto_respuesta.strip()
-        if texto_limpio.startswith('```'):
-            # Quitar ```json y ```
-            lineas = texto_limpio.split('\n')
-            texto_limpio = '\n'.join(lineas[1:-1])
         
-        # Parsear JSON
+        # 1. Quitar bloques markdown ```json ... ```
+        if texto_limpio.startswith('```'):
+            # Buscar el primer salto de linea y el ultimo ```
+            primer_salto = texto_limpio.find('\n')
+            if primer_salto > 0:
+                texto_limpio = texto_limpio[primer_salto+1:]
+            if texto_limpio.endswith('```'):
+                texto_limpio = texto_limpio[:-3]
+            texto_limpio = texto_limpio.strip()
+        
+        # 2. Si hay texto antes del JSON, intentar extraer solo el JSON
+        # buscando la primera { y la ultima }
+        if not texto_limpio.startswith('{'):
+            primer_corchete = texto_limpio.find('{')
+            ultimo_corchete = texto_limpio.rfind('}')
+            if primer_corchete >= 0 and ultimo_corchete > primer_corchete:
+                texto_limpio = texto_limpio[primer_corchete:ultimo_corchete+1]
+        
+        # 3. Parsear JSON
         analisis = json.loads(texto_limpio)
         
         return jsonify({
@@ -759,12 +774,25 @@ def _analizar_con_gemini(imagen_b64, prompt):
         
     except json.JSONDecodeError as e:
         print(f"[IA Gemini] Error parseando JSON: {e}")
-        print(f"[IA Gemini] Texto crudo: {texto_respuesta}")
+        print(f"[IA Gemini] Texto crudo completo: {texto_respuesta}")
+        # Devolver el texto crudo de la IA como analisis_texto
+        # para que el frontend lo muestre como descripcion libre
         return jsonify({
-            "exito": False,
-            "error": "Respuesta de IA no es JSON valido",
-            "respuesta_cruda": texto_respuesta[:500]
-        }), 500
+            "exito": True,
+            "analisis": {
+                "tipo_detectado": "no_clasificable",
+                "calidad_aparente": "no_aplicable",
+                "color_madurez": "no_aplicable",
+                "daños_visibles": [],
+                "posibles_plagas": [],
+                "confianza": "media",
+                "resumen": texto_respuesta[:500],
+                "recomendacion": "Ver descripcion completa en el resumen",
+                "alerta": None
+            },
+            "proveedor": "gemini",
+            "modo_fallback": True
+        })
     except Exception as e:
         print(f"[IA Gemini] Error: {e}")
         return jsonify({"exito": False, "error": str(e)}), 500
