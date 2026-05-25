@@ -3008,33 +3008,155 @@ function renderPDFRRHH(doc, y) {
   });
   
   const conRegistro = planilla.filter(t => !t.sinRegistro);
+  const sinRegistro = planilla.filter(t => t.sinRegistro);
   const totalPagar = conRegistro.reduce((sum, t) => sum + t.monto, 0);
+  const totalHoras = conRegistro.reduce((sum, t) => sum + t.horasTotal, 0);
+  const totalKg = conRegistro.reduce((sum, t) => sum + t.kgTotal, 0);
   
+  // === RESUMEN DE PLANILLA ===
+  doc.setFillColor(124, 58, 237);
+  doc.rect(15, y, 3, 8, 'F');
   doc.setFontSize(14);
+  doc.setTextColor(36, 48, 36);
+  doc.setFont(undefined, 'bold');
+  doc.text('Resumen de Planilla', 22, y + 6);
+  y += 14;
+  
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(60, 60, 60);
+  const resumen = `Planilla del día con base en pesadas validadas por el agente IA. Tarifa aplicada: S/ ${TARIFA_HORA}/hora según Ley 31110 de Trabajadores Agrarios. Total a pagar: S/ ${totalPagar.toFixed(2)} entre ${conRegistro.length} trabajadores activos.`;
+  const lineas = doc.splitTextToSize(resumen, 180);
+  doc.text(lineas, 15, y);
+  y += lineas.length * 4.5 + 8;
+  
+  // === KPIs DE PLANILLA (4 cajas moradas) ===
+  const kpiBoxMorado = (x, titulo, valor, sub) => {
+    doc.setFillColor(237, 233, 254);
+    doc.roundedRect(x, y, 42, 28, 2, 2, 'F');
+    doc.setFillColor(124, 58, 237);
+    doc.rect(x, y, 1.5, 28, 'F');
+    doc.setFontSize(7);
+    doc.setTextColor(88, 28, 195);
+    doc.setFont(undefined, 'bold');
+    doc.text(titulo.toUpperCase(), x + 5, y + 6);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(36, 48, 36);
+    doc.text(String(valor), x + 5, y + 16);
+    if (sub) {
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(sub, x + 5, y + 22);
+    }
+  };
+  
+  kpiBoxMorado(15, 'Trabajadores', `${conRegistro.length}/${TOTAL_TRABAJADORES}`, 'con registro');
+  kpiBoxMorado(60, 'Total horas', `${totalHoras.toFixed(1)}`, 'trabajadas');
+  kpiBoxMorado(105, 'Total Kg', `${Math.round(totalKg).toLocaleString('es-PE')}`, 'validados');
+  kpiBoxMorado(150, 'Total a pagar', `S/ ${totalPagar.toFixed(0)}`, `S/${TARIFA_HORA}/h`);
+  y += 35;
+  
+  // === TABLA PRINCIPAL DE PLANILLA ===
+  doc.setFillColor(124, 58, 237);
+  doc.rect(15, y, 3, 8, 'F');
+  doc.setFontSize(13);
   doc.setFont(undefined, 'bold');
   doc.setTextColor(36, 48, 36);
-  doc.text(`Planilla del día — ${conRegistro.length}/${TOTAL_TRABAJADORES} trabajadores`, 15, y);
-  y += 8;
+  doc.text('Detalle de Planilla', 22, y + 6);
+  y += 12;
   
-  doc.setFontSize(10);
-  doc.setFont(undefined, 'normal');
-  doc.text(`Tarifa: S/ ${TARIFA_HORA}/hora (Ley 31110) · Total a pagar: S/ ${totalPagar.toFixed(2)}`, 15, y);
-  y += 8;
+  if (conRegistro.length > 0) {
+    doc.autoTable({
+      startY: y,
+      head: [['DNI', 'Apellidos y Nombres', 'Cuadrilla', 'Kg validados', 'Horas', 'Monto (S/)']],
+      body: conRegistro.map(t => [
+        t.dni,
+        t.nombre,
+        t.cuadrilla,
+        t.kgTotal.toFixed(1),
+        t.horasTotal.toFixed(1),
+        t.monto.toFixed(2)
+      ]),
+      foot: [['', '', 'TOTAL', totalKg.toFixed(1), totalHoras.toFixed(1), totalPagar.toFixed(2)]],
+      theme: 'striped',
+      headStyles: { 
+        fillColor: [124, 58, 237], 
+        textColor: 255, 
+        fontSize: 9, 
+        fontStyle: 'bold',
+        cellPadding: 4
+      },
+      bodyStyles: { fontSize: 9, cellPadding: 3 },
+      footStyles: { 
+        fillColor: [88, 28, 195], 
+        textColor: 255, 
+        fontStyle: 'bold', 
+        fontSize: 10,
+        cellPadding: 4
+      },
+      alternateRowStyles: { fillColor: [237, 233, 254] },
+      margin: { left: 15, right: 15 },
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  } else {
+    // Si no hay trabajadores con registro
+    doc.setFillColor(237, 233, 254);
+    doc.roundedRect(15, y, 180, 14, 2, 2, 'F');
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'italic');
+    doc.setTextColor(60, 60, 60);
+    doc.text('No hay trabajadores con pesadas validadas en esta jornada', 105, y + 9, { align: 'center' });
+    y += 18;
+  }
   
-  doc.autoTable({
-    startY: y,
-    head: [['DNI', 'Nombre', 'Cuad.', 'Kg validados', 'Horas', 'Monto (S/)']],
-    body: conRegistro.map(t => [
-      t.dni, t.nombre, t.cuadrilla, t.kgTotal.toFixed(1), t.horasTotal.toFixed(1), t.monto.toFixed(2)
-    ]),
-    foot: [['', '', 'TOTAL', '', conRegistro.reduce((s, t) => s + t.horasTotal, 0).toFixed(1), totalPagar.toFixed(2)]],
-    theme: 'striped',
-    headStyles: { fillColor: [124, 58, 237], textColor: 255 },
-    footStyles: { fillColor: [243, 240, 255], textColor: 36, fontStyle: 'bold' },
-    margin: { left: 15, right: 15 },
-  });
+  // === TRABAJADORES SIN REGISTRO (callout amarillo) ===
+  if (sinRegistro.length > 0) {
+    doc.setFillColor(255, 248, 220);
+    doc.roundedRect(15, y, 180, 28, 2, 2, 'F');
+    doc.setFillColor(251, 191, 36);
+    doc.rect(15, y, 3, 28, 'F');
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(180, 130, 0);
+    doc.text(`${sinRegistro.length} TRABAJADORES SIN REGISTRO`, 22, y + 8);
+    
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(36, 48, 36);
+    const nombres = sinRegistro.slice(0, 8).map(t => t.nombre.split(' ')[0] + ' ' + t.nombre.split(' ')[1]).join(', ');
+    const textoSinReg = `Sin pesadas validadas hoy: ${nombres}${sinRegistro.length > 8 ? ` y ${sinRegistro.length - 8} más` : ''}. Verificar asistencia con sus supervisores antes del cierre de planilla.`;
+    const lineasSinReg = doc.splitTextToSize(textoSinReg, 168);
+    doc.text(lineasSinReg, 22, y + 14);
+    y += 34;
+  }
   
-  return doc.lastAutoTable.finalY + 10;
+  // === FIRMAS Y APROBACIÓN ===
+  if (y < 250) {  // solo si hay espacio
+    y += 5;
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.3);
+    doc.line(25, y + 15, 85, y + 15);
+    doc.line(120, y + 15, 180, y + 15);
+    
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(60, 60, 60);
+    doc.text('Elaborado por Sistema AgroIA', 55, y + 20, { align: 'center' });
+    doc.text('Aprobado por Jefe de RR.HH.', 150, y + 20, { align: 'center' });
+    
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(120, 120, 120);
+    doc.text('Validación automática agente IA', 55, y + 24, { align: 'center' });
+    doc.text('Firma y sello requeridos', 150, y + 24, { align: 'center' });
+    
+    y += 30;
+  }
+  
+  return y;
 }
 
 // ============================================================
