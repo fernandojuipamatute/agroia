@@ -70,6 +70,19 @@ else:
     print(f"[IA] No configurado - analisis de imagen no disponible")
 
 # ============================================================
+# CONFIGURACION DE EMAIL (Resend)
+# ============================================================
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+# Dominio de envio - por defecto usa el de pruebas de Resend
+# Cuando tengas dominio propio, cambia a algo como "reportes@agroia.pe"
+EMAIL_FROM = os.environ.get("EMAIL_FROM", "AgroIA <onboarding@resend.dev>")
+
+if RESEND_API_KEY:
+    print(f"[Email] Resend configurado - envio de correos disponible")
+else:
+    print(f"[Email] Resend NO configurado - envio de correos no disponible")
+
+# ============================================================
 # CONEXION A SUPABASE (base de datos en la nube)
 # ============================================================
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -848,6 +861,105 @@ def _analizar_con_claude(imagen_b64, prompt):
         
     except Exception as e:
         print(f"[IA Claude] Error: {e}")
+        return jsonify({"exito": False, "error": str(e)}), 500
+
+
+# ============================================================
+# ENDPOINT: ENVIAR EMAIL DE PRUEBA (Resend)
+# ============================================================
+@app.route('/api/enviar-email-prueba', methods=['POST'])
+def enviar_email_prueba():
+    """Envia un email de prueba usando Resend.
+    
+    Recibe: { "destino": "correo@ejemplo.com" }
+    Devuelve: { "exito": true, "id": "..." }
+    """
+    if not RESEND_API_KEY:
+        return jsonify({
+            "exito": False,
+            "error": "Resend no esta configurado en el servidor"
+        }), 503
+    
+    try:
+        data = request.json
+        destino = data.get('destino', '')
+        
+        if not destino or '@' not in destino:
+            return jsonify({"exito": False, "error": "Correo destino invalido"}), 400
+        
+        # Construir el email HTML
+        from datetime import timezone, timedelta
+        PERU_TZ = timezone(timedelta(hours=-5))
+        ahora = datetime.now(timezone.utc).astimezone(PERU_TZ)
+        fecha_str = ahora.strftime("%d/%m/%Y %H:%M")
+        
+        html_email = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #EF9F27, #639922); padding: 30px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">AgroIA</h1>
+            <p style="color: white; margin: 5px 0 0 0; font-size: 14px;">Sistema de Control Operativo Agricola</p>
+          </div>
+          <div style="padding: 30px; background: #f9f9f9;">
+            <h2 style="color: #243024;">Email de prueba exitoso</h2>
+            <p style="color: #555; line-height: 1.6;">
+              Este es un correo de prueba del sistema AgroIA. Si lo estas leyendo, 
+              significa que la configuracion de envio de correos funciona correctamente.
+            </p>
+            <div style="background: white; border-left: 4px solid #EF9F27; padding: 15px; margin: 20px 0;">
+              <strong style="color: #243024;">Detalles de la prueba:</strong><br>
+              <span style="color: #555;">Fecha y hora: {fecha_str}</span><br>
+              <span style="color: #555;">Servicio: Resend</span><br>
+              <span style="color: #555;">Estado: Operativo</span>
+            </div>
+            <p style="color: #555; line-height: 1.6;">
+              El siguiente paso sera adjuntar los reportes en PDF generados automaticamente 
+              por el agente IA.
+            </p>
+          </div>
+          <div style="background: #243024; padding: 20px; text-align: center;">
+            <p style="color: #999; margin: 0; font-size: 12px;">
+              AgroIA - Universidad Cesar Vallejo<br>
+              Proyecto academico - Valle de Viru, La Libertad
+            </p>
+          </div>
+        </div>
+        """
+        
+        # Llamar a la API de Resend
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "from": EMAIL_FROM,
+                "to": [destino],
+                "subject": "AgroIA - Email de prueba",
+                "html": html_email
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"[Email] Enviado correctamente a {destino} - ID: {result.get('id')}")
+            return jsonify({
+                "exito": True,
+                "id": result.get('id'),
+                "mensaje": f"Email enviado a {destino}"
+            })
+        else:
+            error_data = response.json() if response.text else {}
+            print(f"[Email] Error {response.status_code}: {error_data}")
+            return jsonify({
+                "exito": False,
+                "error": error_data.get('message', f'Error HTTP {response.status_code}'),
+                "detalle": error_data
+            }), response.status_code
+            
+    except Exception as e:
+        print(f"[Email] Error: {e}")
         return jsonify({"exito": False, "error": str(e)}), 500
 
 
