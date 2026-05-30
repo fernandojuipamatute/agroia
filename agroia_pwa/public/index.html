@@ -1388,6 +1388,43 @@ tr:hover td {
       <button class="btn btn-primary" onclick="exportarReportePDF()" style="padding:12px 24px;">
         📄  Exportar PDF
       </button>
+      
+      <button class="btn" onclick="abrirModalEmail()" style="padding:12px 24px; background:#639922; color:white; margin-left:8px;">
+        📧  Enviar por email
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal para enviar reporte por email -->
+  <div id="modalEmail" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:12px; padding:32px; max-width:500px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <h2 style="margin:0 0 8px 0; color:#243024; font-size:22px;">📧 Enviar reporte por email</h2>
+      <p style="color:#666; margin:0 0 24px 0; font-size:14px;">El PDF se generará y enviará automáticamente.</p>
+      
+      <div style="margin-bottom:16px;">
+        <label style="display:block; color:#243024; font-weight:600; margin-bottom:6px;">Tipo de reporte:</label>
+        <div id="modalTipoReporte" style="background:#f3f0ff; color:#243024; padding:10px 14px; border-radius:8px; font-weight:600;">
+          —
+        </div>
+      </div>
+      
+      <div style="margin-bottom:24px;">
+        <label for="emailDestino" style="display:block; color:#243024; font-weight:600; margin-bottom:6px;">Correo destinatario:</label>
+        <input type="email" id="emailDestino" placeholder="ejemplo@correo.com" 
+               style="width:100%; padding:12px; border:2px solid #e2e8f0; border-radius:8px; font-size:14px; box-sizing:border-box;"/>
+        <small style="color:#999; display:block; margin-top:6px;">⚠ Con el dominio de prueba de Resend, solo se puede enviar al correo registrado.</small>
+      </div>
+      
+      <div id="modalMensaje" style="display:none; padding:12px; border-radius:8px; margin-bottom:16px; font-size:14px;"></div>
+      
+      <div style="display:flex; gap:12px; justify-content:flex-end;">
+        <button class="btn" onclick="cerrarModalEmail()" style="padding:10px 20px; background:#e2e8f0; color:#243024;">
+          Cancelar
+        </button>
+        <button id="btnEnviarEmail" class="btn btn-primary" onclick="enviarReportePorEmail()" style="padding:10px 20px; background:#639922; color:white;">
+          📤 Enviar
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2520,6 +2557,139 @@ function exportarReportePDF() {
   const nombreArchivo = `AgroIA_${tipo}_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(nombreArchivo);
 }
+
+// ============================================================
+// ENVIO DE REPORTES POR EMAIL
+// ============================================================
+function abrirModalEmail() {
+  const tipo = document.getElementById('selectorReporte').value;
+  const nombresTipo = {
+    'gerencia': 'Gerencia / Directorio',
+    'jefecampo': 'Jefe de Campo',
+    'supervisor': 'Supervisor de Cuadrilla',
+    'rrhh': 'Recursos Humanos'
+  };
+  
+  let textoTipo = nombresTipo[tipo] || tipo;
+  if (tipo === 'supervisor') {
+    const cuad = document.getElementById('selectorCuadrilla').value;
+    textoTipo += ` (${cuad})`;
+  }
+  
+  document.getElementById('modalTipoReporte').textContent = textoTipo;
+  
+  // Cargar correo guardado (si existe)
+  const correoGuardado = localStorage.getItem('agroia_email_destino') || '';
+  document.getElementById('emailDestino').value = correoGuardado;
+  
+  // Limpiar mensajes anteriores
+  document.getElementById('modalMensaje').style.display = 'none';
+  
+  // Restaurar botón
+  const btn = document.getElementById('btnEnviarEmail');
+  btn.disabled = false;
+  btn.innerHTML = '📤 Enviar';
+  
+  // Mostrar modal
+  document.getElementById('modalEmail').style.display = 'flex';
+  
+  // Foco en el input
+  setTimeout(() => document.getElementById('emailDestino').focus(), 100);
+}
+
+function cerrarModalEmail() {
+  document.getElementById('modalEmail').style.display = 'none';
+}
+
+async function enviarReportePorEmail() {
+  const destino = document.getElementById('emailDestino').value.trim();
+  const tipo = document.getElementById('selectorReporte').value;
+  const cuadrilla = document.getElementById('selectorCuadrilla').value;
+  const mensajeDiv = document.getElementById('modalMensaje');
+  const btn = document.getElementById('btnEnviarEmail');
+  
+  // Validar correo
+  if (!destino || !destino.includes('@') || !destino.includes('.')) {
+    mensajeDiv.style.background = '#fee2e2';
+    mensajeDiv.style.color = '#991b1b';
+    mensajeDiv.style.border = '1px solid #fca5a5';
+    mensajeDiv.textContent = '⚠ Por favor ingresa un correo válido';
+    mensajeDiv.style.display = 'block';
+    return;
+  }
+  
+  // Guardar correo para próxima vez
+  localStorage.setItem('agroia_email_destino', destino);
+  
+  // Cambiar botón a loading
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Enviando...';
+  
+  // Mostrar mensaje de procesamiento
+  mensajeDiv.style.background = '#dbeafe';
+  mensajeDiv.style.color = '#1e40af';
+  mensajeDiv.style.border = '1px solid #93c5fd';
+  mensajeDiv.textContent = '🔄 Generando PDF y enviando email...';
+  mensajeDiv.style.display = 'block';
+  
+  try {
+    const payload = { destino: destino, tipo: tipo };
+    if (tipo === 'supervisor') {
+      payload.cuadrilla = cuadrilla;
+    }
+    
+    const response = await fetch('https://agroi-api.onrender.com/api/enviar-reporte', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await response.json();
+    
+    if (data.exito) {
+      mensajeDiv.style.background = '#dcfce7';
+      mensajeDiv.style.color = '#166534';
+      mensajeDiv.style.border = '1px solid #86efac';
+      mensajeDiv.innerHTML = `✅ <b>Email enviado correctamente</b><br><small>Revisa tu bandeja de entrada (y la carpeta de spam).</small>`;
+      
+      btn.innerHTML = '✓ Enviado';
+      
+      // Cerrar modal después de 3 segundos
+      setTimeout(() => cerrarModalEmail(), 3000);
+    } else {
+      mensajeDiv.style.background = '#fee2e2';
+      mensajeDiv.style.color = '#991b1b';
+      mensajeDiv.style.border = '1px solid #fca5a5';
+      mensajeDiv.innerHTML = `❌ <b>Error al enviar:</b><br><small>${data.error || 'Error desconocido'}</small>`;
+      btn.disabled = false;
+      btn.innerHTML = '📤 Reintentar';
+    }
+  } catch (error) {
+    mensajeDiv.style.background = '#fee2e2';
+    mensajeDiv.style.color = '#991b1b';
+    mensajeDiv.style.border = '1px solid #fca5a5';
+    mensajeDiv.innerHTML = `❌ <b>Error de conexión:</b><br><small>${error.message}</small>`;
+    btn.disabled = false;
+    btn.innerHTML = '📤 Reintentar';
+  }
+}
+
+// Cerrar modal al hacer click fuera o presionar Escape
+document.addEventListener('click', function(e) {
+  const modal = document.getElementById('modalEmail');
+  if (modal && e.target === modal) {
+    cerrarModalEmail();
+  }
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('modalEmail');
+    if (modal && modal.style.display === 'flex') {
+      cerrarModalEmail();
+    }
+  }
+});
 
 function renderPDFGerencia(doc, y) {
   const m = calcularMetricasBase();
