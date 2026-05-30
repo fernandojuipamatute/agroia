@@ -4,3 +4,4 @@ datadog-api-client==2.21.0
 gunicorn==21.2.0
 supabase==2.7.4
 requests==2.31.0
+reportlab==4.2.5
