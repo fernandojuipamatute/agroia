@@ -1150,6 +1150,485 @@ def generar_pdf_gerencia():
     return buffer.read()
 
 
+def _crear_pdf_base(color_principal_hex, color_oscuro_hex, color_claro_hex,
+                    titulo_rol, datos_resumen, secciones):
+    """Helper que crea un PDF con el diseno estandar (header + secciones).
+    
+    Args:
+        color_principal_hex: color hex string '#XXXXXX'
+        color_oscuro_hex: hex string
+        color_claro_hex: hex string  
+        titulo_rol: 'JEFE DE CAMPO', 'SUPERVISOR', etc
+        datos_resumen: dict con 'kpis' (lista de tuplas) y 'texto'
+        secciones: lista de dicts con 'titulo' y 'flowables'
+    
+    Returns: bytes del PDF
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
+                                     TableStyle, HRFlowable)
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY, TA_CENTER
+    import io
+    from datetime import timezone, timedelta
+    
+    COLOR = colors.HexColor(color_principal_hex)
+    COLOR_OSC = colors.HexColor(color_oscuro_hex)
+    COLOR_CLA = colors.HexColor(color_claro_hex)
+    GRIS_OSC = colors.HexColor('#0F172A')
+    GRIS = colors.HexColor('#475569')
+    
+    PERU_TZ = timezone(timedelta(hours=-5))
+    ahora = datetime.now(timezone.utc).astimezone(PERU_TZ)
+    fecha_str = ahora.strftime("%d/%m/%Y %H:%M")
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm,
+                            bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # === ENCABEZADO ===
+    titulo_style = ParagraphStyle('T', parent=styles['Title'], fontSize=22,
+                                  textColor=COLOR, fontName='Helvetica-Bold',
+                                  spaceAfter=4, alignment=TA_LEFT)
+    story.append(Paragraph('AgroIA', titulo_style))
+    
+    sub_style = ParagraphStyle('S', parent=styles['Normal'], fontSize=11,
+                               textColor=GRIS, spaceAfter=2)
+    story.append(Paragraph(f'Reporte - {titulo_rol}', sub_style))
+    
+    fecha_style = ParagraphStyle('F', parent=styles['Normal'], fontSize=9,
+                                 textColor=GRIS, spaceAfter=10)
+    story.append(Paragraph(f'Cosecha Palta Hass - Valle de Viru - {fecha_str}', fecha_style))
+    
+    story.append(HRFlowable(width="100%", thickness=2, color=COLOR, spaceAfter=15))
+    
+    # === RESUMEN ===
+    if datos_resumen.get('titulo_seccion'):
+        h_style = ParagraphStyle('H', parent=styles['Normal'], fontSize=14,
+                                 textColor=GRIS_OSC, fontName='Helvetica-Bold', spaceAfter=8)
+        story.append(Paragraph(datos_resumen['titulo_seccion'], h_style))
+    
+    if datos_resumen.get('texto'):
+        p_style = ParagraphStyle('P', parent=styles['Normal'], fontSize=10,
+                                 textColor=GRIS_OSC, alignment=TA_JUSTIFY, leading=15, spaceAfter=15)
+        story.append(Paragraph(datos_resumen['texto'], p_style))
+    
+    # === KPIs ===
+    if datos_resumen.get('kpis'):
+        kpi_row = [f"{titulo}\n{valor}" for titulo, valor in datos_resumen['kpis']]
+        kpi_table = Table([kpi_row], colWidths=[4.2*cm]*len(kpi_row), rowHeights=[2*cm])
+        kpi_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), COLOR_CLA),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 11),
+            ('TEXTCOLOR', (0,0), (-1,-1), GRIS_OSC),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LINEBEFORE', (0,0), (0,-1), 2, COLOR),
+            ('LINEBEFORE', (1,0), (1,-1), 2, COLOR),
+            ('LINEBEFORE', (2,0), (2,-1), 2, COLOR),
+            ('LINEBEFORE', (3,0), (3,-1), 2, COLOR),
+            ('GRID', (0,0), (-1,-1), 3, colors.white),
+        ]))
+        story.append(kpi_table)
+        story.append(Spacer(1, 0.5*cm))
+    
+    # === SECCIONES ===
+    h_style = ParagraphStyle('H2', parent=styles['Normal'], fontSize=14,
+                             textColor=GRIS_OSC, fontName='Helvetica-Bold', spaceAfter=8)
+    for seccion in secciones:
+        if seccion.get('titulo'):
+            story.append(Paragraph(seccion['titulo'], h_style))
+        for flow in seccion.get('flowables', []):
+            story.append(flow)
+        story.append(Spacer(1, 0.5*cm))
+    
+    # === PIE ===
+    story.append(Spacer(1, 0.5*cm))
+    pie_style = ParagraphStyle('Pie', parent=styles['Normal'], fontSize=8,
+                               textColor=GRIS, alignment=TA_CENTER)
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#E2E8F0'), spaceAfter=8))
+    story.append(Paragraph(f'AgroIA - Sistema de Control Operativo - Reporte {titulo_rol}', pie_style))
+    story.append(Paragraph('Universidad Cesar Vallejo - Documento confidencial', pie_style))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.read()
+
+
+def generar_pdf_jefe_campo():
+    """Genera PDF de Jefe de Campo con ranking de cuadrillas."""
+    from reportlab.lib import colors
+    from reportlab.platypus import Table, TableStyle, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.lib.enums import TA_JUSTIFY
+    
+    pesadas = _obtener_pesadas_supabase()
+    m = _calcular_metricas_base(pesadas)
+    
+    # Ranking ordenado por productividad
+    rankings = []
+    for c in ['C3', 'C5', 'C7']:
+        mc = _calcular_metricas_cuadrilla(pesadas, c)
+        rankings.append(mc)
+    rankings.sort(key=lambda x: x['prod_promedio'], reverse=True)
+    
+    # Datos para tabla de ranking
+    medallas = ['#1 ORO', '#2 PLATA', '#3 BRONCE']
+    ranking_rows = [['Pos.', 'Cuadrilla', 'Supervisor', 'Pesadas', 'Validadas', 'Kg', 'Productividad', 'Alertas']]
+    for i, r in enumerate(rankings):
+        ranking_rows.append([
+            medallas[i],
+            r['cuadrilla'],
+            SUPERVISORES.get(r['cuadrilla'], '-'),
+            len(r['validadas']) + len(r['bloqueadas']),
+            len(r['validadas']),
+            f"{round(r['kg_validados']):,}",
+            f"{r['prod_promedio']:.1f} kg/h",
+            len(r['bloqueadas'])
+        ])
+    
+    VERDE = colors.HexColor('#639922')
+    VERDE_CLA = colors.HexColor('#ECF5DC')
+    
+    ranking_table = Table(ranking_rows, colWidths=[2*cm, 2*cm, 3.5*cm, 1.8*cm, 2*cm, 2*cm, 2.5*cm, 1.5*cm])
+    ranking_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), VERDE),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ('TEXTCOLOR', (0,1), (-1,-1), colors.HexColor('#0F172A')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, VERDE_CLA]),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    
+    # Acciones recomendadas (callout)
+    lider = rankings[0]
+    ultimo = rankings[-1]
+    styles = getSampleStyleSheet()
+    callout_style = ParagraphStyle('CO', parent=styles['Normal'], fontSize=9,
+                                   textColor=colors.HexColor('#0F172A'), leading=13)
+    acciones_text = (f"<b>ACCIONES RECOMENDADAS</b><br/>"
+                     f"1. Replicar practicas de cuadrilla {lider['cuadrilla']} "
+                     f"({lider['prod_promedio']:.1f} kg/h) en {ultimo['cuadrilla']} "
+                     f"({ultimo['prod_promedio']:.1f} kg/h).<br/>"
+                     f"2. Coordinar revision de las {len(m['observadas']) + len(m['bloqueadas'])} "
+                     f"pesadas con alertas.<br/>"
+                     f"3. Validar resultados con sistema de pesaje fisico al cierre.")
+    callout_data = [[Paragraph(acciones_text, callout_style)]]
+    callout_table = Table(callout_data, colWidths=[17*cm])
+    callout_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), VERDE_CLA),
+        ('LINEBEFORE', (0,0), (0,-1), 3, VERDE),
+        ('TOPPADDING', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+        ('LEFTPADDING', (0,0), (-1,-1), 12),
+        ('RIGHTPADDING', (0,0), (-1,-1), 12),
+    ]))
+    
+    # Construir el PDF
+    return _crear_pdf_base(
+        color_principal_hex='#639922',
+        color_oscuro_hex='#3C6414',
+        color_claro_hex='#ECF5DC',
+        titulo_rol='JEFE DE CAMPO',
+        datos_resumen={
+            'titulo_seccion': 'Resumen Operativo del Dia',
+            'texto': (f"Estado de las 3 cuadrillas activas en la jornada. Se registraron "
+                      f"{m['total']} pesadas con tasa de validacion automatica del "
+                      f"{m['tasa_validacion']:.1f}%. Productividad promedio del campo: "
+                      f"{m['prod_promedio']:.1f} kg/h."),
+            'kpis': [
+                ('PESADAS', f"{m['total']}"),
+                ('PRODUCTIVIDAD', f"{m['prod_promedio']:.1f} kg/h"),
+                ('OBSERVADAS', f"{len(m['observadas'])}"),
+                ('BLOQUEADAS', f"{len(m['bloqueadas'])}"),
+            ]
+        },
+        secciones=[
+            {'titulo': 'Ranking de Cuadrillas', 'flowables': [ranking_table]},
+            {'titulo': None, 'flowables': [callout_table]},
+        ]
+    )
+
+
+def generar_pdf_supervisor(cuadrilla='C3'):
+    """Genera PDF de Supervisor de una cuadrilla especifica."""
+    from reportlab.lib import colors
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib.units import cm
+    
+    pesadas = _obtener_pesadas_supabase()
+    mc = _calcular_metricas_cuadrilla(pesadas, cuadrilla)
+    
+    # Trabajadores de la cuadrilla
+    trabajadores_cuad = {dni: d for dni, d in TRABAJADORES.items() if d['cuadrilla'] == cuadrilla}
+    
+    # Calcular performers
+    performers = []
+    for dni, datos in trabajadores_cuad.items():
+        sus_pesadas = [p for p in pesadas if p.get('dni') == dni and p.get('estado') in ('green', 'yellow')]
+        if not sus_pesadas:
+            continue
+        kg = sum(float(p.get('kg', 0)) for p in sus_pesadas)
+        horas = sum(float(p.get('horas', 0)) for p in sus_pesadas)
+        prod = kg/horas if horas > 0 else 0
+        performers.append({
+            'dni': dni,
+            'nombre': datos['nombre'],
+            'kg': kg,
+            'horas': horas,
+            'prod': prod,
+            'pesadas': len(sus_pesadas)
+        })
+    performers.sort(key=lambda x: x['prod'], reverse=True)
+    top5 = performers[:5]
+    
+    AZUL = colors.HexColor('#2563EB')
+    AZUL_CLA = colors.HexColor('#DBEAFE')
+    
+    # Tabla Top 5
+    estrellas = ['*** TOP', '** ALTO', '* BUENO', '', '']
+    top_rows = [['Pos.', 'DNI', 'Trabajador', 'Kg', 'Horas', 'Productividad', 'Rating']]
+    if top5:
+        for i, t in enumerate(top5):
+            top_rows.append([
+                f"#{i+1}",
+                t['dni'],
+                t['nombre'],
+                f"{round(t['kg'])}",
+                f"{t['horas']:.1f}",
+                f"{t['prod']:.1f} kg/h",
+                estrellas[i] if i < 3 else ''
+            ])
+    else:
+        top_rows.append(['', '', 'Sin pesadas validadas aun', '', '', '', ''])
+    
+    top_table = Table(top_rows, colWidths=[1.5*cm, 2.5*cm, 4.5*cm, 1.8*cm, 1.8*cm, 2.5*cm, 2.4*cm])
+    top_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), AZUL),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ('TEXTCOLOR', (0,1), (-1,-1), colors.HexColor('#0F172A')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, AZUL_CLA]),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    
+    # Tabla de pesadas recientes
+    pesadas_cuad = [p for p in pesadas if p.get('cuadrilla') == cuadrilla][:15]
+    pes_rows = [['Hora', 'DNI', 'Trabajador', 'Kg', 'Horas', 'Productividad', 'Estado']]
+    estado_map = {'green': 'Validado', 'yellow': 'Validado*', 'orange': 'Observado', 'red': 'Bloqueado'}
+    for p in pesadas_cuad:
+        t = TRABAJADORES.get(p.get('dni'), {})
+        prod = (float(p.get('kg', 0)) / float(p.get('horas', 1))) if float(p.get('horas', 0)) > 0 else 0
+        pes_rows.append([
+            p.get('hora', '-'),
+            p.get('dni', '-'),
+            t.get('nombre', p.get('nombre', '-')),
+            f"{p.get('kg', 0)}",
+            f"{p.get('horas', 0)}",
+            f"{prod:.1f} kg/h",
+            estado_map.get(p.get('estado'), p.get('estado', '-'))
+        ])
+    
+    pes_table = Table(pes_rows, colWidths=[1.8*cm, 2.3*cm, 4*cm, 1.5*cm, 1.5*cm, 2.5*cm, 2.4*cm])
+    pes_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1946AF')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ('TEXTCOLOR', (0,1), (-1,-1), colors.HexColor('#0F172A')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, AZUL_CLA]),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('LEFTPADDING', (0,0), (-1,-1), 5),
+    ]))
+    
+    secciones = [
+        {'titulo': 'Top 5 Performers del Dia', 'flowables': [top_table]},
+    ]
+    if pesadas_cuad:
+        secciones.append({'titulo': 'Pesadas Recientes', 'flowables': [pes_table]})
+    
+    return _crear_pdf_base(
+        color_principal_hex='#2563EB',
+        color_oscuro_hex='#1946AF',
+        color_claro_hex='#DBEAFE',
+        titulo_rol=f'SUPERVISOR - Cuadrilla {cuadrilla}',
+        datos_resumen={
+            'titulo_seccion': f'Cuadrilla {cuadrilla} - {SUPERVISORES.get(cuadrilla, "-")}',
+            'texto': (f"Reporte detallado de la cuadrilla {cuadrilla} bajo supervision de "
+                      f"{SUPERVISORES.get(cuadrilla, '-')}. Total de {len(trabajadores_cuad)} "
+                      f"trabajadores asignados, {mc['total']} pesadas registradas, "
+                      f"{round(mc['kg_validados']):,} kg validados con productividad promedio de "
+                      f"{mc['prod_promedio']:.1f} kg/h."),
+            'kpis': [
+                ('TRABAJADORES', f"{len(trabajadores_cuad)}"),
+                ('PESADAS', f"{mc['total']}"),
+                ('KG VALIDADOS', f"{round(mc['kg_validados']):,}"),
+                ('ALERTAS', f"{len(mc['bloqueadas'])}"),
+            ]
+        },
+        secciones=secciones
+    )
+
+
+def generar_pdf_rrhh():
+    """Genera PDF de RR.HH. con planilla y firmas."""
+    from reportlab.lib import colors
+    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    
+    pesadas = _obtener_pesadas_supabase()
+    
+    # Calcular planilla
+    planilla = []
+    for dni, datos in TRABAJADORES.items():
+        sus_pesadas = [p for p in pesadas if p.get('dni') == dni and p.get('estado') in ('green', 'yellow')]
+        kg_total = sum(float(p.get('kg', 0)) for p in sus_pesadas)
+        horas_total = sum(float(p.get('horas', 0)) for p in sus_pesadas)
+        monto = horas_total * TARIFA_HORA
+        planilla.append({
+            'dni': dni,
+            'nombre': datos['nombre'],
+            'cuadrilla': datos['cuadrilla'],
+            'kg': kg_total,
+            'horas': horas_total,
+            'monto': monto,
+            'sin_registro': len(sus_pesadas) == 0
+        })
+    
+    con_registro = [t for t in planilla if not t['sin_registro']]
+    sin_registro = [t for t in planilla if t['sin_registro']]
+    total_pagar = sum(t['monto'] for t in con_registro)
+    total_horas = sum(t['horas'] for t in con_registro)
+    total_kg = sum(t['kg'] for t in con_registro)
+    
+    MORADO = colors.HexColor('#7C3AED')
+    MORADO_OSC = colors.HexColor('#581CC3')
+    MORADO_CLA = colors.HexColor('#EDE9FE')
+    
+    # Tabla de planilla
+    pla_rows = [['DNI', 'Apellidos y Nombres', 'Cuadrilla', 'Kg validados', 'Horas', 'Monto (S/)']]
+    for t in con_registro:
+        pla_rows.append([
+            t['dni'],
+            t['nombre'],
+            t['cuadrilla'],
+            f"{t['kg']:.1f}",
+            f"{t['horas']:.1f}",
+            f"{t['monto']:.2f}"
+        ])
+    # Fila TOTAL
+    pla_rows.append(['', '', 'TOTAL', f"{total_kg:.1f}", f"{total_horas:.1f}", f"{total_pagar:.2f}"])
+    
+    pla_table = Table(pla_rows, colWidths=[2.2*cm, 4.5*cm, 2*cm, 2.5*cm, 2*cm, 3.8*cm])
+    pla_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), MORADO),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('FONTNAME', (0,1), (-1,-2), 'Helvetica'),
+        ('TEXTCOLOR', (0,1), (-1,-2), colors.HexColor('#0F172A')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-2), [colors.white, MORADO_CLA]),
+        # Fila TOTAL destacada
+        ('BACKGROUND', (0,-1), (-1,-1), MORADO_OSC),
+        ('TEXTCOLOR', (0,-1), (-1,-1), colors.white),
+        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,-1), (-1,-1), 10),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    
+    secciones = [
+        {'titulo': 'Detalle de Planilla', 'flowables': [pla_table]},
+    ]
+    
+    # Callout sin registro
+    if sin_registro:
+        styles = getSampleStyleSheet()
+        callout_style = ParagraphStyle('CO', parent=styles['Normal'], fontSize=9,
+                                       textColor=colors.HexColor('#0F172A'), leading=13)
+        nombres = ', '.join([t['nombre'].split()[0] + ' ' + t['nombre'].split()[1] 
+                             for t in sin_registro[:8]])
+        if len(sin_registro) > 8:
+            nombres += f' y {len(sin_registro) - 8} mas'
+        sin_reg_text = (f"<b>{len(sin_registro)} TRABAJADORES SIN REGISTRO</b><br/>"
+                        f"Sin pesadas validadas hoy: {nombres}. Verificar asistencia con "
+                        f"sus supervisores antes del cierre de planilla.")
+        callout_data = [[Paragraph(sin_reg_text, callout_style)]]
+        callout_table = Table(callout_data, colWidths=[17*cm])
+        callout_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#FFF8DC')),
+            ('LINEBEFORE', (0,0), (0,-1), 3, colors.HexColor('#FBBF24')),
+            ('TOPPADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+            ('LEFTPADDING', (0,0), (-1,-1), 12),
+            ('RIGHTPADDING', (0,0), (-1,-1), 12),
+        ]))
+        secciones.append({'titulo': None, 'flowables': [callout_table]})
+    
+    # Firmas
+    firmas_data = [
+        ['_________________________', '_________________________'],
+        ['Elaborado por Sistema AgroIA', 'Aprobado por Jefe de RR.HH.'],
+        ['Validacion automatica agente IA', 'Firma y sello requeridos'],
+    ]
+    firmas_table = Table(firmas_data, colWidths=[8.5*cm, 8.5*cm])
+    firmas_table.setStyle(TableStyle([
+        ('FONTSIZE', (0,0), (-1,0), 9),
+        ('FONTSIZE', (0,1), (-1,1), 9),
+        ('FONTSIZE', (0,2), (-1,2), 7),
+        ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (0,1), (-1,1), colors.HexColor('#475569')),
+        ('TEXTCOLOR', (0,2), (-1,2), colors.HexColor('#94A3B8')),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+    ]))
+    secciones.append({'titulo': None, 'flowables': [Spacer(1, 0.3*cm), firmas_table]})
+    
+    return _crear_pdf_base(
+        color_principal_hex='#7C3AED',
+        color_oscuro_hex='#581CC3',
+        color_claro_hex='#EDE9FE',
+        titulo_rol='RECURSOS HUMANOS',
+        datos_resumen={
+            'titulo_seccion': 'Resumen de Planilla',
+            'texto': (f"Planilla del dia con base en pesadas validadas por el agente IA. "
+                      f"Tarifa aplicada: S/ {TARIFA_HORA}/hora segun Ley 31110 de Trabajadores "
+                      f"Agrarios. Total a pagar: S/ {total_pagar:.2f} entre {len(con_registro)} "
+                      f"trabajadores activos."),
+            'kpis': [
+                ('TRABAJADORES', f"{len(con_registro)}/{len(TRABAJADORES)}"),
+                ('TOTAL HORAS', f"{total_horas:.1f}"),
+                ('TOTAL KG', f"{round(total_kg):,}"),
+                ('TOTAL A PAGAR', f"S/ {round(total_pagar):,}"),
+            ]
+        },
+        secciones=secciones
+    )
+
+
 # ============================================================
 # ENDPOINT: ENVIAR EMAIL DE PRUEBA (Resend)
 # ============================================================
@@ -1277,8 +1756,18 @@ def enviar_reporte():
         if tipo == 'gerencia':
             pdf_bytes = generar_pdf_gerencia()
             nombre_reporte = 'Gerencia'
+        elif tipo == 'jefecampo':
+            pdf_bytes = generar_pdf_jefe_campo()
+            nombre_reporte = 'Jefe de Campo'
+        elif tipo == 'supervisor':
+            cuadrilla = data.get('cuadrilla', 'C3')
+            pdf_bytes = generar_pdf_supervisor(cuadrilla)
+            nombre_reporte = f'Supervisor {cuadrilla}'
+        elif tipo == 'rrhh':
+            pdf_bytes = generar_pdf_rrhh()
+            nombre_reporte = 'RRHH'
         else:
-            return jsonify({"exito": False, "error": f"Tipo de reporte '{tipo}' aun no disponible"}), 400
+            return jsonify({"exito": False, "error": f"Tipo de reporte '{tipo}' no valido. Use: gerencia, jefecampo, supervisor, rrhh"}), 400
         
         # Codificar PDF en base64 para el adjunto
         import base64
