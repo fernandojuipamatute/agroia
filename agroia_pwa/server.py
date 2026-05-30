@@ -158,6 +158,14 @@ UMBRAL_VERDE = 1.5
 UMBRAL_AMARILLO = 2.0
 UMBRAL_NARANJA = 2.5
 
+# Constantes economicas (sincronizadas con la app)
+PRECIO_KG = 2.50          # Soles por kg de palta Hass
+META_DIARIA = 12500       # kg meta por dia
+TARIFA_HORA = 8.50        # Soles por hora (Ley 31110)
+ACUMULADO_BASE_TON = 556.16  # toneladas ya cosechadas en campana
+META_CAMPANA_TON = 850    # toneladas meta de campana
+SUPERVISORES = {'C3': 'Marco Saldana', 'C5': 'Patricia Chavez', 'C7': 'Luis Mendoza'}
+
 # ============================================================
 # FLASK SERVER
 # ============================================================
@@ -865,6 +873,284 @@ def _analizar_con_claude(imagen_b64, prompt):
 
 
 # ============================================================
+# GENERACION DE REPORTES PDF EN EL SERVIDOR (reportlab)
+# ============================================================
+def _obtener_pesadas_supabase():
+    """Obtiene las pesadas mas recientes de Supabase para los reportes."""
+    if not supabase:
+        return []
+    try:
+        result = supabase.table('pesadas')\
+            .select("*")\
+            .order('timestamp_creacion', desc=True)\
+            .limit(500)\
+            .execute()
+        return result.data or []
+    except Exception as e:
+        print(f"[PDF] Error obteniendo pesadas: {e}")
+        return []
+
+
+def _calcular_metricas_base(pesadas):
+    """Calcula las metricas base para el reporte de Gerencia."""
+    # Solo cuentan verde y amarilla como validadas
+    validadas = [p for p in pesadas if p.get('estado') in ('green', 'yellow')]
+    observadas = [p for p in pesadas if p.get('estado') == 'orange']
+    bloqueadas = [p for p in pesadas if p.get('estado') == 'red']
+    
+    kg_validados = sum(float(p.get('kg', 0)) for p in validadas)
+    kg_bloqueados = sum(float(p.get('kg', 0)) for p in bloqueadas)
+    
+    total = len(validadas) + len(observadas) + len(bloqueadas)
+    tasa_validacion = (len(validadas) / total * 100) if total > 0 else 0
+    
+    # Productividad promedio
+    prods = []
+    for p in validadas:
+        horas = float(p.get('horas', 0))
+        if horas > 0:
+            prods.append(float(p.get('kg', 0)) / horas)
+    prod_promedio = sum(prods) / len(prods) if prods else 0
+    
+    # Avance de campana
+    acumulado_ton = ACUMULADO_BASE_TON + (kg_validados / 1000)
+    avance_campana = (acumulado_ton / META_CAMPANA_TON) * 100
+    
+    # Diferencia vs meta diaria
+    diff_meta = ((kg_validados - META_DIARIA) / META_DIARIA * 100) if META_DIARIA > 0 else 0
+    
+    return {
+        'validadas': validadas,
+        'observadas': observadas,
+        'bloqueadas': bloqueadas,
+        'kg_validados': kg_validados,
+        'kg_bloqueados': kg_bloqueados,
+        'total': total,
+        'tasa_validacion': tasa_validacion,
+        'prod_promedio': prod_promedio,
+        'acumulado_ton': acumulado_ton,
+        'avance_campana': avance_campana,
+        'diff_meta': diff_meta,
+    }
+
+
+def _calcular_metricas_cuadrilla(pesadas, cuadrilla):
+    """Calcula metricas de una cuadrilla especifica."""
+    pesadas_cuad = [p for p in pesadas if p.get('cuadrilla') == cuadrilla]
+    validadas = [p for p in pesadas_cuad if p.get('estado') in ('green', 'yellow')]
+    bloqueadas = [p for p in pesadas_cuad if p.get('estado') == 'red']
+    
+    kg_validados = sum(float(p.get('kg', 0)) for p in validadas)
+    prods = []
+    for p in validadas:
+        horas = float(p.get('horas', 0))
+        if horas > 0:
+            prods.append(float(p.get('kg', 0)) / horas)
+    prod_promedio = sum(prods) / len(prods) if prods else 0
+    
+    return {
+        'cuadrilla': cuadrilla,
+        'total': len(pesadas_cuad),
+        'validadas': validadas,
+        'bloqueadas': bloqueadas,
+        'kg_validados': kg_validados,
+        'prod_promedio': prod_promedio,
+    }
+
+
+def generar_pdf_gerencia():
+    """Genera el PDF del reporte de Gerencia y lo devuelve como bytes."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
+                                     TableStyle, HRFlowable)
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY, TA_CENTER
+    import io
+    from datetime import timezone, timedelta
+    
+    # Colores
+    AMBAR = colors.HexColor('#EF9F27')
+    AMBAR_OSC = colors.HexColor('#B46E14')
+    AMBAR_CLA = colors.HexColor('#FFF4DA')
+    GRIS_OSC = colors.HexColor('#0F172A')
+    GRIS = colors.HexColor('#475569')
+    
+    # Datos
+    pesadas = _obtener_pesadas_supabase()
+    m = _calcular_metricas_base(pesadas)
+    valor_cosechado = m['kg_validados'] * PRECIO_KG
+    ahorro = m['kg_bloqueados'] * PRECIO_KG
+    signo = '+' if m['diff_meta'] >= 0 else ''
+    
+    PERU_TZ = timezone(timedelta(hours=-5))
+    ahora = datetime.now(timezone.utc).astimezone(PERU_TZ)
+    fecha_str = ahora.strftime("%d/%m/%Y %H:%M")
+    
+    # Crear PDF en memoria
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm,
+                            bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # === ENCABEZADO ===
+    titulo_style = ParagraphStyle('T', parent=styles['Title'], fontSize=22,
+                                  textColor=AMBAR, fontName='Helvetica-Bold',
+                                  spaceAfter=4, alignment=TA_LEFT)
+    story.append(Paragraph('AgroIA', titulo_style))
+    
+    sub_style = ParagraphStyle('S', parent=styles['Normal'], fontSize=11,
+                               textColor=GRIS, spaceAfter=2)
+    story.append(Paragraph('Reporte Ejecutivo - GERENCIA / DIRECTORIO', sub_style))
+    
+    fecha_style = ParagraphStyle('F', parent=styles['Normal'], fontSize=9,
+                                 textColor=GRIS, spaceAfter=10)
+    story.append(Paragraph(f'Cosecha Palta Hass - Valle de Viru - {fecha_str}', fecha_style))
+    
+    story.append(HRFlowable(width="100%", thickness=2, color=AMBAR, spaceAfter=15))
+    
+    # === RESUMEN EJECUTIVO ===
+    h_style = ParagraphStyle('H', parent=styles['Normal'], fontSize=14,
+                             textColor=GRIS_OSC, fontName='Helvetica-Bold', spaceAfter=8)
+    story.append(Paragraph('Resumen Ejecutivo', h_style))
+    
+    p_style = ParagraphStyle('P', parent=styles['Normal'], fontSize=10,
+                             textColor=GRIS_OSC, alignment=TA_JUSTIFY, leading=15, spaceAfter=15)
+    resumen = (f"En la jornada de hoy se cosecharon {round(m['kg_validados']):,} kg de palta Hass, "
+               f"generando un valor economico de S/ {valor_cosechado:,.0f}. El avance acumulado de "
+               f"campana alcanza el {m['avance_campana']:.1f}% ({m['acumulado_ton']:.0f} t de {META_CAMPANA_TON} t), "
+               f"con {signo}{m['diff_meta']:.1f}% respecto a la meta diaria.")
+    story.append(Paragraph(resumen, p_style))
+    
+    # === KPIs (tabla de 4 columnas) ===
+    kpi_data = [[
+        f"COSECHA\n{round(m['kg_validados']):,} kg",
+        f"VALOR\nS/ {valor_cosechado:,.0f}",
+        f"AVANCE\n{m['avance_campana']:.1f}%",
+        f"VALIDACION\n{m['tasa_validacion']:.0f}%"
+    ]]
+    kpi_table = Table(kpi_data, colWidths=[4.2*cm]*4, rowHeights=[2*cm])
+    kpi_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), AMBAR_CLA),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 11),
+        ('TEXTCOLOR', (0,0), (-1,-1), GRIS_OSC),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('LINEBEFORE', (0,0), (0,-1), 2, AMBAR),
+        ('LINEBEFORE', (1,0), (1,-1), 2, AMBAR),
+        ('LINEBEFORE', (2,0), (2,-1), 2, AMBAR),
+        ('LINEBEFORE', (3,0), (3,-1), 2, AMBAR),
+        ('GRID', (0,0), (-1,-1), 3, colors.white),
+    ]))
+    story.append(kpi_table)
+    story.append(Spacer(1, 0.5*cm))
+    
+    # === CALLOUT VALOR IA (si hay bloqueadas) ===
+    if m['bloqueadas']:
+        callout_style = ParagraphStyle('CO', parent=styles['Normal'], fontSize=9,
+                                       textColor=GRIS_OSC, leading=13)
+        callout_text = (f"<b>VALOR DEL AGENTE IA EN ESTA JORNADA</b><br/>"
+                        f"Se detectaron {len(m['bloqueadas'])} anomalias por "
+                        f"{round(m['kg_bloqueados']):,} kg, evitando un sobrepago estimado "
+                        f"en S/ {ahorro:,.0f}.")
+        callout_data = [[Paragraph(callout_text, callout_style)]]
+        callout_table = Table(callout_data, colWidths=[17*cm])
+        callout_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), AMBAR_CLA),
+            ('LINEBEFORE', (0,0), (0,-1), 3, AMBAR),
+            ('TOPPADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+            ('LEFTPADDING', (0,0), (-1,-1), 12),
+            ('RIGHTPADDING', (0,0), (-1,-1), 12),
+        ]))
+        story.append(callout_table)
+        story.append(Spacer(1, 0.5*cm))
+    
+    # === GRAFICO: Produccion por cuadrilla (tabla con barras texto) ===
+    story.append(Paragraph('Produccion por Cuadrilla', h_style))
+    
+    cuad_rows = []
+    cuadrillas_data = []
+    for c in ['C3', 'C5', 'C7']:
+        mc = _calcular_metricas_cuadrilla(pesadas, c)
+        trab = len([1 for dni, d in TRABAJADORES.items() if d['cuadrilla'] == c])
+        cuadrillas_data.append((c, round(mc['kg_validados']), trab))
+    
+    max_kg = max([cd[1] for cd in cuadrillas_data] + [1])
+    for c, kg, trab in cuadrillas_data:
+        barras = int((kg / max_kg) * 30) if max_kg > 0 else 0
+        barra_str = '#' * max(barras, 1)
+        cuad_rows.append([c, f"({trab} trab.)", barra_str, f"{kg:,} kg"])
+    
+    cuad_table = Table(cuad_rows, colWidths=[1.5*cm, 2.5*cm, 9*cm, 4*cm])
+    cuad_table.setStyle(TableStyle([
+        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('TEXTCOLOR', (0,0), (0,-1), GRIS_OSC),
+        ('TEXTCOLOR', (1,0), (1,-1), GRIS),
+        ('TEXTCOLOR', (2,0), (2,-1), AMBAR),
+        ('FONTNAME', (2,0), (2,-1), 'Courier-Bold'),
+        ('FONTNAME', (3,0), (3,-1), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (3,0), (3,-1), GRIS_OSC),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(cuad_table)
+    story.append(Spacer(1, 0.5*cm))
+    
+    # === TABLA DE INDICADORES ===
+    story.append(Paragraph('Indicadores Operativos', h_style))
+    
+    ind_data = [['Indicador', 'Valor', 'Estado']]
+    ind_data.append(['Cosecha del dia', f"{round(m['kg_validados']):,} kg",
+                     'Por encima de meta' if m['diff_meta'] >= 0 else 'Por debajo de meta'])
+    ind_data.append(['Valor producido', f"S/ {valor_cosechado:,.0f}", 'Registrado'])
+    ind_data.append(['Avance campana', f"{m['avance_campana']:.1f}%",
+                     'En tiempo' if m['avance_campana'] >= 60 else 'Retrasado'])
+    ind_data.append(['Tasa de validacion', f"{m['tasa_validacion']:.1f}%",
+                     'Excelente' if m['tasa_validacion'] >= 90 else 'Revisar'])
+    ind_data.append(['Pesadas registradas', f"{m['total']}", 'Operativo'])
+    ind_data.append(['Anomalias detectadas', f"{len(m['bloqueadas'])}",
+                     'Sin alertas' if len(m['bloqueadas']) == 0 else 'Revisar'])
+    ind_data.append(['Ahorro estimado por IA', f"S/ {ahorro:,.0f}", 'Valor entregado'])
+    ind_data.append(['Disponibilidad sistema', '100%', 'Operativo 24/7'])
+    
+    ind_table = Table(ind_data, colWidths=[7*cm, 4*cm, 6*cm])
+    ind_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), AMBAR),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ('TEXTCOLOR', (0,1), (-1,-1), GRIS_OSC),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, AMBAR_CLA]),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(ind_table)
+    
+    story.append(Spacer(1, 1*cm))
+    
+    # Pie
+    pie_style = ParagraphStyle('Pie', parent=styles['Normal'], fontSize=8,
+                               textColor=GRIS, alignment=TA_CENTER)
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#E2E8F0'), spaceAfter=8))
+    story.append(Paragraph('AgroIA - Sistema de Control Operativo - Generado automaticamente por agente IA', pie_style))
+    story.append(Paragraph('Universidad Cesar Vallejo - Documento confidencial', pie_style))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.read()
+
+
+# ============================================================
 # ENDPOINT: ENVIAR EMAIL DE PRUEBA (Resend)
 # ============================================================
 @app.route('/api/enviar-email-prueba', methods=['POST'])
@@ -960,6 +1246,125 @@ def enviar_email_prueba():
             
     except Exception as e:
         print(f"[Email] Error: {e}")
+        return jsonify({"exito": False, "error": str(e)}), 500
+
+
+# ============================================================
+# ENDPOINT: ENVIAR REPORTE CON PDF ADJUNTO (Resend)
+# ============================================================
+@app.route('/api/enviar-reporte', methods=['POST'])
+def enviar_reporte():
+    """Genera un reporte PDF y lo envia como adjunto por email.
+    
+    Recibe: { "destino": "correo@ejemplo.com", "tipo": "gerencia" }
+    Devuelve: { "exito": true, "id": "..." }
+    """
+    if not RESEND_API_KEY:
+        return jsonify({
+            "exito": False,
+            "error": "Resend no esta configurado en el servidor"
+        }), 503
+    
+    try:
+        data = request.json
+        destino = data.get('destino', '')
+        tipo = data.get('tipo', 'gerencia')
+        
+        if not destino or '@' not in destino:
+            return jsonify({"exito": False, "error": "Correo destino invalido"}), 400
+        
+        # Generar el PDF segun el tipo
+        if tipo == 'gerencia':
+            pdf_bytes = generar_pdf_gerencia()
+            nombre_reporte = 'Gerencia'
+        else:
+            return jsonify({"exito": False, "error": f"Tipo de reporte '{tipo}' aun no disponible"}), 400
+        
+        # Codificar PDF en base64 para el adjunto
+        import base64
+        pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+        
+        from datetime import timezone, timedelta
+        PERU_TZ = timezone(timedelta(hours=-5))
+        ahora = datetime.now(timezone.utc).astimezone(PERU_TZ)
+        fecha_archivo = ahora.strftime("%Y-%m-%d")
+        fecha_legible = ahora.strftime("%d/%m/%Y")
+        nombre_archivo = f"AgroIA_Reporte_{nombre_reporte}_{fecha_archivo}.pdf"
+        
+        # Email HTML
+        html_email = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #EF9F27, #639922); padding: 30px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">AgroIA</h1>
+            <p style="color: white; margin: 5px 0 0 0; font-size: 14px;">Reporte Ejecutivo - {nombre_reporte}</p>
+          </div>
+          <div style="padding: 30px; background: #f9f9f9;">
+            <h2 style="color: #243024;">Reporte del {fecha_legible}</h2>
+            <p style="color: #555; line-height: 1.6;">
+              Estimado equipo de {nombre_reporte},<br><br>
+              Adjunto encontrara el reporte ejecutivo del dia generado automaticamente 
+              por el agente IA de AgroIA, con los indicadores de cosecha, validacion 
+              estadistica y produccion por cuadrilla.
+            </p>
+            <div style="background: white; border-left: 4px solid #EF9F27; padding: 15px; margin: 20px 0;">
+              <strong style="color: #243024;">Documento adjunto:</strong><br>
+              <span style="color: #555;">{nombre_archivo}</span>
+            </div>
+            <p style="color: #777; font-size: 13px; line-height: 1.6;">
+              Este reporte fue generado y enviado automaticamente. Para ver el detalle 
+              completo en tiempo real, ingrese a la aplicacion AgroIA.
+            </p>
+          </div>
+          <div style="background: #243024; padding: 20px; text-align: center;">
+            <p style="color: #999; margin: 0; font-size: 12px;">
+              AgroIA - Universidad Cesar Vallejo<br>
+              Proyecto academico - Valle de Viru, La Libertad
+            </p>
+          </div>
+        </div>
+        """
+        
+        # Enviar via Resend con adjunto
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "from": EMAIL_FROM,
+                "to": [destino],
+                "subject": f"AgroIA - Reporte {nombre_reporte} - {fecha_legible}",
+                "html": html_email,
+                "attachments": [{
+                    "filename": nombre_archivo,
+                    "content": pdf_base64
+                }]
+            },
+            timeout=60
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"[Email] Reporte {tipo} enviado a {destino} - ID: {result.get('id')}")
+            return jsonify({
+                "exito": True,
+                "id": result.get('id'),
+                "mensaje": f"Reporte enviado a {destino}"
+            })
+        else:
+            error_data = response.json() if response.text else {}
+            print(f"[Email] Error {response.status_code}: {error_data}")
+            return jsonify({
+                "exito": False,
+                "error": error_data.get('message', f'Error HTTP {response.status_code}'),
+                "detalle": error_data
+            }), response.status_code
+            
+    except Exception as e:
+        import traceback
+        print(f"[Email] Error en enviar-reporte: {e}")
+        print(traceback.format_exc())
         return jsonify({"exito": False, "error": str(e)}), 500
 
 
