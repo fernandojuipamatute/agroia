@@ -167,6 +167,58 @@ META_CAMPANA_TON = 850    # toneladas meta de campana
 SUPERVISORES = {'C3': 'Marco Saldana', 'C5': 'Patricia Chavez', 'C7': 'Luis Mendoza'}
 
 # ============================================================
+# CONFIGURACION DE DESTINATARIOS POR ROL
+# ============================================================
+# Para cambiar destinatarios, modifica esta tabla.
+# Cuando tengas dominio propio verificado en Resend, puedes
+# poner cualquier correo aqui.
+# IMPORTANTE: con el dominio de prueba 'onboarding@resend.dev'
+# solo se puede enviar al correo registrado en Resend.
+DESTINATARIOS = {
+    'gerencia':       [os.environ.get('EMAIL_GERENCIA', '')],
+    'jefecampo':      [os.environ.get('EMAIL_JEFECAMPO', '')],
+    'supervisor_C3':  [os.environ.get('EMAIL_SUPERVISOR_C3', '')],
+    'supervisor_C5':  [os.environ.get('EMAIL_SUPERVISOR_C5', '')],
+    'supervisor_C7':  [os.environ.get('EMAIL_SUPERVISOR_C7', '')],
+    'rrhh':           [os.environ.get('EMAIL_RRHH', '')],
+}
+
+# ============================================================
+# PROGRAMACION DE ENVIOS AUTOMATICOS
+# ============================================================
+# Configura cuando se envia cada reporte.
+# Dia de la semana: 0=Lunes, 1=Martes, ..., 5=Sabado, 6=Domingo
+# Hora en formato 24h (zona horaria de Peru UTC-5)
+PROGRAMA_ENVIOS = [
+    # GERENCIA: Lunes 8 AM (semanal)
+    {'tipo': 'gerencia', 'dias': [0], 'hora': 8, 'minuto': 0},
+    
+    # JEFE DE CAMPO: Lunes a Sabado 8 PM (diario)
+    {'tipo': 'jefecampo', 'dias': [0, 1, 2, 3, 4, 5], 'hora': 20, 'minuto': 0},
+    
+    # SUPERVISOR C3: Lunes a Sabado 7 PM (diario)
+    {'tipo': 'supervisor', 'cuadrilla': 'C3', 'dias': [0, 1, 2, 3, 4, 5], 'hora': 19, 'minuto': 0},
+    
+    # SUPERVISOR C5: Lunes a Sabado 7 PM
+    {'tipo': 'supervisor', 'cuadrilla': 'C5', 'dias': [0, 1, 2, 3, 4, 5], 'hora': 19, 'minuto': 0},
+    
+    # SUPERVISOR C7: Lunes a Sabado 7 PM
+    {'tipo': 'supervisor', 'cuadrilla': 'C7', 'dias': [0, 1, 2, 3, 4, 5], 'hora': 19, 'minuto': 0},
+    
+    # RR.HH.: Sabado 9 PM (semanal con planilla acumulada)
+    {'tipo': 'rrhh', 'dias': [5], 'hora': 21, 'minuto': 0},
+]
+
+# Tolerancia en minutos para considerar que es la "hora correcta"
+# Si UptimeRobot llama cada 5 min, esta tolerancia debe ser >= 5
+TOLERANCIA_MINUTOS = 6
+
+# Registro en memoria de envios ya hechos hoy (evita duplicados)
+# Se reinicia cada vez que el servidor reinicia.
+ENVIOS_REALIZADOS = set()
+
+
+# ============================================================
 # FLASK SERVER
 # ============================================================
 app = Flask(__name__)
@@ -1855,6 +1907,276 @@ def enviar_reporte():
         print(f"[Email] Error en enviar-reporte: {e}")
         print(traceback.format_exc())
         return jsonify({"exito": False, "error": str(e)}), 500
+
+
+# ============================================================
+# SISTEMA DE ENVIO AUTOMATICO PROGRAMADO
+# ============================================================
+def _enviar_reporte_automatico(tipo, destinatarios, cuadrilla=None):
+    """Envia un reporte automatico a una lista de destinatarios.
+    
+    Args:
+        tipo: 'gerencia', 'jefecampo', 'supervisor', 'rrhh'
+        destinatarios: lista de correos
+        cuadrilla: solo para 'supervisor' (C3, C5, C7)
+    
+    Returns:
+        dict con resultados de cada envio
+    """
+    if not RESEND_API_KEY:
+        return {"exito": False, "error": "Resend no configurado"}
+    
+    # Generar el PDF UNA VEZ y reutilizar para todos los destinatarios
+    try:
+        if tipo == 'gerencia':
+            pdf_bytes = generar_pdf_gerencia()
+            nombre_reporte = 'Gerencia'
+        elif tipo == 'jefecampo':
+            pdf_bytes = generar_pdf_jefe_campo()
+            nombre_reporte = 'Jefe de Campo'
+        elif tipo == 'supervisor':
+            pdf_bytes = generar_pdf_supervisor(cuadrilla)
+            nombre_reporte = f'Supervisor {cuadrilla}'
+        elif tipo == 'rrhh':
+            pdf_bytes = generar_pdf_rrhh()
+            nombre_reporte = 'RRHH'
+        else:
+            return {"exito": False, "error": f"Tipo desconocido: {tipo}"}
+    except Exception as e:
+        return {"exito": False, "error": f"Error generando PDF: {e}"}
+    
+    import base64
+    pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+    
+    from datetime import timezone, timedelta
+    PERU_TZ = timezone(timedelta(hours=-5))
+    ahora = datetime.now(timezone.utc).astimezone(PERU_TZ)
+    fecha_archivo = ahora.strftime("%Y-%m-%d")
+    fecha_legible = ahora.strftime("%d/%m/%Y")
+    nombre_archivo = f"AgroIA_Reporte_{nombre_reporte.replace(' ', '_')}_{fecha_archivo}.pdf"
+    
+    # HTML del email
+    html_email = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #EF9F27, #639922); padding: 30px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 28px;">AgroIA</h1>
+        <p style="color: white; margin: 5px 0 0 0; font-size: 14px;">Reporte Automatico - {nombre_reporte}</p>
+      </div>
+      <div style="padding: 30px; background: #f9f9f9;">
+        <h2 style="color: #243024;">Reporte del {fecha_legible}</h2>
+        <p style="color: #555; line-height: 1.6;">
+          Estimado equipo de {nombre_reporte},<br><br>
+          Adjunto encontrara el reporte automatico generado por el agente IA 
+          de AgroIA, con los indicadores de cosecha y validacion estadistica.
+        </p>
+        <div style="background: white; border-left: 4px solid #EF9F27; padding: 15px; margin: 20px 0;">
+          <strong style="color: #243024;">Documento adjunto:</strong><br>
+          <span style="color: #555;">{nombre_archivo}</span>
+        </div>
+        <p style="color: #777; font-size: 13px; line-height: 1.6;">
+          Este reporte fue generado y enviado automaticamente. Para ver mas 
+          detalles en tiempo real, ingrese a la aplicacion AgroIA.
+        </p>
+      </div>
+      <div style="background: #243024; padding: 20px; text-align: center;">
+        <p style="color: #999; margin: 0; font-size: 12px;">
+          AgroIA - Universidad Cesar Vallejo<br>
+          Proyecto academico - Valle de Viru, La Libertad
+        </p>
+      </div>
+    </div>
+    """
+    
+    resultados = []
+    for destino in destinatarios:
+        if not destino or '@' not in destino:
+            resultados.append({"destino": destino, "exito": False, "error": "Correo invalido"})
+            continue
+        
+        try:
+            response = requests.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "from": EMAIL_FROM,
+                    "to": [destino],
+                    "subject": f"AgroIA - Reporte {nombre_reporte} - {fecha_legible}",
+                    "html": html_email,
+                    "attachments": [{
+                        "filename": nombre_archivo,
+                        "content": pdf_base64
+                    }]
+                },
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                resultados.append({"destino": destino, "exito": True, "id": response.json().get('id')})
+                print(f"[Auto] Enviado {tipo} a {destino}")
+            else:
+                error_data = response.json() if response.text else {}
+                resultados.append({"destino": destino, "exito": False, 
+                                   "error": error_data.get('message', f'HTTP {response.status_code}')})
+                print(f"[Auto] Error enviando a {destino}: {response.status_code}")
+        except Exception as e:
+            resultados.append({"destino": destino, "exito": False, "error": str(e)})
+            print(f"[Auto] Excepcion enviando a {destino}: {e}")
+    
+    return {"exito": True, "resultados": resultados}
+
+
+def _ejecutar_envios_programados(forzar=False):
+    """Verifica el horario actual y envia los reportes que correspondan.
+    
+    Args:
+        forzar: si True, envia todos los reportes ignorando horario (modo test)
+    
+    Returns:
+        dict con resumen de lo que se envio
+    """
+    from datetime import timezone, timedelta
+    PERU_TZ = timezone(timedelta(hours=-5))
+    ahora = datetime.now(timezone.utc).astimezone(PERU_TZ)
+    
+    dia_semana = ahora.weekday()  # 0=Lunes, 6=Domingo
+    hora_actual = ahora.hour
+    minuto_actual = ahora.minute
+    fecha_hoy = ahora.strftime("%Y-%m-%d")
+    
+    resumen = {
+        "hora_servidor": ahora.strftime("%Y-%m-%d %H:%M:%S (UTC-5)"),
+        "dia_semana": ['Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo'][dia_semana],
+        "envios_ejecutados": [],
+        "envios_omitidos": [],
+    }
+    
+    for programa in PROGRAMA_ENVIOS:
+        tipo = programa['tipo']
+        cuadrilla = programa.get('cuadrilla')
+        
+        # Crear clave unica para este envio
+        if cuadrilla:
+            clave = f"{fecha_hoy}_{tipo}_{cuadrilla}"
+            tipo_clave = f"supervisor_{cuadrilla}"
+        else:
+            clave = f"{fecha_hoy}_{tipo}"
+            tipo_clave = tipo
+        
+        # Verificar si ya se envio hoy
+        if clave in ENVIOS_REALIZADOS and not forzar:
+            continue  # Ya se envio hoy, omitir silenciosamente
+        
+        # Si no es forzado, verificar dia y hora
+        if not forzar:
+            if dia_semana not in programa['dias']:
+                continue  # No es dia de envio
+            
+            # Verificar hora con tolerancia (UptimeRobot llama cada 5 min)
+            hora_programada = programa['hora']
+            minuto_programado = programa['minuto']
+            
+            # Convertir todo a minutos desde medianoche para comparar
+            minutos_actual = hora_actual * 60 + minuto_actual
+            minutos_programado = hora_programada * 60 + minuto_programado
+            
+            diferencia = abs(minutos_actual - minutos_programado)
+            if diferencia > TOLERANCIA_MINUTOS:
+                continue  # No es la hora aun
+        
+        # Obtener destinatarios
+        destinatarios = DESTINATARIOS.get(tipo_clave, [])
+        destinatarios = [d for d in destinatarios if d]  # Filtrar vacios
+        
+        if not destinatarios:
+            resumen["envios_omitidos"].append({
+                "tipo": tipo_clave,
+                "razon": "Sin destinatarios configurados"
+            })
+            continue
+        
+        # Ejecutar el envio
+        print(f"[Auto] Ejecutando envio: {tipo_clave} a {len(destinatarios)} destinatarios")
+        try:
+            resultado = _enviar_reporte_automatico(tipo, destinatarios, cuadrilla)
+            
+            # Marcar como enviado (para no repetir hoy)
+            if resultado.get('exito') and not forzar:
+                ENVIOS_REALIZADOS.add(clave)
+            
+            resumen["envios_ejecutados"].append({
+                "tipo": tipo_clave,
+                "destinatarios": destinatarios,
+                "resultado": resultado
+            })
+        except Exception as e:
+            resumen["envios_ejecutados"].append({
+                "tipo": tipo_clave,
+                "error": str(e)
+            })
+    
+    return resumen
+
+
+@app.route('/api/cron-automatico', methods=['GET', 'POST'])
+def cron_automatico():
+    """Endpoint que UptimeRobot llama cada 5 minutos.
+    Verifica si toca enviar reportes y los envia.
+    Es GET para que UptimeRobot pueda llamarlo facil.
+    """
+    try:
+        resumen = _ejecutar_envios_programados(forzar=False)
+        return jsonify({"exito": True, **resumen})
+    except Exception as e:
+        import traceback
+        print(f"[Cron] Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({"exito": False, "error": str(e)}), 500
+
+
+@app.route('/api/test-envio-automatico', methods=['POST'])
+def test_envio_automatico():
+    """Fuerza el envio de TODOS los reportes ignorando horario.
+    Util para probar sin esperar a que sea la hora programada.
+    """
+    try:
+        resumen = _ejecutar_envios_programados(forzar=True)
+        return jsonify({"exito": True, **resumen})
+    except Exception as e:
+        import traceback
+        print(f"[TestAuto] Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({"exito": False, "error": str(e)}), 500
+
+
+@app.route('/api/config-destinatarios', methods=['GET'])
+def config_destinatarios():
+    """Muestra la configuracion actual de destinatarios (para debugging)."""
+    # Ocultar correos completos por seguridad
+    config_visible = {}
+    for rol, correos in DESTINATARIOS.items():
+        config_visible[rol] = []
+        for c in correos:
+            if c and '@' in c:
+                # Mostrar solo parcialmente: ju***@gmail.com
+                user, dom = c.split('@')
+                config_visible[rol].append(f"{user[:2]}***@{dom}")
+            else:
+                config_visible[rol].append("(sin configurar)")
+    
+    return jsonify({
+        "destinatarios": config_visible,
+        "programa": [
+            {
+                "tipo": p['tipo'] + (f" {p['cuadrilla']}" if p.get('cuadrilla') else ''),
+                "dias": [['Lun','Mar','Mie','Jue','Vie','Sab','Dom'][d] for d in p['dias']],
+                "hora": f"{p['hora']:02d}:{p['minuto']:02d}"
+            } for p in PROGRAMA_ENVIOS
+        ],
+        "envios_realizados_hoy": list(ENVIOS_REALIZADOS),
+    })
 
 
 # ============================================================
