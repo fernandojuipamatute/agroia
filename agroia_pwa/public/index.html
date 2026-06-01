@@ -1075,40 +1075,40 @@ tr:hover td {
 
   <div class="nav-section">
     <div class="nav-label">Operación</div>
-    <div class="nav-item active" onclick="switchPage('dashboard')">
+    <div class="nav-item active" onclick="switchPage('dashboard')" data-permiso="dashboard">
       <span class="nav-icon">📊</span> Dashboard
     </div>
-    <div class="nav-item" onclick="switchPage('pesadas')">
+    <div class="nav-item" onclick="switchPage('pesadas')" data-permiso="pesadas">
       <span class="nav-icon">⚖</span> Pesadas
       <span class="badge alert" id="badgePesadas">2</span>
     </div>
-    <div class="nav-item" onclick="switchPage('trabajadores')">
+    <div class="nav-item" onclick="switchPage('trabajadores')" data-permiso="trabajadores">
       <span class="nav-icon">👥</span> Trabajadores
     </div>
-    <div class="nav-item" onclick="switchPage('lotes')">
+    <div class="nav-item" onclick="switchPage('lotes')" data-permiso="lotes">
       <span class="nav-icon">🌳</span> Lotes
     </div>
   </div>
 
   <div class="nav-section">
     <div class="nav-label">Análisis IA</div>
-    <div class="nav-item" onclick="switchPage('reporte')">
+    <div class="nav-item" onclick="switchPage('reporte')" data-permiso="reporte">
       <span class="nav-icon">📈</span> Reporte ejecutivo
     </div>
-    <div class="nav-item" onclick="switchPage('logs')">
+    <div class="nav-item" onclick="switchPage('logs')" data-permiso="logs">
       <span class="nav-icon">📋</span> Log de decisiones
     </div>
-    <div class="nav-item" onclick="switchPage('vision')">
+    <div class="nav-item" onclick="switchPage('vision')" data-permiso="vision">
       <span class="nav-icon">📷</span> Análisis Visual
     </div>
   </div>
 
   <div class="nav-section">
     <div class="nav-label">Sistema</div>
-    <div class="nav-item">
+    <div class="nav-item" data-permiso="parametros">
       <span class="nav-icon">⚙</span> Parámetros
     </div>
-    <div class="nav-item">
+    <div class="nav-item" data-permiso="datadog">
       <span class="nav-icon">📤</span> Exportar a Datadog
     </div>
   </div>
@@ -4600,6 +4600,197 @@ function mostrarUsuarioEnSidebar(perfil) {
   document.getElementById('usuarioNombre').textContent = perfil.nombre;
   document.getElementById('usuarioRol').textContent = rolTexto;
   tarjeta.style.display = 'block';
+  
+  // Aplicar permisos según el rol
+  aplicarPermisos(perfil);
+}
+
+// =============================================================
+// SISTEMA DE PERMISOS POR ROL
+// =============================================================
+
+// Mapa de permisos: qué puede ver cada rol
+const PERMISOS_POR_ROL = {
+  'admin': {
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'parametros', 'datadog'],
+    paginaInicial: 'dashboard',
+    puede: {
+      registrarPesada: true,
+      verTodasCuadrillas: true,
+      verTodosTrabajadores: true,
+      verTodosReportes: true,
+      configurarParametros: true,
+      verLogs: true
+    }
+  },
+  'jefecampo': {
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision'],
+    paginaInicial: 'dashboard',
+    puede: {
+      registrarPesada: true,
+      verTodasCuadrillas: true,
+      verTodosTrabajadores: true,
+      verTodosReportes: true,
+      configurarParametros: false,
+      verLogs: true
+    }
+  },
+  'supervisor': {
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'vision', 'reporte'],
+    paginaInicial: 'pesadas',
+    puede: {
+      registrarPesada: true,
+      verTodasCuadrillas: false,    // Solo su cuadrilla
+      verTodosTrabajadores: false,  // Solo su cuadrilla
+      verTodosReportes: false,      // Solo Supervisor (su cuadrilla)
+      configurarParametros: false,
+      verLogs: false
+    }
+  },
+  'gerencia': {
+    nav: ['dashboard', 'reporte'],
+    paginaInicial: 'dashboard',
+    puede: {
+      registrarPesada: false,
+      verTodasCuadrillas: true,
+      verTodosTrabajadores: false,
+      verTodosReportes: false,      // Solo Gerencia
+      configurarParametros: false,
+      verLogs: false
+    }
+  },
+  'rrhh': {
+    nav: ['trabajadores', 'reporte'],
+    paginaInicial: 'trabajadores',
+    puede: {
+      registrarPesada: false,
+      verTodasCuadrillas: true,
+      verTodosTrabajadores: true,
+      verTodosReportes: false,      // Solo RR.HH.
+      configurarParametros: false,
+      verLogs: false
+    }
+  }
+};
+
+function aplicarPermisos(perfil) {
+  const permisos = PERMISOS_POR_ROL[perfil.rol] || PERMISOS_POR_ROL['supervisor'];
+  
+  // 1. Ocultar/mostrar items del sidebar según el rol
+  document.querySelectorAll('[data-permiso]').forEach(item => {
+    const permiso = item.getAttribute('data-permiso');
+    if (permisos.nav.includes(permiso)) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+  
+  // 2. Ocultar nav-sections vacías
+  document.querySelectorAll('.nav-section').forEach(section => {
+    const itemsVisibles = section.querySelectorAll('[data-permiso]:not([style*="none"])');
+    if (itemsVisibles.length === 0) {
+      section.style.display = 'none';
+    } else {
+      section.style.display = '';
+    }
+  });
+  
+  // 3. Navegar a la página inicial según rol
+  if (typeof switchPage === 'function') {
+    setTimeout(() => {
+      switchPage(permisos.paginaInicial);
+    }, 100);
+  }
+  
+  // 4. Filtrar selectores de cuadrilla si el usuario es supervisor
+  if (perfil.rol === 'supervisor' && perfil.cuadrilla) {
+    const selectorCuad = document.getElementById('selectorCuadrilla');
+    if (selectorCuad) {
+      // Bloquear selector a su cuadrilla
+      Array.from(selectorCuad.options).forEach(opt => {
+        if (opt.value !== perfil.cuadrilla) {
+          opt.disabled = true;
+          opt.style.display = 'none';
+        }
+      });
+      selectorCuad.value = perfil.cuadrilla;
+    }
+    
+    // Filtrar selectores de cuadrilla en formularios
+    document.querySelectorAll('select[name="cuadrilla"], #cuadrilla, #cuadrillaPesada').forEach(sel => {
+      Array.from(sel.options).forEach(opt => {
+        if (opt.value !== perfil.cuadrilla && opt.value !== '') {
+          opt.disabled = true;
+          opt.style.display = 'none';
+        }
+      });
+      sel.value = perfil.cuadrilla;
+    });
+  }
+  
+  // 5. Filtrar tipos de reporte según rol
+  const selectorReporte = document.getElementById('selectorReporte');
+  if (selectorReporte) {
+    Array.from(selectorReporte.options).forEach(opt => {
+      let permitido = true;
+      
+      if (perfil.rol === 'gerencia' && opt.value !== 'gerencia') permitido = false;
+      if (perfil.rol === 'rrhh' && opt.value !== 'rrhh') permitido = false;
+      if (perfil.rol === 'supervisor' && opt.value !== 'supervisor') permitido = false;
+      
+      opt.disabled = !permitido;
+      opt.style.display = permitido ? '' : 'none';
+    });
+    
+    // Seleccionar el primer reporte permitido
+    const primerPermitido = Array.from(selectorReporte.options).find(opt => !opt.disabled);
+    if (primerPermitido) {
+      selectorReporte.value = primerPermitido.value;
+    }
+  }
+  
+  // 6. Aplicar restricciones en botones de acción
+  if (!permisos.puede.registrarPesada) {
+    // Ocultar botones de registrar pesada
+    document.querySelectorAll('[onclick*="registrarPesada"], [onclick*="abrirModalPesada"]').forEach(btn => {
+      btn.style.display = 'none';
+    });
+  }
+  
+  console.log(`Permisos aplicados para rol: ${perfil.rol}${perfil.cuadrilla ? ' ('+perfil.cuadrilla+')' : ''}`);
+}
+
+// Función helper para verificar si el usuario puede hacer algo
+function usuarioPuede(accion) {
+  const perfil = window._perfilUsuario;
+  if (!perfil) return false;
+  const permisos = PERMISOS_POR_ROL[perfil.rol];
+  if (!permisos) return false;
+  return permisos.puede[accion] === true;
+}
+
+// Función helper para obtener cuadrilla del usuario (si aplica)
+function usuarioCuadrilla() {
+  return window._perfilUsuario?.cuadrilla || null;
+}
+
+// Función helper para filtrar datos según rol
+function filtrarPorRol(items, campoCuadrilla = 'cuadrilla') {
+  const perfil = window._perfilUsuario;
+  if (!perfil) return items;
+  
+  // Admin, jefecampo, gerencia y rrhh ven todo
+  if (['admin', 'jefecampo', 'gerencia', 'rrhh'].includes(perfil.rol)) {
+    return items;
+  }
+  
+  // Supervisor solo ve los de su cuadrilla
+  if (perfil.rol === 'supervisor' && perfil.cuadrilla) {
+    return items.filter(item => item[campoCuadrilla] === perfil.cuadrilla);
+  }
+  
+  return items;
 }
 
 // =============================================================
