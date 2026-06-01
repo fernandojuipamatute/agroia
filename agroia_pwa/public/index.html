@@ -984,8 +984,62 @@ tr:hover td {
 <!-- Librería para generar PDFs en el navegador -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
+<!-- ============================================================ -->
+<!-- PANTALLA DE LOGIN (se muestra antes de la app principal)     -->
+<!-- ============================================================ -->
+<div id="pantallaLogin" style="position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(135deg, #243024 0%, #1a1f1a 100%); z-index:99999; display:flex; align-items:center; justify-content:center;">
+  <div style="background:#1f261f; padding:48px 40px; border-radius:20px; max-width:420px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.1);">
+    
+    <!-- Logo -->
+    <div style="text-align:center; margin-bottom:32px;">
+      <div style="font-size:42px; font-weight:bold; color:white;">Agro<span style="color:#EF9F27;">IA</span></div>
+      <div style="font-size:13px; color:#94a3b8; margin-top:4px;">Sistema de Control Operativo</div>
+    </div>
+    
+    <!-- Título -->
+    <h2 style="color:white; margin:0 0 24px 0; font-size:22px; text-align:center;">Iniciar Sesión</h2>
+    
+    <!-- Formulario -->
+    <div style="margin-bottom:16px;">
+      <label for="loginDni" style="display:block; color:#cbd5e1; font-size:13px; font-weight:600; margin-bottom:6px;">
+        DNI
+      </label>
+      <input type="text" id="loginDni" maxlength="8" placeholder="12345678" autocomplete="username"
+             style="width:100%; padding:14px; background:#0f1410; border:1px solid #2d3a2d; border-radius:10px; color:white; font-size:15px; box-sizing:border-box; outline:none;"
+             onkeypress="if(event.key==='Enter') document.getElementById('loginPassword').focus();"/>
+    </div>
+    
+    <div style="margin-bottom:24px;">
+      <label for="loginPassword" style="display:block; color:#cbd5e1; font-size:13px; font-weight:600; margin-bottom:6px;">
+        Contraseña
+      </label>
+      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"
+             style="width:100%; padding:14px; background:#0f1410; border:1px solid #2d3a2d; border-radius:10px; color:white; font-size:15px; box-sizing:border-box; outline:none;"
+             onkeypress="if(event.key==='Enter') iniciarSesion();"/>
+    </div>
+    
+    <!-- Mensaje de error/éxito -->
+    <div id="loginMensaje" style="display:none; padding:12px; border-radius:8px; margin-bottom:16px; font-size:13px;"></div>
+    
+    <!-- Botón -->
+    <button id="btnLogin" onclick="iniciarSesion()" 
+            style="width:100%; padding:14px; background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; transition:transform 0.1s;"
+            onmouseover="this.style.transform='translateY(-1px)'" 
+            onmouseout="this.style.transform='translateY(0)'">
+      🔓 Iniciar Sesión
+    </button>
+    
+    <!-- Pie -->
+    <div style="text-align:center; margin-top:24px; color:#64748b; font-size:11px;">
+      Universidad César Vallejo<br>
+      Proyecto AgroIA · 2026
+    </div>
+  </div>
+</div>
 
 <div class="app">
 
@@ -4421,6 +4475,144 @@ function actualizarEstadoConexion() {
 
 window.addEventListener('online', actualizarEstadoConexion);
 window.addEventListener('offline', actualizarEstadoConexion);
+</script>
+
+<!-- ============================================================ -->
+<!-- SISTEMA DE LOGIN (Supabase Auth)                              -->
+<!-- ============================================================ -->
+<script>
+// Configuración de Supabase
+const SUPABASE_URL = 'https://bznbbedzyudnrktdntfw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6bmJiZWR6eXVkbnJrdGRudGZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MTI5OTksImV4cCI6MjA5NTA4ODk5OX0.htZwULjTKsGO2SD8j-H5MAMG33FYhgriyt0_rPqd2fQ';
+
+// Cliente Supabase
+const supabaseAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function iniciarSesion() {
+  const dni = document.getElementById('loginDni').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const mensajeDiv = document.getElementById('loginMensaje');
+  const btn = document.getElementById('btnLogin');
+  
+  // Validaciones básicas
+  if (!dni || dni.length < 8) {
+    mostrarMensajeLogin('⚠ Ingresa un DNI válido (8 dígitos)', 'error');
+    return;
+  }
+  
+  if (!password || password.length < 8) {
+    mostrarMensajeLogin('⚠ La contraseña debe tener mínimo 8 caracteres', 'error');
+    return;
+  }
+  
+  // Cambiar botón a loading
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Verificando...';
+  mostrarMensajeLogin('🔄 Verificando credenciales...', 'info');
+  
+  try {
+    // Autenticar con Supabase usando el email construido
+    const email = `${dni}@agroia.local`;
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+    
+    if (error) {
+      console.error('Error de login:', error);
+      
+      // Mensajes amigables según el error
+      let mensaje = '❌ DNI o contraseña incorrectos';
+      if (error.message.includes('Invalid login credentials')) {
+        mensaje = '❌ DNI o contraseña incorrectos';
+      } else if (error.message.includes('Email not confirmed')) {
+        mensaje = '⚠ Tu cuenta no está activada. Contacta al administrador';
+      } else if (error.message.includes('Too many requests')) {
+        mensaje = '⚠ Demasiados intentos. Espera unos minutos';
+      }
+      
+      mostrarMensajeLogin(mensaje, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '🔓 Iniciar Sesión';
+      return;
+    }
+    
+    // Login exitoso - obtener perfil
+    console.log('Sesión iniciada:', data.user.email);
+    
+    const { data: perfil, error: errorPerfil } = await supabaseAuth
+      .from('perfiles_usuario')
+      .select('dni, nombre, rol, cuadrilla, activo')
+      .eq('id', data.user.id)
+      .single();
+    
+    if (errorPerfil || !perfil) {
+      console.error('Error obteniendo perfil:', errorPerfil);
+      mostrarMensajeLogin('⚠ No se pudo cargar tu perfil. Contacta al administrador', 'error');
+      await supabaseAuth.auth.signOut();
+      btn.disabled = false;
+      btn.innerHTML = '🔓 Iniciar Sesión';
+      return;
+    }
+    
+    if (!perfil.activo) {
+      mostrarMensajeLogin('⚠ Tu cuenta está desactivada. Contacta al administrador', 'error');
+      await supabaseAuth.auth.signOut();
+      btn.disabled = false;
+      btn.innerHTML = '🔓 Iniciar Sesión';
+      return;
+    }
+    
+    // ¡Bienvenido!
+    mostrarMensajeLogin(`✅ Bienvenido, ${perfil.nombre.split(',')[1] || perfil.nombre}!`, 'success');
+    
+    // Guardar perfil temporalmente para uso en la app
+    window._perfilUsuario = perfil;
+    
+    // Ocultar pantalla de login después de 1 segundo
+    setTimeout(() => {
+      document.getElementById('pantallaLogin').style.display = 'none';
+      
+      // Mostrar info del usuario en la consola por ahora
+      console.log('Perfil del usuario:', perfil);
+      console.log(`Rol: ${perfil.rol}${perfil.cuadrilla ? ' (' + perfil.cuadrilla + ')' : ''}`);
+    }, 1000);
+    
+  } catch (e) {
+    console.error('Error inesperado en login:', e);
+    mostrarMensajeLogin('❌ Error de conexión. Intenta de nuevo', 'error');
+    btn.disabled = false;
+    btn.innerHTML = '🔓 Iniciar Sesión';
+  }
+}
+
+function mostrarMensajeLogin(texto, tipo) {
+  const div = document.getElementById('loginMensaje');
+  div.innerHTML = texto;
+  div.style.display = 'block';
+  
+  if (tipo === 'error') {
+    div.style.background = 'rgba(220, 38, 38, 0.15)';
+    div.style.color = '#fca5a5';
+    div.style.border = '1px solid rgba(220, 38, 38, 0.3)';
+  } else if (tipo === 'success') {
+    div.style.background = 'rgba(34, 197, 94, 0.15)';
+    div.style.color = '#86efac';
+    div.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+  } else {
+    div.style.background = 'rgba(59, 130, 246, 0.15)';
+    div.style.color = '#93c5fd';
+    div.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+  }
+}
+
+// Foco automático en DNI al cargar
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    const input = document.getElementById('loginDni');
+    if (input) input.focus();
+  }, 300);
+});
 </script>
 
 </body>
