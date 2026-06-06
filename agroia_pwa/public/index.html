@@ -2042,10 +2042,22 @@ function cambiarReporte() {
 
 // Calcular metricas base desde el array de pesadas
 function calcularMetricasBase() {
-  const total = pesadas.length;
-  const validadas = pesadas.filter(p => p.estado === 'green' || p.estado === 'yellow');
-  const observadas = pesadas.filter(p => p.estado === 'orange');
-  const bloqueadas = pesadas.filter(p => p.estado === 'red');
+  // Filtrar pesadas según rol del usuario
+  let pesadasBase = pesadas;
+  const perfil = window._perfilUsuario;
+  
+  if (perfil && perfil.rol === 'supervisor' && perfil.cuadrilla) {
+    pesadasBase = pesadas.filter(p => {
+      const t = TRABAJADORES.find(t => t.dni === p.dni);
+      const cuadDeP = (t && t.cuadrilla) || p.cuadrilla;
+      return cuadDeP === perfil.cuadrilla;
+    });
+  }
+  
+  const total = pesadasBase.length;
+  const validadas = pesadasBase.filter(p => p.estado === 'green' || p.estado === 'yellow');
+  const observadas = pesadasBase.filter(p => p.estado === 'orange');
+  const bloqueadas = pesadasBase.filter(p => p.estado === 'red');
   
   const kgValidados = validadas.reduce((sum, p) => sum + p.kg, 0);
   const kgBloqueados = bloqueadas.reduce((sum, p) => sum + p.kg, 0);
@@ -3407,19 +3419,37 @@ function renderPDFRRHH(doc, y) {
 // RENDERIZADO
 // ============================================================
 function renderTrabajadores() {
+  // Filtrar cuadrillas según rol del usuario
+  const perfil = window._perfilUsuario;
+  let cuadrillasVisibles = ['C3', 'C5', 'C7'];
+  
+  if (perfil && perfil.rol === 'supervisor' && perfil.cuadrilla) {
+    cuadrillasVisibles = [perfil.cuadrilla];
+  }
+  
   ['C3', 'C5', 'C7'].forEach(cuad => {
     const grid = document.getElementById('grid' + cuad);
     if (!grid) return;
-    grid.innerHTML = TRABAJADORES.filter(t => t.cuadrilla === cuad).map(t => `
-      <div class="worker-card">
-        <div class="worker-name">${t.nombre}</div>
-        <div class="worker-dni">DNI ${t.dni}</div>
-        <div class="worker-stats">
-          <span class="cuadrilla-tag">${t.cuadrilla}</span>
-          <span class="text-muted mono">${t.historico} kg/h ± ${t.sigma}</span>
+    
+    // Buscar el contenedor padre de la sección
+    const seccion = grid.closest('.card, .panel, section') || grid.parentElement;
+    
+    if (cuadrillasVisibles.includes(cuad)) {
+      if (seccion) seccion.style.display = '';
+      grid.innerHTML = TRABAJADORES.filter(t => t.cuadrilla === cuad).map(t => `
+        <div class="worker-card">
+          <div class="worker-name">${t.nombre}</div>
+          <div class="worker-dni">DNI ${t.dni}</div>
+          <div class="worker-stats">
+            <span class="cuadrilla-tag">${t.cuadrilla}</span>
+            <span class="text-muted mono">${t.historico} kg/h ± ${t.sigma}</span>
+          </div>
         </div>
-      </div>
-    `).join('');
+      `).join('');
+    } else {
+      if (seccion) seccion.style.display = 'none';
+      grid.innerHTML = '';
+    }
   });
 }
 
@@ -3430,10 +3460,22 @@ function renderPesadas(filtro = 'todas') {
   const tbody = document.getElementById('tbodyPesadas');
   if (!tbody) return;
   
-  const filtradas = filtro === 'todas' ? pesadas :
-    filtro === 'validadas' ? pesadas.filter(p => p.estado === 'green') :
-    filtro === 'observadas' ? pesadas.filter(p => p.estado === 'yellow' || p.estado === 'orange') :
-    pesadas.filter(p => p.estado === 'red');
+  // Filtrar pesadas según rol del usuario
+  let pesadasVisibles = pesadas;
+  const perfil = window._perfilUsuario;
+  
+  if (perfil && perfil.rol === 'supervisor' && perfil.cuadrilla) {
+    pesadasVisibles = pesadas.filter(p => {
+      const t = TRABAJADORES.find(t => t.dni === p.dni);
+      const cuadDeP = (t && t.cuadrilla) || p.cuadrilla;
+      return cuadDeP === perfil.cuadrilla;
+    });
+  }
+  
+  const filtradas = filtro === 'todas' ? pesadasVisibles :
+    filtro === 'validadas' ? pesadasVisibles.filter(p => p.estado === 'green') :
+    filtro === 'observadas' ? pesadasVisibles.filter(p => p.estado === 'yellow' || p.estado === 'orange') :
+    pesadasVisibles.filter(p => p.estado === 'red');
 
   const nuevoHTML = filtradas.map(p => {
     const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
@@ -3737,8 +3779,15 @@ function llenarSelectTrabajadores() {
   // Limpiar y agregar primera opción
   select.innerHTML = '<option value="">Selecciona un trabajador</option>';
   
-  // Agrupar por cuadrilla
-  ['C3', 'C5', 'C7'].forEach(cuad => {
+  // Filtrar cuadrillas según rol del usuario
+  const perfil = window._perfilUsuario;
+  let cuadrillasVisibles = ['C3', 'C5', 'C7'];
+  
+  if (perfil && perfil.rol === 'supervisor' && perfil.cuadrilla) {
+    cuadrillasVisibles = [perfil.cuadrilla];
+  }
+  
+  cuadrillasVisibles.forEach(cuad => {
     const grupo = document.createElement('optgroup');
     grupo.label = `Cuadrilla ${cuad} — Lote ${CUADRILLA_LOTE[cuad]}`;
     
@@ -4757,6 +4806,17 @@ function aplicarPermisos(perfil) {
       btn.style.display = 'none';
     });
   }
+  
+  // 7. Re-renderizar vistas con datos filtrados
+  setTimeout(() => {
+    if (typeof renderTrabajadores === 'function') renderTrabajadores();
+    if (typeof renderPesadas === 'function') {
+      if (typeof _ultimoRenderPesadas !== 'undefined') _ultimoRenderPesadas = '';
+      renderPesadas('todas');
+    }
+    if (typeof llenarSelectTrabajadores === 'function') llenarSelectTrabajadores();
+    if (typeof actualizarKPIs === 'function') actualizarKPIs();
+  }, 300);
   
   console.log(`Permisos aplicados para rol: ${perfil.rol}${perfil.cuadrilla ? ' ('+perfil.cuadrilla+')' : ''}`);
 }
