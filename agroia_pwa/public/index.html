@@ -2587,6 +2587,13 @@ function exportarReportePDF() {
     return;
   }
   
+  // AUDITORÍA: Exportación de PDF
+  const cuadrilla = document.getElementById('selectorCuadrilla')?.value || null;
+  auditarAccion('EXPORTAR_PDF',
+    `Exportación de PDF - Reporte ${tipo}${cuadrilla && tipo === 'supervisor' ? ' ('+cuadrilla+')' : ''}`,
+    { tipo_reporte: tipo, cuadrilla: cuadrilla }
+  );
+  
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   
@@ -2740,6 +2747,12 @@ async function enviarReportePorEmail() {
       
       btn.innerHTML = '✓ Enviado';
       
+      // AUDITORÍA: Envío exitoso de email
+      auditarAccion('ENVIAR_EMAIL',
+        `Reporte ${tipo} enviado por email a ${destino}`,
+        { tipo_reporte: tipo, destino: destino, cuadrilla: cuadrilla }
+      );
+      
       // Cerrar modal después de 3 segundos
       setTimeout(() => cerrarModalEmail(), 3000);
     } else {
@@ -2749,6 +2762,13 @@ async function enviarReportePorEmail() {
       mensajeDiv.innerHTML = `❌ <b>Error al enviar:</b><br><small>${data.error || 'Error desconocido'}</small>`;
       btn.disabled = false;
       btn.innerHTML = '📤 Reintentar';
+      
+      // AUDITORÍA: Fallo en envío
+      auditarAccion('ENVIAR_EMAIL_FALLIDO',
+        `Error enviando reporte ${tipo} a ${destino}`,
+        { tipo_reporte: tipo, destino: destino, error: data.error },
+        false
+      );
     }
   } catch (error) {
     mensajeDiv.style.background = '#fee2e2';
@@ -4061,6 +4081,23 @@ z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${
     _localTimestamp: Date.now() / 1000  // Para identificar pesadas locales recientes
   });
   
+  // AUDITORÍA: Registro de pesada
+  auditarAccion('REGISTRAR_PESADA', 
+    `Pesada registrada para ${nombre} (DNI ${dni}) - ${estado}`,
+    {
+      trabajador_dni: dni,
+      trabajador_nombre: nombre,
+      cuadrilla: cuadrilla,
+      lote: lote,
+      kg: kg,
+      horas: horas,
+      productividad: parseFloat(productividad.toFixed(2)),
+      z_score: parseFloat(z.toFixed(2)),
+      estado_decision: estado,
+      banda_color: color
+    }
+  );
+  
   // ENVIAR A DATADOG via servidor Python
   const tiempoValidacion = Math.round(200 + Math.random() * 800);
   
@@ -4567,6 +4604,53 @@ const supabaseAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KE
 // =============================================================
 // VERIFICAR SESIÓN AL CARGAR LA APP
 // =============================================================
+// =============================================================
+// SISTEMA DE AUDITORÍA (ISO 27001 - A.12 Operations Security)
+// =============================================================
+
+/**
+ * Registra una acción en el audit_log de Supabase.
+ * 
+ * @param {string} accion - Tipo de acción: LOGIN, LOGOUT, REGISTRAR_PESADA, etc.
+ * @param {string} descripcion - Descripción legible para humanos
+ * @param {object} detalle - Datos adicionales (opcional)
+ * @param {boolean} exitoso - Si la acción fue exitosa (default true)
+ * @param {object} usuarioOverride - Para registrar antes de login (opcional)
+ */
+async function auditarAccion(accion, descripcion, detalle = {}, exitoso = true, usuarioOverride = null) {
+  try {
+    const perfil = usuarioOverride || window._perfilUsuario;
+    const session = (await supabaseAuth.auth.getSession()).data.session;
+    
+    const log = {
+      usuario_id: session?.user?.id || null,
+      usuario_dni: perfil?.dni || detalle.dni_intento || null,
+      usuario_nombre: perfil?.nombre || 'No autenticado',
+      usuario_rol: perfil?.rol || 'guest',
+      accion: accion,
+      descripcion: descripcion,
+      detalle: detalle,
+      user_agent: navigator.userAgent.substring(0, 200),
+      exitoso: exitoso
+    };
+    
+    // Insertar en Supabase (sin esperar respuesta - fire and forget)
+    supabaseAuth
+      .from('audit_log')
+      .insert(log)
+      .then(({ error }) => {
+        if (error) {
+          console.warn('[Audit] Error registrando:', error);
+        } else {
+          console.log(`[Audit] ${accion}: ${descripcion}`);
+        }
+      });
+  } catch (e) {
+    console.warn('[Audit] Error inesperado:', e);
+    // No bloquear la app si falla la auditoría
+  }
+}
+
 async function verificarSesionActiva() {
   try {
     const { data: { session }, error } = await supabaseAuth.auth.getSession();
@@ -4895,6 +4979,13 @@ async function iniciarSesion() {
         mensaje = '⚠ Demasiados intentos. Espera unos minutos';
       }
       
+      // AUDITORÍA: Login fallido
+      auditarAccion('LOGIN_FALLIDO', 
+        `Intento fallido de inicio de sesión con DNI ${dni}`,
+        { dni_intento: dni, motivo: error.message },
+        false
+      );
+      
       mostrarMensajeLogin(mensaje, 'error');
       btn.disabled = false;
       btn.innerHTML = '🔓 Iniciar Sesión';
@@ -4932,6 +5023,13 @@ async function iniciarSesion() {
     window._perfilUsuario = perfil;
     mostrarUsuarioEnSidebar(perfil);
     
+    // AUDITORÍA: Login exitoso
+    auditarAccion('LOGIN', `Inicio de sesión exitoso`, {
+      dni: perfil.dni,
+      rol: perfil.rol,
+      cuadrilla: perfil.cuadrilla
+    }, true, perfil);
+    
     setTimeout(() => {
       document.getElementById('pantallaLogin').style.display = 'none';
     }, 1000);
@@ -4953,6 +5051,15 @@ async function cerrarSesion() {
   }
   
   try {
+    // AUDITORÍA: Logout (antes de cerrar la sesión)
+    const perfilTemp = window._perfilUsuario;
+    if (perfilTemp) {
+      await auditarAccion('LOGOUT', 'Cierre de sesión', {
+        dni: perfilTemp.dni,
+        rol: perfilTemp.rol
+      }, true, perfilTemp);
+    }
+    
     await supabaseAuth.auth.signOut();
     window._perfilUsuario = null;
     
