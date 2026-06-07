@@ -2023,6 +2023,152 @@ tr:hover td {
   </div>
 
   <!-- =========================================== -->
+  <!-- BLOQUE EXTRA: MONITOREO SATELITAL           -->
+  <!-- =========================================== -->
+  <h2 style="color:#fff; margin:32px 0 16px 0; font-size:20px;">🛰️ Monitoreo Satelital del Valle de Virú</h2>
+  
+  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; overflow:hidden; margin-bottom:24px;">
+    
+    <!-- Encabezado con info -->
+    <div style="padding:18px 20px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div>
+        <div style="color:#fff; font-weight:600; font-size:15px; margin-bottom:4px;">📍 Valle de Virú, La Libertad</div>
+        <div style="color:#94a3b8; font-size:12px;">
+          Coordenadas: -8.4078°, -78.7547° · Zona Camposol S.A. · Resolución 10m/pixel
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <div style="background:rgba(16,185,129,0.15); color:#10B981; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600;">
+          🟢 Sentinel-2 (ESA)
+        </div>
+        <a href="https://apps.sentinel-hub.com/eo-browser/?zoom=12&lat=-8.4078&lng=-78.7547&themeId=DEFAULT-THEME&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&layerId=1_TRUE_COLOR" 
+             target="_blank" 
+             style="background:rgba(59,130,246,0.15); color:#3B82F6; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none; border:1px solid rgba(59,130,246,0.3);">
+          🔗 Abrir en EO Browser
+        </a>
+      </div>
+    </div>
+
+    <!-- Selector de vista -->
+    <div style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:8px; flex-wrap:wrap;">
+      <button onclick="cambiarVistaSatelital('truecolor')" id="btnSatTrue" class="sat-btn-active" style="background:rgba(99,153,34,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.4); padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">
+        🎨 Color Real
+      </button>
+      <button onclick="cambiarVistaSatelital('ndvi')" id="btnSatNDVI" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer;">
+        🌿 NDVI (Vegetación)
+      </button>
+      <button onclick="cambiarVistaSatelital('moisture')" id="btnSatMoist" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer;">
+        💧 Humedad
+      </button>
+      <button onclick="cambiarVistaSatelital('falsecolor')" id="btnSatFalse" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer;">
+        🔴 Infrarrojo
+      </button>
+    </div>
+
+    <!-- Mapa embebido (Sentinel Hub Playground) -->
+    <div style="position:relative; height:500px; background:#0a0e0a;">
+      <iframe 
+        id="iframeSatelital"
+        src="https://apps.sentinel-hub.com/sentinel-playground/?source=S2L2A&lat=-8.4078&lng=-78.7547&zoom=12&preset=1_TRUE_COLOR&layers=B01,B02,B03&maxcc=20&gain=1.0&gamma=1.0&time=2024-01-01%7C2026-12-31&atmFilter=&showDates=false"
+        style="width:100%; height:100%; border:0;"
+        loading="lazy"
+        allowfullscreen>
+      </iframe>
+    </div>
+
+    <!-- Info abajo del mapa -->
+    <div style="padding:16px 20px; background:rgba(0,0,0,0.3);">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:16px;">
+        
+        <div>
+          <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🛰️ Satélite</div>
+          <div style="color:#fff; font-size:14px; font-weight:600; margin-top:2px;">Sentinel-2 L2A</div>
+          <div style="color:#94a3b8; font-size:11px;">Misión ESA</div>
+        </div>
+
+        <div>
+          <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">📅 Frecuencia</div>
+          <div style="color:#fff; font-size:14px; font-weight:600; margin-top:2px;">Cada 3-5 días</div>
+          <div style="color:#94a3b8; font-size:11px;">Revisita orbital</div>
+        </div>
+
+        <div>
+          <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🔍 Resolución</div>
+          <div style="color:#fff; font-size:14px; font-weight:600; margin-top:2px;">10 metros/pixel</div>
+          <div style="color:#94a3b8; font-size:11px;">Bandas visibles</div>
+        </div>
+
+        <div>
+          <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🌿 NDVI estimado</div>
+          <div style="color:#10B981; font-size:14px; font-weight:600; margin-top:2px;">0.65 - Saludable</div>
+          <div style="color:#94a3b8; font-size:11px;">Vegetación activa</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Guía interpretativa colapsable -->
+  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; overflow:hidden; margin-bottom:32px;">
+    <div onclick="toggleGuiaSat()" style="padding:18px 20px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="font-size:22px;">📖</div>
+        <div>
+          <h3 style="margin:0; color:#fff; font-size:15px;">¿Cómo interpretar las imágenes satelitales?</h3>
+          <div style="font-size:12px; color:#94a3b8; margin-top:2px;">Guía visual de NDVI y otros índices</div>
+        </div>
+      </div>
+      <div id="guiaSatIcon" style="color:#EF9F27; font-size:20px; transition:transform 0.3s;">▼</div>
+    </div>
+    
+    <div id="guiaSatContent" style="display:none; padding:0 20px 20px 20px;">
+      <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:16px;">
+        
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px;">
+          
+          <div>
+            <h4 style="color:#10B981; margin:0 0 6px 0; font-size:13px;">🎨 Color Real</h4>
+            <p style="color:#cbd5e1; font-size:12px; line-height:1.5; margin:0;">
+              La vista que tendrías desde el espacio. Útil para identificar lotes, infraestructura y patrones de cultivo. Las áreas verdes son vegetación; marrones son suelo expuesto.
+            </p>
+          </div>
+          
+          <div>
+            <h4 style="color:#16A34A; margin:0 0 6px 0; font-size:13px;">🌿 NDVI</h4>
+            <p style="color:#cbd5e1; font-size:12px; line-height:1.5; margin:0;">
+              Índice de Vegetación. Mide la "salud" del cultivo:<br>
+              <span style="color:#dc2626;">Rojo:</span> suelo desnudo o vegetación enferma<br>
+              <span style="color:#facc15;">Amarillo:</span> vegetación moderada<br>
+              <span style="color:#16a34a;">Verde:</span> vegetación saludable y densa
+            </p>
+          </div>
+          
+          <div>
+            <h4 style="color:#3B82F6; margin:0 0 6px 0; font-size:13px;">💧 Humedad</h4>
+            <p style="color:#cbd5e1; font-size:12px; line-height:1.5; margin:0;">
+              Detecta cuerpos de agua y suelos con alta humedad. Útil para identificar zonas de riego activo o problemas de drenaje.
+            </p>
+          </div>
+          
+          <div>
+            <h4 style="color:#F87171; margin:0 0 6px 0; font-size:13px;">🔴 Infrarrojo</h4>
+            <p style="color:#cbd5e1; font-size:12px; line-height:1.5; margin:0;">
+              Vegetación se muestra en rojo intenso. Permite detectar estrés hídrico, plagas o enfermedades antes de que sean visibles a simple vista.
+            </p>
+          </div>
+
+        </div>
+        
+        <div style="margin-top:14px; padding:12px 14px; background:rgba(59,130,246,0.08); border-left:3px solid #3B82F6; border-radius:6px;">
+          <div style="color:#cbd5e1; font-size:12px; line-height:1.5;">
+            <strong style="color:#3B82F6;">Nota técnica:</strong> Las imágenes son del satélite Sentinel-2 de la Agencia Espacial Europea (ESA), parte del programa Copernicus. Son de uso público y libre. La zona mostrada corresponde al Valle de Virú, donde se encuentran las plantaciones de Camposol S.A. y otras agroexportadoras peruanas. Datos verificables en <a href="https://www.copernicus.eu/" target="_blank" style="color:#60a5fa;">copernicus.eu</a>.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================== -->
   <!-- BLOQUE 4: METODOLOGÍA COLAPSABLE            -->
   <!-- =========================================== -->
   <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; overflow:hidden; margin-bottom:24px;">
@@ -4722,6 +4868,89 @@ function actualizarSostenibilidad() {
 // =============================================================
 // METODOLOGÍA COLAPSABLE
 // =============================================================
+// =============================================================
+// MONITOREO SATELITAL (Sentinel Hub Playground)
+// =============================================================
+
+function cambiarVistaSatelital(tipo) {
+  const iframe = document.getElementById('iframeSatelital');
+  if (!iframe) return;
+  
+  // Resetear botones
+  ['btnSatTrue', 'btnSatNDVI', 'btnSatMoist', 'btnSatFalse'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.style.background = 'rgba(255,255,255,0.05)';
+      btn.style.color = '#cbd5e1';
+      btn.style.border = '1px solid rgba(255,255,255,0.1)';
+    }
+  });
+  
+  // Resaltar botón activo
+  let btnActivo, preset, layers, color, bg;
+  
+  switch(tipo) {
+    case 'truecolor':
+      btnActivo = 'btnSatTrue';
+      preset = '1_TRUE_COLOR';
+      layers = 'B04,B03,B02';
+      color = '#10B981';
+      bg = 'rgba(99,153,34,0.2)';
+      break;
+    case 'ndvi':
+      btnActivo = 'btnSatNDVI';
+      preset = '3_NDVI';
+      layers = 'B08,B04';
+      color = '#16A34A';
+      bg = 'rgba(22,163,74,0.2)';
+      break;
+    case 'moisture':
+      btnActivo = 'btnSatMoist';
+      preset = '5_MOISTURE-INDEX1';
+      layers = 'B08,B11';
+      color = '#3B82F6';
+      bg = 'rgba(59,130,246,0.2)';
+      break;
+    case 'falsecolor':
+      btnActivo = 'btnSatFalse';
+      preset = '2-FALSE-COLOR';
+      layers = 'B08,B04,B03';
+      color = '#F87171';
+      bg = 'rgba(248,113,113,0.2)';
+      break;
+  }
+  
+  const btn = document.getElementById(btnActivo);
+  if (btn) {
+    btn.style.background = bg;
+    btn.style.color = color;
+    btn.style.border = '1px solid ' + color;
+  }
+  
+  // Actualizar iframe
+  const url = `https://apps.sentinel-hub.com/sentinel-playground/?source=S2L2A&lat=-8.4078&lng=-78.7547&zoom=12&preset=${preset}&layers=${layers}&maxcc=20&gain=1.0&gamma=1.0&time=2024-01-01%7C2026-12-31&atmFilter=&showDates=false`;
+  iframe.src = url;
+  
+  if (typeof auditarAccion === 'function') {
+    auditarAccion('CAMBIAR_VISTA_SATELITAL',
+      'Cambio de vista del monitoreo satelital',
+      { tipo: tipo, preset: preset }
+    );
+  }
+}
+
+function toggleGuiaSat() {
+  const content = document.getElementById('guiaSatContent');
+  const icon = document.getElementById('guiaSatIcon');
+  if (content.style.display === 'none' || !content.style.display) {
+    content.style.display = 'block';
+    icon.style.transform = 'rotate(180deg)';
+  } else {
+    content.style.display = 'none';
+    icon.style.transform = 'rotate(0deg)';
+  }
+}
+
 function toggleMetodologia() {
   const content = document.getElementById('metodologiaContent');
   const icon = document.getElementById('metodologiaIcon');
