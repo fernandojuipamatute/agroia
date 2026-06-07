@@ -2257,29 +2257,65 @@ tr:hover td {
 </div>
 
 <!-- ============================================================ -->
-<!-- MODAL DE ONBOARDING (Tour guiado primera vez)                -->
+<!-- TOUR INTERACTIVO (Spotlight + Tooltips paso a paso)         -->
 <!-- ============================================================ -->
+
+<!-- Overlay con recorte para spotlight -->
+<div id="tourOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99996; pointer-events:none;">
+  <svg width="100%" height="100%" style="position:absolute; top:0; left:0;">
+    <defs>
+      <mask id="tourMask">
+        <rect width="100%" height="100%" fill="white"/>
+        <rect id="tourSpotlight" x="0" y="0" width="0" height="0" rx="10" ry="10" fill="black"/>
+      </mask>
+    </defs>
+    <rect width="100%" height="100%" fill="rgba(0,0,0,0.78)" mask="url(#tourMask)"/>
+  </svg>
+</div>
+
+<!-- Tooltip flotante -->
+<div id="tourTooltip" style="display:none; position:fixed; z-index:99997; max-width:340px; background:linear-gradient(135deg, #243024 0%, #1a1f1a 100%); border:1px solid rgba(239,159,39,0.4); border-radius:14px; padding:20px; box-shadow:0 20px 60px rgba(0,0,0,0.6); pointer-events:auto;">
+  <!-- Indicador de paso -->
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <div style="background:rgba(239,159,39,0.15); color:#EF9F27; font-size:11px; font-weight:600; padding:4px 10px; border-radius:12px;">
+      Paso <span id="tourPasoActual">1</span> de <span id="tourTotalPasos">9</span>
+    </div>
+    <button onclick="saltarTourCompleto()" style="background:transparent; border:none; color:#94a3b8; font-size:12px; cursor:pointer; padding:4px 8px;">
+      Saltar
+    </button>
+  </div>
+  
+  <!-- Título -->
+  <h3 id="tourTitulo" style="color:#fff; font-size:17px; margin:0 0 8px 0;">--</h3>
+  
+  <!-- Descripción -->
+  <p id="tourDescripcion" style="color:#cbd5e1; font-size:13px; line-height:1.5; margin:0 0 16px 0;">--</p>
+  
+  <!-- Dots de progreso -->
+  <div id="tourDots" style="display:flex; gap:5px; justify-content:center; margin-bottom:16px;">
+    <!-- Generado por JS -->
+  </div>
+  
+  <!-- Botones -->
+  <div style="display:flex; gap:8px; justify-content:space-between;">
+    <button id="tourBtnAtras" onclick="tourAnterior()" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.15); padding:8px 14px; border-radius:8px; cursor:pointer; font-size:13px;">
+      ← Atrás
+    </button>
+    <button id="tourBtnSiguiente" onclick="tourSiguiente()" style="background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; flex:1;">
+      Siguiente →
+    </button>
+  </div>
+</div>
+
+<!-- Modal de bienvenida inicial y final -->
 <div id="modalOnboarding" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99998; align-items:center; justify-content:center; backdrop-filter:blur(8px);">
-  <div style="background:linear-gradient(135deg, #243024 0%, #1a1f1a 100%); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:48px 40px; max-width:560px; width:90%; box-shadow:0 30px 80px rgba(0,0,0,0.5);">
-    
-    <!-- Contenido del paso (se llena dinámicamente) -->
-    <div id="onboardingContenido" style="min-height:380px;">
+  <div style="background:linear-gradient(135deg, #243024 0%, #1a1f1a 100%); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:40px 32px; max-width:520px; width:90%; box-shadow:0 30px 80px rgba(0,0,0,0.5);">
+    <div id="onboardingContenido" style="min-height:280px;">
       <!-- Generado por JavaScript -->
     </div>
-    
-    <!-- Indicadores de pasos -->
-    <div style="display:flex; justify-content:center; gap:8px; margin:24px 0 16px 0;">
-      <div id="dot1" class="onboarding-dot" style="width:10px; height:10px; border-radius:50%; background:#EF9F27; transition:all 0.3s;"></div>
-      <div id="dot2" class="onboarding-dot" style="width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,0.2); transition:all 0.3s;"></div>
-      <div id="dot3" class="onboarding-dot" style="width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,0.2); transition:all 0.3s;"></div>
-      <div id="dot4" class="onboarding-dot" style="width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,0.2); transition:all 0.3s;"></div>
-    </div>
-    
-    <!-- Botones de navegación -->
     <div id="onboardingBotones" style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:8px;">
       <!-- Generado por JavaScript -->
     </div>
-    
   </div>
 </div>
 
@@ -6456,51 +6492,12 @@ const PERMISOS_POR_ROL = {
 };
 
 // =============================================================
-// SISTEMA DE ONBOARDING (Tour guiado primera vez)
+// SISTEMA DE TOUR INTERACTIVO (Spotlight + Tooltips)
 // =============================================================
 
-let _onboardingPasoActual = 1;
-let _onboardingPerfil = null;
-
-// Contenido del onboarding personalizado por rol
-const FUNCIONES_POR_ROL = {
-  'admin': [
-    '📊 Dashboard ejecutivo con KPIs en vivo',
-    '⚖ Registro y validación de pesadas',
-    '📸 Análisis visual de palta con IA',
-    '📈 Reportes ejecutivos (4 tipos)',
-    '🌱 Métricas de sostenibilidad ESG',
-    '🛡 Logs de auditoría ISO 27001',
-    '⚙ Configuración del sistema'
-  ],
-  'jefecampo': [
-    '📊 Dashboard con datos de las 3 cuadrillas',
-    '⚖ Registro y validación de pesadas',
-    '📸 Análisis visual con IA',
-    '📈 Reportes ejecutivos completos',
-    '🌱 Métricas de sostenibilidad',
-    '📋 Log de decisiones del agente IA',
-    '🌳 Gestión de lotes'
-  ],
-  'supervisor': [
-    '⚖ Registro de pesadas de TU cuadrilla',
-    '👥 Trabajadores asignados a tu cuadrilla',
-    '📸 Análisis visual con IA',
-    '📊 Dashboard filtrado por tu cuadrilla',
-    '📈 Reporte de Supervisor (tu cuadrilla)'
-  ],
-  'gerencia': [
-    '📊 Dashboard ejecutivo consolidado',
-    '📈 Reportes de Gerencia',
-    '🌱 Métricas ESG del cultivo',
-    '🌍 Monitoreo satelital del campo'
-  ],
-  'rrhh': [
-    '👥 Lista completa de trabajadores',
-    '📈 Reporte de planilla y RR.HH.',
-    '📋 Auditoría de pagos'
-  ]
-};
+let _tourPasoActual = 0;
+let _tourPerfil = null;
+let _tourActivo = false;
 
 const NOMBRES_ROL_AMIGABLES = {
   'admin': 'Administrador',
@@ -6510,221 +6507,426 @@ const NOMBRES_ROL_AMIGABLES = {
   'rrhh': 'Recursos Humanos'
 };
 
-function iniciarOnboarding(perfil) {
-  _onboardingPerfil = perfil;
-  _onboardingPasoActual = 1;
+// Definición del tour: cada paso indica qué elemento resaltar
+const TOUR_PASOS = [
+  // Paso 0: Modal de bienvenida (sin spotlight)
+  { tipo: 'modal-inicio' },
   
-  // Verificar si ya lo vio (excepto si fue forzado desde el botón "Ver tour")
+  // Pasos con spotlight sobre elementos reales
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="dashboard"]',
+    titulo: '📊 Dashboard ejecutivo',
+    descripcion: 'Aquí ves los KPIs en vivo: kg cosechados, avance de campaña, productividad y validaciones. También el clima del Valle de Virú actualizado por satélite.',
+    seccion: 'dashboard'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="pesadas"]',
+    titulo: '⚖ Registro de pesadas',
+    descripcion: 'Aquí registras cada pesada. El agente IA calcula automáticamente el z-score y decide: ✅ Validada, ⚠ Observada o ❌ Bloqueada según anomalía estadística.',
+    seccion: 'pesadas'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="trabajadores"]',
+    titulo: '👥 Trabajadores',
+    descripcion: 'Lista de los trabajadores asignados a las cuadrillas. Cada uno tiene su productividad histórica (kg/h) y desviación estándar (σ) para validación estadística.',
+    seccion: 'trabajadores'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="lotes"]',
+    titulo: '🌳 Lotes y cuadrillas',
+    descripcion: 'Configuración de los lotes de cultivo y las 3 cuadrillas (C3, C5, C7) con sus supervisores asignados.',
+    seccion: 'lotes'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="reporte"]',
+    titulo: '📈 Reportes ejecutivos',
+    descripcion: 'Genera 4 tipos de reportes PDF profesionales: Gerencia, Jefe de Campo, Supervisor y RR.HH. Cada uno con métricas relevantes para su rol y envío automático por email.',
+    seccion: 'reporte'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="vision"]',
+    titulo: '📷 Análisis IA Visual',
+    descripcion: 'Toma una foto de la palta y el agente IA (Google Gemini Vision) analiza automáticamente: calidad, daños, madurez y conteo. Es percepción multimodal real.',
+    seccion: 'vision'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="sostenibilidad"]',
+    titulo: '🌱 Sostenibilidad ESG',
+    descripcion: 'Métricas ambientales (huella hídrica, CO2 evitado), comparativa con la industria peruana y monitoreo satelital del Valle de Virú vía Sentinel-2.',
+    seccion: 'sostenibilidad'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '#usuarioActual',
+    titulo: '👤 Tu perfil y cierre de sesión',
+    descripcion: 'Tu información de usuario. Desde aquí puedes ver el tour de nuevo o cerrar sesión de forma segura cuando termines.',
+    seccion: null
+  },
+  
+  // Paso final: Modal de cierre
+  { tipo: 'modal-final' }
+];
+
+function iniciarOnboarding(perfil) {
+  _tourPerfil = perfil;
+  
+  // Verificar si ya lo vio
   const yaVisto = localStorage.getItem(`onboarding_visto_${perfil.dni}`);
   if (yaVisto === 'true' && !window._forzarOnboarding) {
-    return; // No mostrar de nuevo
+    return;
   }
   
   window._forzarOnboarding = false;
   
-  // Mostrar el modal
-  document.getElementById('modalOnboarding').style.display = 'flex';
-  renderOnboardingPaso(1);
+  // Filtrar pasos según rol del usuario (solo mostrar secciones permitidas)
+  const permisos = PERMISOS_POR_ROL[perfil.rol];
+  if (permisos) {
+    window._tourPasosFiltrados = TOUR_PASOS.filter(paso => {
+      if (paso.tipo === 'modal-inicio' || paso.tipo === 'modal-final') return true;
+      if (!paso.seccion) return true; // pasos sin sección (como tarjeta usuario) siempre se muestran
+      return permisos.nav.includes(paso.seccion);
+    });
+  } else {
+    window._tourPasosFiltrados = TOUR_PASOS;
+  }
+  
+  _tourPasoActual = 0;
+  _tourActivo = true;
+  ejecutarPasoTour();
   
   if (typeof auditarAccion === 'function') {
-    auditarAccion('VER_ONBOARDING', 'Inicio del tour de bienvenida', { rol: perfil.rol });
+    auditarAccion('INICIAR_TOUR', 'Inicio del tour interactivo', { rol: perfil.rol });
   }
 }
 
-function renderOnboardingPaso(paso) {
-  _onboardingPasoActual = paso;
-  const perfil = _onboardingPerfil;
+function ejecutarPasoTour() {
+  const pasos = window._tourPasosFiltrados;
+  const paso = pasos[_tourPasoActual];
   
-  // Nombre corto del usuario
-  const nombreCorto = perfil.nombre.split(',')[1]?.trim() || perfil.nombre.split(' ')[0];
-  const rolAmigable = NOMBRES_ROL_AMIGABLES[perfil.rol] || perfil.rol;
-  const funciones = FUNCIONES_POR_ROL[perfil.rol] || [];
-  
-  let contenido = '';
-  let botones = '';
-  
-  if (paso === 1) {
-    // PASO 1: Bienvenida
-    contenido = `
-      <div style="text-align:center; padding:20px 0;">
-        <div style="font-size:64px; margin-bottom:16px;">👋</div>
-        <h1 style="color:#fff; font-size:28px; margin:0 0 12px 0;">¡Bienvenido, ${nombreCorto}!</h1>
-        <p style="color:#cbd5e1; font-size:15px; line-height:1.6; margin:0 0 24px 0;">
-          <strong style="color:#EF9F27;">AgroIA</strong> es un sistema de validación estadística para cosecha de palta Hass con inteligencia artificial, desarrollado para el Valle de Virú.
-        </p>
-        <div style="background:rgba(99,153,34,0.1); border:1px solid rgba(99,153,34,0.3); padding:14px 18px; border-radius:10px; color:#cbd5e1; font-size:14px;">
-          ⏱ Te haremos un tour rápido de 30 segundos para que conozcas las funciones disponibles para tu rol.
-        </div>
-      </div>
-    `;
-    botones = `
-      <button onclick="saltarOnboarding()" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.15); padding:12px 20px; border-radius:10px; cursor:pointer; font-size:14px;">
-        Saltar tour
-      </button>
-      <button onclick="renderOnboardingPaso(2)" style="background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; padding:12px 28px; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">
-        Empezar tour →
-      </button>
-    `;
-  } else if (paso === 2) {
-    // PASO 2: ¿Qué hace AgroIA?
-    contenido = `
-      <div style="padding:20px 0;">
-        <div style="text-align:center; margin-bottom:20px;">
-          <div style="font-size:48px; margin-bottom:8px;">🤖</div>
-          <h2 style="color:#fff; font-size:24px; margin:0;">¿Qué hace AgroIA?</h2>
-        </div>
-        <p style="color:#cbd5e1; font-size:14px; line-height:1.6; margin:0 0 20px 0;">
-          AgroIA es un <strong style="color:#EF9F27;">agente de inteligencia artificial</strong> que automatiza la validación de cosecha con tecnología profesional:
-        </p>
-        <div style="display:flex; flex-direction:column; gap:10px;">
-          <div style="background:rgba(255,255,255,0.04); padding:12px 14px; border-radius:8px; border-left:3px solid #10B981;">
-            <div style="color:#10B981; font-weight:600; font-size:13px; margin-bottom:2px;">✓ Validación estadística</div>
-            <div style="color:#cbd5e1; font-size:12px;">Calcula z-score y detecta anomalías automáticamente</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.04); padding:12px 14px; border-radius:8px; border-left:3px solid #3B82F6;">
-            <div style="color:#3B82F6; font-weight:600; font-size:13px; margin-bottom:2px;">✓ Visión por IA (Gemini)</div>
-            <div style="color:#cbd5e1; font-size:12px;">Analiza fotos de palta: calidad, daños, madurez</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.04); padding:12px 14px; border-radius:8px; border-left:3px solid #A855F7;">
-            <div style="color:#A855F7; font-weight:600; font-size:13px; margin-bottom:2px;">✓ Reportes profesionales</div>
-            <div style="color:#cbd5e1; font-size:12px;">PDFs ejecutivos por rol, envío automático por email</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.04); padding:12px 14px; border-radius:8px; border-left:3px solid #EF9F27;">
-            <div style="color:#EF9F27; font-weight:600; font-size:13px; margin-bottom:2px;">✓ Auditable y seguro</div>
-            <div style="color:#cbd5e1; font-size:12px;">Cumple ISO 27001 con audit log de todas las acciones</div>
-          </div>
-        </div>
-      </div>
-    `;
-    botones = `
-      <button onclick="renderOnboardingPaso(1)" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.15); padding:12px 20px; border-radius:10px; cursor:pointer; font-size:14px;">
-        ← Anterior
-      </button>
-      <button onclick="renderOnboardingPaso(3)" style="background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; padding:12px 28px; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">
-        Siguiente →
-      </button>
-    `;
-  } else if (paso === 3) {
-    // PASO 3: Tu rol y funciones
-    let cuadrillaInfo = '';
-    if (perfil.cuadrilla) {
-      cuadrillaInfo = `<div style="background:rgba(239,159,39,0.1); border:1px solid rgba(239,159,39,0.3); padding:8px 14px; border-radius:8px; color:#EF9F27; font-size:13px; font-weight:600; margin-top:8px;">📍 Cuadrilla asignada: ${perfil.cuadrilla}</div>`;
-    }
-    
-    const funcionesHTML = funciones.map(f => `
-      <div style="background:rgba(255,255,255,0.04); padding:10px 14px; border-radius:8px; color:#cbd5e1; font-size:13px;">
-        ${f}
-      </div>
-    `).join('');
-    
-    contenido = `
-      <div style="padding:20px 0;">
-        <div style="text-align:center; margin-bottom:16px;">
-          <div style="font-size:48px; margin-bottom:8px;">👤</div>
-          <h2 style="color:#fff; font-size:22px; margin:0 0 6px 0;">Tu rol: ${rolAmigable}</h2>
-          ${cuadrillaInfo}
-        </div>
-        <p style="color:#cbd5e1; font-size:13px; line-height:1.5; margin:16px 0 14px 0;">
-          Como <strong style="color:#EF9F27;">${rolAmigable.toLowerCase()}</strong>, tienes acceso a las siguientes funciones:
-        </p>
-        <div style="display:flex; flex-direction:column; gap:8px; max-height:230px; overflow-y:auto;">
-          ${funcionesHTML}
-        </div>
-      </div>
-    `;
-    botones = `
-      <button onclick="renderOnboardingPaso(2)" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.15); padding:12px 20px; border-radius:10px; cursor:pointer; font-size:14px;">
-        ← Anterior
-      </button>
-      <button onclick="renderOnboardingPaso(4)" style="background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; padding:12px 28px; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">
-        Siguiente →
-      </button>
-    `;
-  } else if (paso === 4) {
-    // PASO 4: Listo para empezar
-    contenido = `
-      <div style="text-align:center; padding:20px 0;">
-        <div style="font-size:64px; margin-bottom:16px;">🚀</div>
-        <h1 style="color:#fff; font-size:26px; margin:0 0 12px 0;">¡Listo para empezar!</h1>
-        <p style="color:#cbd5e1; font-size:14px; line-height:1.6; margin:0 0 20px 0;">
-          Ya conoces lo básico de AgroIA. Si necesitas ver este tour de nuevo, lo encontrarás en tu perfil.
-        </p>
-        <div style="background:rgba(99,153,34,0.1); border:1px solid rgba(99,153,34,0.3); padding:14px 18px; border-radius:10px; margin-bottom:16px;">
-          <div style="color:#10B981; font-weight:600; font-size:13px; margin-bottom:6px;">💡 Tip</div>
-          <div style="color:#cbd5e1; font-size:13px; line-height:1.5;">
-            Tu sesión está protegida con cifrado. Cierra sesión cuando termines de usar la app desde un dispositivo compartido.
-          </div>
-        </div>
-        <div style="background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.3); padding:14px 18px; border-radius:10px;">
-          <div style="color:#3B82F6; font-weight:600; font-size:13px; margin-bottom:6px;">📚 ¿Tienes dudas?</div>
-          <div style="color:#cbd5e1; font-size:13px; line-height:1.5;">
-            Cada sección tiene tooltips con explicaciones. También puedes contactar al administrador.
-          </div>
-        </div>
-      </div>
-    `;
-    botones = `
-      <button onclick="renderOnboardingPaso(3)" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.15); padding:12px 20px; border-radius:10px; cursor:pointer; font-size:14px;">
-        ← Anterior
-      </button>
-      <button onclick="finalizarOnboarding()" style="background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; padding:12px 32px; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">
-        ¡Empezar a usar! ✨
-      </button>
-    `;
+  if (!paso) {
+    finalizarTour();
+    return;
   }
   
-  document.getElementById('onboardingContenido').innerHTML = contenido;
-  document.getElementById('onboardingBotones').innerHTML = botones;
-  
-  // Actualizar dots
-  for (let i = 1; i <= 4; i++) {
-    const dot = document.getElementById('dot' + i);
-    if (dot) {
-      if (i === paso) {
-        dot.style.background = '#EF9F27';
-        dot.style.width = '24px';
-        dot.style.borderRadius = '5px';
-      } else if (i < paso) {
-        dot.style.background = 'rgba(239,159,39,0.4)';
-        dot.style.width = '10px';
-        dot.style.borderRadius = '50%';
-      } else {
-        dot.style.background = 'rgba(255,255,255,0.2)';
-        dot.style.width = '10px';
-        dot.style.borderRadius = '50%';
+  if (paso.tipo === 'modal-inicio') {
+    mostrarModalInicio();
+  } else if (paso.tipo === 'modal-final') {
+    mostrarModalFinal();
+  } else if (paso.tipo === 'spotlight') {
+    // Si la sección tiene una página propia, navegar a ella primero
+    if (paso.seccion && typeof switchPage === 'function') {
+      // Solo hacer switch si no estamos ya ahí (evita re-renders)
+      const yaActiva = document.getElementById('page-' + paso.seccion)?.classList.contains('active');
+      if (!yaActiva) {
+        document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(s => s.classList.remove('active'));
+        const targetPage = document.getElementById('page-' + paso.seccion);
+        if (targetPage) targetPage.classList.add('active');
+        const navItem = document.querySelector(`[data-permiso="${paso.seccion}"]`);
+        if (navItem) navItem.classList.add('active');
       }
     }
+    
+    // Pequeña espera para que el navegador renderice
+    setTimeout(() => mostrarSpotlight(paso), 100);
   }
 }
 
-function saltarOnboarding() {
-  if (_onboardingPerfil) {
-    localStorage.setItem(`onboarding_visto_${_onboardingPerfil.dni}`, 'true');
+function mostrarModalInicio() {
+  document.getElementById('tourOverlay').style.display = 'none';
+  document.getElementById('tourTooltip').style.display = 'none';
+  document.getElementById('modalOnboarding').style.display = 'flex';
+  
+  const perfil = _tourPerfil;
+  const nombreCorto = perfil.nombre.split(',')[1]?.trim() || perfil.nombre.split(' ')[0];
+  const rolAmigable = NOMBRES_ROL_AMIGABLES[perfil.rol] || perfil.rol;
+  
+  let extra = '';
+  if (perfil.cuadrilla) {
+    extra = `<div style="background:rgba(239,159,39,0.1); border:1px solid rgba(239,159,39,0.3); padding:8px 14px; border-radius:8px; color:#EF9F27; font-size:13px; font-weight:600; margin-top:10px; display:inline-block;">📍 Cuadrilla asignada: ${perfil.cuadrilla}</div>`;
   }
+  
+  document.getElementById('onboardingContenido').innerHTML = `
+    <div style="text-align:center; padding:8px 0;">
+      <div style="font-size:56px; margin-bottom:12px;">👋</div>
+      <h1 style="color:#fff; font-size:24px; margin:0 0 8px 0;">¡Bienvenido, ${nombreCorto}!</h1>
+      <div style="color:#94a3b8; font-size:13px; margin-bottom:6px;">${rolAmigable}</div>
+      ${extra}
+      <p style="color:#cbd5e1; font-size:14px; line-height:1.6; margin:20px 0;">
+        <strong style="color:#EF9F27;">AgroIA</strong> es un sistema de validación estadística para cosecha de palta Hass con inteligencia artificial.
+      </p>
+      <div style="background:rgba(99,153,34,0.1); border:1px solid rgba(99,153,34,0.3); padding:12px 16px; border-radius:10px; color:#cbd5e1; font-size:13px;">
+        🎯 Te haremos un <strong>tour interactivo</strong> de la app señalando cada sección. Solo te tomará 1 minuto.
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('onboardingBotones').innerHTML = `
+    <button onclick="saltarTourCompleto()" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.15); padding:11px 18px; border-radius:9px; cursor:pointer; font-size:13px;">
+      Saltar tour
+    </button>
+    <button onclick="tourSiguiente()" style="background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; padding:11px 26px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; flex:1; margin-left:8px;">
+      Empezar tour →
+    </button>
+  `;
+}
+
+function mostrarSpotlight(paso) {
+  // Ocultar modal central
   document.getElementById('modalOnboarding').style.display = 'none';
   
-  if (typeof auditarAccion === 'function') {
-    auditarAccion('SALTAR_ONBOARDING', 'Usuario saltó el tour de bienvenida', { paso: _onboardingPasoActual });
+  // Mostrar overlay y tooltip
+  const overlay = document.getElementById('tourOverlay');
+  const tooltip = document.getElementById('tourTooltip');
+  overlay.style.display = 'block';
+  tooltip.style.display = 'block';
+  
+  // Buscar el elemento
+  const target = document.querySelector(paso.selector);
+  if (!target) {
+    console.warn('Tour: elemento no encontrado:', paso.selector);
+    // Si no está, saltamos al siguiente paso
+    setTimeout(tourSiguiente, 500);
+    return;
+  }
+  
+  // Scroll al elemento si está fuera de vista
+  target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+  
+  // Calcular posición y tamaño del elemento
+  setTimeout(() => {
+    const rect = target.getBoundingClientRect();
+    const padding = 8;
+    
+    // Actualizar spotlight (recorte del overlay)
+    const spotlight = document.getElementById('tourSpotlight');
+    if (spotlight) {
+      spotlight.setAttribute('x', rect.left - padding);
+      spotlight.setAttribute('y', rect.top - padding);
+      spotlight.setAttribute('width', rect.width + (padding * 2));
+      spotlight.setAttribute('height', rect.height + (padding * 2));
+    }
+    
+    // Actualizar contenido del tooltip
+    const pasos = window._tourPasosFiltrados;
+    document.getElementById('tourTitulo').textContent = paso.titulo;
+    document.getElementById('tourDescripcion').textContent = paso.descripcion;
+    document.getElementById('tourPasoActual').textContent = _tourPasoActual + 1;
+    document.getElementById('tourTotalPasos').textContent = pasos.length;
+    
+    // Renderizar dots de progreso
+    const dotsContainer = document.getElementById('tourDots');
+    let dotsHTML = '';
+    for (let i = 0; i < pasos.length; i++) {
+      const activo = i === _tourPasoActual;
+      const completado = i < _tourPasoActual;
+      let bg = 'rgba(255,255,255,0.2)';
+      let width = '6px';
+      if (activo) { bg = '#EF9F27'; width = '20px'; }
+      else if (completado) { bg = 'rgba(239,159,39,0.4)'; }
+      dotsHTML += `<div style="width:${width}; height:6px; border-radius:3px; background:${bg}; transition:all 0.3s;"></div>`;
+    }
+    dotsContainer.innerHTML = dotsHTML;
+    
+    // Posicionar tooltip cerca del elemento
+    posicionarTooltip(rect);
+    
+    // Actualizar botones
+    const btnAtras = document.getElementById('tourBtnAtras');
+    btnAtras.style.display = _tourPasoActual > 0 ? 'block' : 'none';
+    
+    const esUltimoSpotlight = _tourPasoActual === pasos.length - 2; // antes del modal-final
+    document.getElementById('tourBtnSiguiente').textContent = esUltimoSpotlight ? 'Finalizar →' : 'Siguiente →';
+  }, 350);
+}
+
+function posicionarTooltip(targetRect) {
+  const tooltip = document.getElementById('tourTooltip');
+  const tooltipWidth = 340;
+  const tooltipHeight = tooltip.offsetHeight || 280;
+  const margin = 16;
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
+  
+  let top, left;
+  
+  // Detectar si es móvil
+  const esMobile = windowWidth < 768;
+  
+  if (esMobile) {
+    // En móvil: posicionar abajo del elemento (o arriba si no cabe)
+    left = (windowWidth - tooltipWidth) / 2;
+    if (left < margin) left = margin;
+    if (left + tooltipWidth > windowWidth - margin) left = windowWidth - tooltipWidth - margin;
+    
+    // ¿Cabe abajo?
+    if (targetRect.bottom + tooltipHeight + margin < windowHeight) {
+      top = targetRect.bottom + margin;
+    } else {
+      top = targetRect.top - tooltipHeight - margin;
+    }
+    
+    // Si no cabe en ningún lado, centrar
+    if (top < margin) top = margin;
+    if (top + tooltipHeight > windowHeight - margin) {
+      top = windowHeight - tooltipHeight - margin;
+    }
+  } else {
+    // En desktop: posicionar a la derecha del elemento (preferido para sidebar)
+    // o abajo si el elemento está a la derecha
+    
+    if (targetRect.right + tooltipWidth + margin < windowWidth) {
+      // Cabe a la derecha
+      left = targetRect.right + margin;
+      top = targetRect.top + (targetRect.height / 2) - (tooltipHeight / 2);
+    } else if (targetRect.left - tooltipWidth - margin > 0) {
+      // Cabe a la izquierda
+      left = targetRect.left - tooltipWidth - margin;
+      top = targetRect.top + (targetRect.height / 2) - (tooltipHeight / 2);
+    } else {
+      // Centrar abajo
+      left = (windowWidth - tooltipWidth) / 2;
+      top = targetRect.bottom + margin;
+    }
+    
+    // Ajustar para que no se salga
+    if (top < margin) top = margin;
+    if (top + tooltipHeight > windowHeight - margin) {
+      top = windowHeight - tooltipHeight - margin;
+    }
+    if (left < margin) left = margin;
+    if (left + tooltipWidth > windowWidth - margin) {
+      left = windowWidth - tooltipWidth - margin;
+    }
+  }
+  
+  tooltip.style.top = top + 'px';
+  tooltip.style.left = left + 'px';
+}
+
+function mostrarModalFinal() {
+  document.getElementById('tourOverlay').style.display = 'none';
+  document.getElementById('tourTooltip').style.display = 'none';
+  document.getElementById('modalOnboarding').style.display = 'flex';
+  
+  document.getElementById('onboardingContenido').innerHTML = `
+    <div style="text-align:center; padding:8px 0;">
+      <div style="font-size:64px; margin-bottom:14px;">🚀</div>
+      <h1 style="color:#fff; font-size:24px; margin:0 0 12px 0;">¡Tour completado!</h1>
+      <p style="color:#cbd5e1; font-size:14px; line-height:1.6; margin:0 0 20px 0;">
+        Ya conoces las secciones principales de <strong style="color:#EF9F27;">AgroIA</strong>. 
+        Puedes ver este tour de nuevo desde la tarjeta de usuario en la barra lateral.
+      </p>
+      <div style="background:rgba(99,153,34,0.1); border:1px solid rgba(99,153,34,0.3); padding:12px 16px; border-radius:10px; margin-bottom:12px;">
+        <div style="color:#10B981; font-weight:600; font-size:13px; margin-bottom:4px;">💡 Tip de seguridad</div>
+        <div style="color:#cbd5e1; font-size:12px; line-height:1.5;">
+          Tu sesión está cifrada. Cierra sesión cuando termines, especialmente desde dispositivos compartidos.
+        </div>
+      </div>
+      <div style="background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.3); padding:12px 16px; border-radius:10px;">
+        <div style="color:#3B82F6; font-weight:600; font-size:13px; margin-bottom:4px;">📚 ¿Tienes dudas?</div>
+        <div style="color:#cbd5e1; font-size:12px; line-height:1.5;">
+          Contacta al administrador del sistema o revisa el tour de nuevo cuando lo necesites.
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('onboardingBotones').innerHTML = `
+    <button onclick="finalizarTour()" style="background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; padding:11px 32px; border-radius:9px; font-size:14px; font-weight:600; cursor:pointer; width:100%;">
+      ¡Empezar a usar AgroIA! ✨
+    </button>
+  `;
+}
+
+function tourSiguiente() {
+  _tourPasoActual++;
+  if (_tourPasoActual >= window._tourPasosFiltrados.length) {
+    finalizarTour();
+  } else {
+    ejecutarPasoTour();
   }
 }
 
-function finalizarOnboarding() {
-  if (_onboardingPerfil) {
-    localStorage.setItem(`onboarding_visto_${_onboardingPerfil.dni}`, 'true');
+function tourAnterior() {
+  if (_tourPasoActual > 0) {
+    _tourPasoActual--;
+    ejecutarPasoTour();
+  }
+}
+
+function saltarTourCompleto() {
+  if (_tourPerfil) {
+    localStorage.setItem(`onboarding_visto_${_tourPerfil.dni}`, 'true');
   }
   document.getElementById('modalOnboarding').style.display = 'none';
+  document.getElementById('tourOverlay').style.display = 'none';
+  document.getElementById('tourTooltip').style.display = 'none';
+  _tourActivo = false;
   
   if (typeof auditarAccion === 'function') {
-    auditarAccion('FINALIZAR_ONBOARDING', 'Usuario completó el tour de bienvenida', {});
+    auditarAccion('SALTAR_TOUR', 'Usuario saltó el tour', { paso: _tourPasoActual });
   }
 }
 
-// Permite ver el tour de nuevo (botón en la tarjeta de usuario)
+function finalizarTour() {
+  if (_tourPerfil) {
+    localStorage.setItem(`onboarding_visto_${_tourPerfil.dni}`, 'true');
+  }
+  document.getElementById('modalOnboarding').style.display = 'none';
+  document.getElementById('tourOverlay').style.display = 'none';
+  document.getElementById('tourTooltip').style.display = 'none';
+  _tourActivo = false;
+  
+  // Volver al dashboard
+  if (typeof switchPage === 'function') {
+    document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(s => s.classList.remove('active'));
+    const dash = document.getElementById('page-dashboard');
+    if (dash) dash.classList.add('active');
+    const navDash = document.querySelector('[data-permiso="dashboard"]');
+    if (navDash) navDash.classList.add('active');
+  }
+  
+  if (typeof auditarAccion === 'function') {
+    auditarAccion('COMPLETAR_TOUR', 'Usuario completó el tour interactivo', {});
+  }
+}
+
 function verTourDeNuevo() {
   if (!window._perfilUsuario) return;
   window._forzarOnboarding = true;
   iniciarOnboarding(window._perfilUsuario);
 }
+
+// Re-calcular posición al cambiar tamaño de ventana
+window.addEventListener('resize', () => {
+  if (_tourActivo && _tourPasoActual > 0) {
+    const pasos = window._tourPasosFiltrados;
+    const paso = pasos[_tourPasoActual];
+    if (paso && paso.tipo === 'spotlight') {
+      const target = document.querySelector(paso.selector);
+      if (target) {
+        const rect = target.getBoundingClientRect();
+        const spotlight = document.getElementById('tourSpotlight');
+        if (spotlight) {
+          spotlight.setAttribute('x', rect.left - 8);
+          spotlight.setAttribute('y', rect.top - 8);
+          spotlight.setAttribute('width', rect.width + 16);
+          spotlight.setAttribute('height', rect.height + 16);
+        }
+        posicionarTooltip(rect);
+      }
+    }
+  }
+});
 
 function aplicarPermisos(perfil) {
   const permisos = PERMISOS_POR_ROL[perfil.rol] || PERMISOS_POR_ROL['supervisor'];
