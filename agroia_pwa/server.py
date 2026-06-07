@@ -219,6 +219,203 @@ ENVIOS_REALIZADOS = set()
 
 
 # ============================================================
+# RATE LIMITING + VALIDACION DE INPUTS (ISO 27001 - A.14)
+# ============================================================
+# Sistema de proteccion contra abuso y datos maliciosos.
+# Cumple con OWASP Top 10: Injection, Broken Auth, XSS.
+
+from functools import wraps
+from collections import defaultdict
+from threading import Lock
+import re
+import time as _time
+
+# Limites de rate por minuto (por IP)
+RATE_LIMITS = {
+    'default': 60,           # 60 peticiones/min para endpoints normales
+    'pesada': 60,            # 60 pesadas/min por IP
+    'analizar_imagen': 20,   # 20 analisis IA/min (Gemini es caro)
+    'enviar_reporte': 10,    # 10 envios de email/min
+    'cron': 30,              # 30 llamadas de UptimeRobot/min
+}
+
+# Tracking de peticiones por IP (en memoria - se reinicia con el servidor)
+# Formato: { ip: [(timestamp1, endpoint1), (timestamp2, endpoint2), ...] }
+_rate_tracker = defaultdict(list)
+_rate_lock = Lock()
+
+def _obtener_ip_cliente():
+    """Obtiene la IP del cliente, considerando proxies (Render, Cloudflare)."""
+    # Render pone la IP real en X-Forwarded-For
+    forwarded = request.headers.get('X-Forwarded-For', '')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.remote_addr or 'unknown'
+
+
+def rate_limit(categoria='default'):
+    """Decorator que limita peticiones por IP por minuto.
+    
+    Uso:
+        @app.route('/api/...')
+        @rate_limit('pesada')
+        def mi_endpoint():
+            ...
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            ip = _obtener_ip_cliente()
+            limite = RATE_LIMITS.get(categoria, RATE_LIMITS['default'])
+            ahora = _time.time()
+            ventana = 60  # 60 segundos
+            
+            with _rate_lock:
+                # Limpiar registros viejos (mayores a 60 seg)
+                _rate_tracker[ip] = [
+                    (t, ep) for t, ep in _rate_tracker[ip]
+                    if ahora - t < ventana
+                ]
+                
+                # Contar peticiones recientes de esta categoria
+                count_categoria = sum(1 for t, ep in _rate_tracker[ip] if ep == categoria)
+                
+                if count_categoria >= limite:
+                    # Rate limit excedido
+                    tiempos = [t for t, ep in _rate_tracker[ip] if ep == categoria]
+                    siguiente = int(ventana - (ahora - min(tiempos))) if tiempos else ventana
+                    
+                    print(f"[RateLimit] Bloqueado: {ip} en {categoria} ({count_categoria}/{limite})")
+                    
+                    return jsonify({
+                        'exito': False,
+                        'error': 'Demasiadas peticiones',
+                        'mensaje': f'Has hecho demasiadas peticiones. Espera unos segundos.',
+                        'limite': f'{limite} peticiones/minuto',
+                        'siguiente_intento_en': max(siguiente, 1)
+                    }), 429
+                
+                # Registrar la peticion
+                _rate_tracker[ip].append((ahora, categoria))
+            
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# === VALIDADORES DE INPUTS ===
+
+class ValidacionError(Exception):
+    """Error de validacion con campo y mensaje claros."""
+    def __init__(self, mensaje, campo=None):
+        self.mensaje = mensaje
+        self.campo = campo
+        super().__init__(mensaje)
+
+
+def validar_dni(valor, campo='dni'):
+    """DNI peruano: exactamente 8 digitos."""
+    if not valor:
+        raise ValidacionError('El DNI es obligatorio', campo)
+    valor_str = str(valor).strip()
+    if not re.match(r'^\d{8}$', valor_str):
+        raise ValidacionError('El DNI debe tener exactamente 8 dígitos', campo)
+    return valor_str
+
+
+def validar_numero(valor, minimo, maximo, campo='valor', tipo='float'):
+    """Numero dentro de rango."""
+    if valor is None or valor == '':
+        raise ValidacionError(f'El campo {campo} es obligatorio', campo)
+    try:
+        num = float(valor) if tipo == 'float' else int(valor)
+    except (ValueError, TypeError):
+        raise ValidacionError(f'El campo {campo} debe ser un número válido', campo)
+    if num < minimo:
+        raise ValidacionError(f'{campo} no puede ser menor a {minimo}', campo)
+    if num > maximo:
+        raise ValidacionError(f'{campo} no puede ser mayor a {maximo}', campo)
+    return num
+
+
+def validar_cuadrilla(valor, campo='cuadrilla'):
+    """Cuadrilla valida: C3, C5 o C7."""
+    if not valor:
+        raise ValidacionError(f'La cuadrilla es obligatoria', campo)
+    valor_str = str(valor).strip().upper()
+    if valor_str not in ('C3', 'C5', 'C7'):
+        raise ValidacionError(f'Cuadrilla inválida. Debe ser C3, C5 o C7', campo)
+    return valor_str
+
+
+def validar_lote(valor, campo='lote'):
+    """Lote valido (formato L-XX)."""
+    if not valor:
+        raise ValidacionError(f'El lote es obligatorio', campo)
+    valor_str = str(valor).strip().upper()
+    if not re.match(r'^L-\d{1,3}$', valor_str):
+        raise ValidacionError(f'Formato de lote inválido (debe ser L-XX)', campo)
+    return valor_str
+
+
+def validar_email(valor, campo='email'):
+    """Email basico."""
+    if not valor:
+        raise ValidacionError(f'El correo es obligatorio', campo)
+    valor_str = str(valor).strip().lower()
+    if not re.match(r'^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$', valor_str):
+        raise ValidacionError(f'Formato de correo inválido', campo)
+    if len(valor_str) > 200:
+        raise ValidacionError(f'El correo es demasiado largo', campo)
+    return valor_str
+
+
+def validar_tipo_reporte(valor, campo='tipo'):
+    """Tipo de reporte valido."""
+    if not valor:
+        raise ValidacionError(f'El tipo de reporte es obligatorio', campo)
+    valor_str = str(valor).strip().lower()
+    if valor_str not in ('gerencia', 'jefecampo', 'supervisor', 'rrhh'):
+        raise ValidacionError(f'Tipo de reporte inválido', campo)
+    return valor_str
+
+
+def limpiar_string(texto, max_largo=500):
+    """Limpia HTML/scripts y limita longitud.
+    Previene XSS (Cross-Site Scripting).
+    """
+    if not texto:
+        return ''
+    texto_str = str(texto)
+    # Quitar HTML/scripts
+    texto_str = re.sub(r'<[^>]*>', '', texto_str)
+    # Quitar caracteres de control
+    texto_str = re.sub(r'[\x00-\x1f\x7f]', '', texto_str)
+    # Limitar longitud
+    return texto_str.strip()[:max_largo]
+
+
+def manejar_error_validacion(func):
+    """Decorator que captura ValidacionError y devuelve respuesta JSON limpia."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ValidacionError as e:
+            return jsonify({
+                'exito': False,
+                'error': 'Datos inválidos',
+                'mensaje': e.mensaje,
+                'campo': e.campo
+            }), 400
+    return wrapper
+
+
+print("[Seguridad] Rate limiting y validacion de inputs activados")
+print(f"[Seguridad] Limites por minuto: {RATE_LIMITS}")
+
+
+# ============================================================
 # FLASK SERVER
 # ============================================================
 app = Flask(__name__)
@@ -369,28 +566,40 @@ def health():
     })
 
 @app.route('/api/pesada', methods=['POST'])
+@rate_limit('pesada')
+@manejar_error_validacion
 def recibir_pesada():
     """Recibe una pesada de la app y la envia a Datadog"""
-    data = request.json
+    data = request.json or {}
+    
+    # Validar inputs criticos
+    dni = validar_dni(data.get('dni', ''))
+    kg = validar_numero(data.get('kg'), minimo=1, maximo=800, campo='kg')
+    horas = validar_numero(data.get('horas'), minimo=0.5, maximo=12, campo='horas')
+    lote = validar_lote(data.get('lote', ''))
+    
+    # Cuadrilla opcional pero validada si viene
+    cuadrilla_input = data.get('cuadrilla', '')
+    if cuadrilla_input:
+        cuadrilla_input = validar_cuadrilla(cuadrilla_input)
+    
+    # Sanitizar nombre (XSS prevention)
+    nombre_input = limpiar_string(data.get('nombre', ''), max_largo=100)
     
     # Validar que el trabajador existe en la base
-    dni = data.get('dni', '')
     trabajador_db = TRABAJADORES.get(dni)
     if not trabajador_db:
         # Si no esta en la BD, usar los datos que mando la app
-        nombre = data.get('nombre', 'Desconocido')
-        cuadrilla = data.get('cuadrilla', 'N/A')
-        historico = data.get('historico', 23)
-        sigma = data.get('sigma', 3)
+        nombre = nombre_input or 'Desconocido'
+        cuadrilla = cuadrilla_input or 'N/A'
+        historico = validar_numero(data.get('historico', 23), minimo=1, maximo=100, campo='historico')
+        sigma = validar_numero(data.get('sigma', 3), minimo=0.1, maximo=20, campo='sigma')
     else:
         nombre = trabajador_db['nombre']
         cuadrilla = trabajador_db['cuadrilla']
         historico = trabajador_db['historico']
         sigma = trabajador_db['sigma']
     
-    kg = data['kg']
-    horas = data['horas']
-    lote = data['lote']
     productividad = kg / horas
     z_score = (productividad - historico) / sigma
     abs_z = abs(z_score)
@@ -537,6 +746,7 @@ def recibir_pesada():
     })
 
 @app.route('/api/reporte', methods=['POST'])
+@rate_limit('default')
 def recibir_reporte():
     """Notifica generacion de reporte ejecutivo"""
     data = request.json
@@ -566,6 +776,7 @@ def recibir_reporte():
     return jsonify({"success": True, "datadog_envio": "exitoso"})
 
 @app.route('/api/rrhh', methods=['POST'])
+@rate_limit('default')
 def recibir_rrhh():
     """Notifica exportacion a RRHH"""
     data = request.json
@@ -591,6 +802,7 @@ def recibir_rrhh():
     return jsonify({"success": True, "datadog_envio": "exitoso"})
 
 @app.route('/api/pesadas-recientes', methods=['GET'])
+@rate_limit('default')
 def pesadas_recientes():
     """Devuelve pesadas que llegaron despues de un timestamp dado.
     
@@ -657,6 +869,7 @@ def pesadas_recientes():
     })
 
 @app.route('/api/pesadas-todas', methods=['GET'])
+@rate_limit('default')
 def pesadas_todas():
     """Devuelve las 500 pesadas mas recientes de Supabase.
     Usado cuando la app se abre para cargar el historico."""
@@ -704,6 +917,7 @@ def pesadas_todas():
     return jsonify({"fuente": "memoria", "total": 0, "pesadas": []})
 
 @app.route('/api/trabajadores', methods=['GET'])
+@rate_limit('default')
 def listar_trabajadores():
     """Devuelve la lista de trabajadores"""
     return jsonify({
@@ -714,6 +928,7 @@ def listar_trabajadores():
     })
 
 @app.route('/api/lotes', methods=['GET'])
+@rate_limit('default')
 def listar_lotes():
     """Devuelve la lista de lotes"""
     return jsonify({
@@ -727,6 +942,8 @@ def listar_lotes():
 # ENDPOINT: ANALISIS DE IMAGEN CON IA (VISION)
 # ============================================================
 @app.route('/api/analizar-imagen', methods=['POST'])
+@rate_limit('analizar_imagen')
+@manejar_error_validacion
 def analizar_imagen():
     """Analiza una imagen usando IA (Gemini o Claude).
     
@@ -734,12 +951,21 @@ def analizar_imagen():
     Devuelve: { "exito": true, "analisis": {...}, "proveedor": "gemini" }
     """
     try:
-        data = request.json
-        if not data or 'imagen_base64' not in data:
-            return jsonify({"exito": False, "error": "Falta imagen_base64"}), 400
+        data = request.json or {}
+        if not data.get('imagen_base64'):
+            raise ValidacionError('Falta imagen_base64', 'imagen_base64')
         
         imagen_b64 = data['imagen_base64']
-        contexto = data.get('contexto', 'Imagen de cosecha de palta Hass')
+        
+        # Validar tamaño de la imagen (max 10MB en base64)
+        if len(imagen_b64) > 14_000_000:  # ~10MB
+            raise ValidacionError('Imagen demasiado grande (máximo 10MB)', 'imagen_base64')
+        
+        if len(imagen_b64) < 100:
+            raise ValidacionError('Imagen inválida o vacía', 'imagen_base64')
+        
+        # Sanitizar contexto (XSS prevention)
+        contexto = limpiar_string(data.get('contexto', 'Imagen de cosecha de palta Hass'), max_largo=500)
         
         # Prompt especializado en agricultura/palta Hass
         prompt = """Eres un agente IA experto en palta Hass de Peru. Analiza la imagen y devuelve SOLO este JSON:
@@ -1685,6 +1911,8 @@ def generar_pdf_rrhh():
 # ENDPOINT: ENVIAR EMAIL DE PRUEBA (Resend)
 # ============================================================
 @app.route('/api/enviar-email-prueba', methods=['POST'])
+@rate_limit('enviar_reporte')
+@manejar_error_validacion
 def enviar_email_prueba():
     """Envia un email de prueba usando Resend.
     
@@ -1698,11 +1926,8 @@ def enviar_email_prueba():
         }), 503
     
     try:
-        data = request.json
-        destino = data.get('destino', '')
-        
-        if not destino or '@' not in destino:
-            return jsonify({"exito": False, "error": "Correo destino invalido"}), 400
+        data = request.json or {}
+        destino = validar_email(data.get('destino', ''), 'destino')
         
         # Construir el email HTML
         from datetime import timezone, timedelta
@@ -1784,6 +2009,8 @@ def enviar_email_prueba():
 # ENDPOINT: ENVIAR REPORTE CON PDF ADJUNTO (Resend)
 # ============================================================
 @app.route('/api/enviar-reporte', methods=['POST'])
+@rate_limit('enviar_reporte')
+@manejar_error_validacion
 def enviar_reporte():
     """Genera un reporte PDF y lo envia como adjunto por email.
     
@@ -1797,12 +2024,9 @@ def enviar_reporte():
         }), 503
     
     try:
-        data = request.json
-        destino = data.get('destino', '')
-        tipo = data.get('tipo', 'gerencia')
-        
-        if not destino or '@' not in destino:
-            return jsonify({"exito": False, "error": "Correo destino invalido"}), 400
+        data = request.json or {}
+        destino = validar_email(data.get('destino', ''), 'destino')
+        tipo = validar_tipo_reporte(data.get('tipo', 'gerencia'))
         
         # Generar el PDF segun el tipo
         if tipo == 'gerencia':
@@ -1812,7 +2036,7 @@ def enviar_reporte():
             pdf_bytes = generar_pdf_jefe_campo()
             nombre_reporte = 'Jefe de Campo'
         elif tipo == 'supervisor':
-            cuadrilla = data.get('cuadrilla', 'C3')
+            cuadrilla = validar_cuadrilla(data.get('cuadrilla', 'C3'))
             pdf_bytes = generar_pdf_supervisor(cuadrilla)
             nombre_reporte = f'Supervisor {cuadrilla}'
         elif tipo == 'rrhh':
@@ -2121,6 +2345,7 @@ def _ejecutar_envios_programados(forzar=False):
 
 
 @app.route('/api/cron-automatico', methods=['GET', 'POST'])
+@rate_limit('cron')
 def cron_automatico():
     """Endpoint que UptimeRobot llama cada 5 minutos.
     Verifica si toca enviar reportes y los envia.
@@ -2137,6 +2362,7 @@ def cron_automatico():
 
 
 @app.route('/api/test-envio-automatico', methods=['POST'])
+@rate_limit('default')
 def test_envio_automatico():
     """Fuerza el envio de TODOS los reportes ignorando horario.
     Util para probar sin esperar a que sea la hora programada.
@@ -2152,6 +2378,7 @@ def test_envio_automatico():
 
 
 @app.route('/api/config-destinatarios', methods=['GET'])
+@rate_limit('default')
 def config_destinatarios():
     """Muestra la configuracion actual de destinatarios (para debugging)."""
     # Ocultar correos completos por seguridad
