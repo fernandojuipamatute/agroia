@@ -1143,6 +1143,79 @@ tr:hover td {
     </div>
   </div>
 
+  <!-- ===================================== -->
+  <!-- WIDGET DE CLIMA (Open-Meteo)          -->
+  <!-- ===================================== -->
+  <div id="widgetClima" style="margin-bottom:24px; background:linear-gradient(135deg, rgba(59,130,246,0.12), rgba(99,153,34,0.08)); border:1px solid rgba(59,130,246,0.25); border-radius:14px; padding:20px;">
+    
+    <!-- Encabezado del widget -->
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+      <div>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+          <span style="font-size:22px;">🌤️</span>
+          <h3 style="color:#fff; margin:0; font-size:18px;">Condiciones de campo</h3>
+        </div>
+        <div style="color:#94a3b8; font-size:12px;">📍 Valle de Virú, La Libertad · <span id="climaActualizado">cargando...</span></div>
+      </div>
+      <button onclick="cargarClima()" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:6px 12px; border-radius:8px; cursor:pointer; font-size:12px;">
+        🔄 Actualizar
+      </button>
+    </div>
+
+    <!-- KPIs del clima -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:16px;">
+      
+      <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+        <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">🌡 Temperatura</div>
+        <div id="climaTemp" style="color:#fff; font-size:24px; font-weight:bold;">--°C</div>
+        <div id="climaTempDesc" style="color:#cbd5e1; font-size:11px; margin-top:2px;">--</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+        <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">💧 Humedad</div>
+        <div id="climaHumedad" style="color:#fff; font-size:24px; font-weight:bold;">--%</div>
+        <div id="climaHumedadDesc" style="color:#cbd5e1; font-size:11px; margin-top:2px;">--</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+        <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">💨 Viento</div>
+        <div id="climaViento" style="color:#fff; font-size:24px; font-weight:bold;">-- km/h</div>
+        <div id="climaVientoDesc" style="color:#cbd5e1; font-size:11px; margin-top:2px;">--</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+        <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">🌧 Lluvia próx. 6h</div>
+        <div id="climaLluvia" style="color:#fff; font-size:24px; font-weight:bold;">-- mm</div>
+        <div id="climaLluviaDesc" style="color:#cbd5e1; font-size:11px; margin-top:2px;">--</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+        <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">☀️ Índice UV</div>
+        <div id="climaUV" style="color:#fff; font-size:24px; font-weight:bold;">--</div>
+        <div id="climaUVDesc" style="color:#cbd5e1; font-size:11px; margin-top:2px;">--</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+        <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">🌱 Humedad suelo</div>
+        <div id="climaSuelo" style="color:#fff; font-size:24px; font-weight:bold;">--%</div>
+        <div id="climaSueloDesc" style="color:#cbd5e1; font-size:11px; margin-top:2px;">--</div>
+      </div>
+
+    </div>
+
+    <!-- Alerta inteligente -->
+    <div id="climaAlerta" style="display:none; padding:12px 16px; border-radius:8px; margin-bottom:16px; font-size:13px;"></div>
+
+    <!-- Pronóstico próximas horas -->
+    <div>
+      <div style="font-size:12px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">📅 Pronóstico próximas horas</div>
+      <div id="climaPronostico" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(80px, 1fr)); gap:8px;">
+        <!-- Se llena con JavaScript -->
+      </div>
+    </div>
+
+  </div>
+
   <!-- KPIs -->
   <div class="kpis">
     <div class="kpi">
@@ -4069,6 +4142,275 @@ function switchPage(page) {
  * - CO2 por hoja de papel A4: 0.0046 kg - EPA 2024
  * - CO2 por km en auto: 0.21 kg - MINAM Perú 2024
  */
+// =============================================================
+// CLIMA EN VIVO (Open-Meteo - gratis, sin API key)
+// =============================================================
+
+// Coordenadas exactas del Valle de Virú, La Libertad, Perú
+const VIRU_LAT = -8.4078;
+const VIRU_LON = -78.7547;
+
+async function cargarClima() {
+  try {
+    document.getElementById('climaActualizado').textContent = 'cargando...';
+    
+    // URL de Open-Meteo con datos relevantes para agricultura
+    const url = `https://api.open-meteo.com/v1/forecast?` +
+      `latitude=${VIRU_LAT}&longitude=${VIRU_LON}` +
+      `&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m` +
+      `&hourly=temperature_2m,precipitation_probability,precipitation,uv_index,soil_moisture_3_to_9cm,weather_code` +
+      `&timezone=America/Lima&forecast_days=2`;
+    
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Error consultando clima');
+    const data = await response.json();
+    
+    procesarClima(data);
+    
+    if (typeof auditarAccion === 'function') {
+      auditarAccion('CONSULTAR_CLIMA',
+        'Actualización de datos meteorológicos',
+        { temp: data.current.temperature_2m, humedad: data.current.relative_humidity_2m }
+      );
+    }
+  } catch (e) {
+    console.error('[Clima] Error:', e);
+    document.getElementById('climaActualizado').textContent = '⚠ Error al cargar';
+    document.getElementById('climaTemp').textContent = '--°C';
+  }
+}
+
+function procesarClima(data) {
+  const c = data.current;
+  const h = data.hourly;
+  
+  // Hora actual
+  const ahora = new Date();
+  document.getElementById('climaActualizado').textContent = 
+    `actualizado ${ahora.getHours().toString().padStart(2,'0')}:${ahora.getMinutes().toString().padStart(2,'0')}`;
+  
+  // === TEMPERATURA ===
+  const temp = c.temperature_2m;
+  const tempSens = c.apparent_temperature;
+  document.getElementById('climaTemp').textContent = Math.round(temp) + '°C';
+  
+  let tempDesc = '';
+  if (temp >= 30) tempDesc = '🔥 Muy caluroso';
+  else if (temp >= 25) tempDesc = '☀️ Caluroso';
+  else if (temp >= 20) tempDesc = '🌤 Agradable';
+  else if (temp >= 15) tempDesc = '⛅ Templado';
+  else if (temp >= 10) tempDesc = '☁️ Fresco';
+  else tempDesc = '❄️ Frío';
+  
+  document.getElementById('climaTempDesc').textContent = 
+    `${tempDesc} · sens. ${Math.round(tempSens)}°C`;
+  
+  // === HUMEDAD ===
+  const humedad = c.relative_humidity_2m;
+  document.getElementById('climaHumedad').textContent = humedad + '%';
+  let humedadDesc = humedad >= 80 ? '💦 Muy húmedo' :
+                    humedad >= 60 ? '💧 Húmedo' :
+                    humedad >= 40 ? '😊 Confortable' :
+                    humedad >= 25 ? '🌵 Seco' : '🏜 Muy seco';
+  document.getElementById('climaHumedadDesc').textContent = humedadDesc;
+  
+  // === VIENTO ===
+  const viento = Math.round(c.wind_speed_10m);
+  document.getElementById('climaViento').textContent = viento + ' km/h';
+  let vientoDesc = viento >= 40 ? '🌪 Fuerte' :
+                   viento >= 25 ? '💨 Moderado' :
+                   viento >= 15 ? '🍃 Suave' :
+                   viento >= 5 ? '☁️ Ligero' : '🌫 Calma';
+  document.getElementById('climaVientoDesc').textContent = vientoDesc;
+  
+  // === LLUVIA PRÓXIMAS 6H ===
+  let lluviaTotal = 0;
+  let probLluviaMax = 0;
+  const horaActualIdx = obtenerIndiceHora(h.time, ahora);
+  
+  for (let i = horaActualIdx; i < Math.min(horaActualIdx + 6, h.time.length); i++) {
+    lluviaTotal += (h.precipitation[i] || 0);
+    probLluviaMax = Math.max(probLluviaMax, h.precipitation_probability[i] || 0);
+  }
+  
+  document.getElementById('climaLluvia').textContent = lluviaTotal.toFixed(1) + ' mm';
+  document.getElementById('climaLluviaDesc').textContent = 
+    probLluviaMax > 0 ? `📊 ${probLluviaMax}% probabilidad` : '☀️ Sin lluvia';
+  
+  // === ÍNDICE UV ===
+  const uv = h.uv_index[horaActualIdx] || 0;
+  document.getElementById('climaUV').textContent = uv.toFixed(1);
+  let uvDesc = uv >= 11 ? '🔴 Extremo' :
+               uv >= 8 ? '🟠 Muy alto' :
+               uv >= 6 ? '🟡 Alto' :
+               uv >= 3 ? '🟢 Moderado' : '🔵 Bajo';
+  document.getElementById('climaUVDesc').textContent = uvDesc;
+  
+  // === HUMEDAD DEL SUELO ===
+  const suelo = h.soil_moisture_3_to_9cm[horaActualIdx];
+  if (suelo !== undefined && suelo !== null) {
+    const sueloPct = (suelo * 100).toFixed(1);
+    document.getElementById('climaSuelo').textContent = sueloPct + '%';
+    let sueloDesc = suelo >= 0.35 ? '🌿 Óptimo' :
+                    suelo >= 0.25 ? '🌱 Bueno' :
+                    suelo >= 0.15 ? '⚠️ Bajo' : '🚨 Crítico';
+    document.getElementById('climaSueloDesc').textContent = sueloDesc;
+  } else {
+    document.getElementById('climaSuelo').textContent = 'N/D';
+    document.getElementById('climaSueloDesc').textContent = 'No disponible';
+  }
+  
+  // === ALERTAS INTELIGENTES ===
+  procesarAlertasClima({ temp, humedad, viento, lluviaTotal, probLluviaMax, uv });
+  
+  // === PRONÓSTICO PRÓXIMAS HORAS ===
+  renderPronostico(h, horaActualIdx);
+}
+
+function obtenerIndiceHora(times, ahora) {
+  // Encuentra el índice de la hora actual o más cercana
+  const horaAhora = ahora.toISOString().slice(0, 13);
+  let idx = times.findIndex(t => t.startsWith(horaAhora));
+  if (idx === -1) idx = 0;
+  return idx;
+}
+
+function procesarAlertasClima({ temp, humedad, viento, lluviaTotal, probLluviaMax, uv }) {
+  const alertaDiv = document.getElementById('climaAlerta');
+  const alertas = [];
+  
+  // Detectar condiciones críticas
+  if (temp < 5) {
+    alertas.push({ 
+      tipo: 'critica', 
+      icon: '❄️', 
+      msg: 'Alerta de heladas. Riesgo para cultivos y trabajadores.' 
+    });
+  } else if (temp > 35) {
+    alertas.push({ 
+      tipo: 'critica', 
+      icon: '🔥', 
+      msg: 'Calor extremo. Hidratar trabajadores y proteger del sol.' 
+    });
+  }
+  
+  if (viento >= 40) {
+    alertas.push({ 
+      tipo: 'critica', 
+      icon: '🌪', 
+      msg: 'Viento fuerte. Suspender uso de escaleras y trabajos en altura.' 
+    });
+  }
+  
+  if (lluviaTotal >= 15) {
+    alertas.push({ 
+      tipo: 'advertencia', 
+      icon: '⛈', 
+      msg: 'Lluvia intensa esperada. Considerar suspender cosecha.' 
+    });
+  } else if (probLluviaMax >= 70) {
+    alertas.push({ 
+      tipo: 'advertencia', 
+      icon: '🌧', 
+      msg: 'Alta probabilidad de lluvia en próximas horas.' 
+    });
+  }
+  
+  if (uv >= 8) {
+    alertas.push({ 
+      tipo: 'advertencia', 
+      icon: '☀️', 
+      msg: 'Índice UV muy alto. Trabajadores deben usar protección solar.' 
+    });
+  }
+  
+  if (humedad < 25) {
+    alertas.push({ 
+      tipo: 'info', 
+      icon: '🏜', 
+      msg: 'Humedad muy baja. Posible estrés hídrico en cultivos.' 
+    });
+  }
+  
+  // Mostrar la alerta más importante o "todo bien"
+  if (alertas.length === 0) {
+    alertaDiv.style.display = 'block';
+    alertaDiv.style.background = 'rgba(16,185,129,0.15)';
+    alertaDiv.style.border = '1px solid rgba(16,185,129,0.3)';
+    alertaDiv.style.color = '#86efac';
+    alertaDiv.innerHTML = `✅ <strong>Condiciones óptimas para cosecha</strong> · Sin alertas activas`;
+  } else {
+    const critica = alertas.find(a => a.tipo === 'critica');
+    const aMostrar = critica || alertas[0];
+    
+    alertaDiv.style.display = 'block';
+    
+    if (aMostrar.tipo === 'critica') {
+      alertaDiv.style.background = 'rgba(220,38,38,0.15)';
+      alertaDiv.style.border = '1px solid rgba(220,38,38,0.3)';
+      alertaDiv.style.color = '#fca5a5';
+    } else if (aMostrar.tipo === 'advertencia') {
+      alertaDiv.style.background = 'rgba(245,158,11,0.15)';
+      alertaDiv.style.border = '1px solid rgba(245,158,11,0.3)';
+      alertaDiv.style.color = '#fcd34d';
+    } else {
+      alertaDiv.style.background = 'rgba(59,130,246,0.15)';
+      alertaDiv.style.border = '1px solid rgba(59,130,246,0.3)';
+      alertaDiv.style.color = '#93c5fd';
+    }
+    
+    let html = `${aMostrar.icon} <strong>${aMostrar.msg}</strong>`;
+    if (alertas.length > 1) {
+      html += ` <span style="opacity:0.7;">(+${alertas.length - 1} alerta${alertas.length > 2 ? 's' : ''} más)</span>`;
+    }
+    alertaDiv.innerHTML = html;
+  }
+}
+
+function renderPronostico(hourly, idxActual) {
+  const container = document.getElementById('climaPronostico');
+  if (!container) return;
+  
+  let html = '';
+  const horasMostrar = 6;
+  
+  for (let i = idxActual + 1; i < Math.min(idxActual + 1 + horasMostrar, hourly.time.length); i++) {
+    const fechaHora = new Date(hourly.time[i]);
+    const hora = fechaHora.getHours().toString().padStart(2, '0') + ':00';
+    const temp = Math.round(hourly.temperature_2m[i]);
+    const probLluvia = hourly.precipitation_probability[i] || 0;
+    const code = hourly.weather_code[i];
+    
+    // Ícono según código WMO
+    let icono = '☀️';
+    if (code === 0) icono = '☀️';
+    else if (code >= 1 && code <= 3) icono = '⛅';
+    else if (code >= 45 && code <= 48) icono = '🌫';
+    else if (code >= 51 && code <= 57) icono = '🌦';
+    else if (code >= 61 && code <= 67) icono = '🌧';
+    else if (code >= 71 && code <= 77) icono = '🌨';
+    else if (code >= 80 && code <= 82) icono = '🌧';
+    else if (code >= 95) icono = '⛈';
+    
+    html += `
+      <div style="background:rgba(255,255,255,0.04); padding:10px 8px; border-radius:8px; text-align:center;">
+        <div style="font-size:11px; color:#94a3b8;">${hora}</div>
+        <div style="font-size:22px; margin:4px 0;">${icono}</div>
+        <div style="color:#fff; font-size:14px; font-weight:600;">${temp}°</div>
+        ${probLluvia > 20 ? `<div style="font-size:10px; color:#60a5fa; margin-top:2px;">${probLluvia}% 💧</div>` : ''}
+      </div>
+    `;
+  }
+  
+  container.innerHTML = html;
+}
+
+// Cargar clima al iniciar y refrescar cada 30 minutos
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(cargarClima, 1500);
+  setInterval(cargarClima, 30 * 60 * 1000);
+});
+
 function actualizarSostenibilidad() {
   // Obtener pesadas validadas
   const validadas = pesadas.filter(p => p.estado === 'green' || p.estado === 'yellow');
