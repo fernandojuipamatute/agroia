@@ -1847,20 +1847,6 @@ tr:hover td {
   </div>
 
 </div>
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Log de decisiones del agente</h1>
-      <div class="page-subtitle">Auditoría completa de validaciones, alertas y acciones</div>
-    </div>
-    <button class="btn">📤 Exportar a Datadog</button>
-  </div>
-
-  <div class="section">
-    <div id="logList">
-      <!-- Se rellena con JS -->
-    </div>
-  </div>
-</div>
 
 <!-- ============= LOG DE DECISIONES ============= -->
 <div class="page-section" id="page-logs">
@@ -4241,7 +4227,7 @@ function toggleMetodologia() {
 }
 
 // =============================================================
-// EXPORTAR REPORTE ESG A PDF
+// EXPORTAR REPORTE ESG A PDF (DISEÑO PROFESIONAL)
 // =============================================================
 function exportarReporteESG() {
   if (!window._esgData) {
@@ -4258,139 +4244,403 @@ function exportarReporteESG() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const d = window._esgData;
+  const W = 210;  // ancho A4
+  const fechaHoy = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
   
-  // === ENCABEZADO ===
-  doc.setFillColor(36, 48, 36);
-  doc.rect(0, 0, 210, 40, 'F');
+  // Helper para textos
+  const colorPrimary = [36, 48, 36];
+  const colorAccent = [239, 159, 39];
+  const colorGreen = [99, 153, 34];
+  const colorMuted = [100, 116, 139];
+  const colorText = [15, 23, 42];
   
-  doc.setFontSize(26);
-  doc.setTextColor(239, 159, 39);
+  // ============================================
+  // PORTADA / ENCABEZADO
+  // ============================================
+  
+  // Banda verde superior
+  doc.setFillColor(...colorPrimary);
+  doc.rect(0, 0, W, 50, 'F');
+  
+  // Banda ámbar inferior del header
+  doc.setFillColor(...colorAccent);
+  doc.rect(0, 50, W, 3, 'F');
+  
+  // Logo AgroIA
+  doc.setFontSize(32);
+  doc.setTextColor(...colorAccent);
   doc.setFont('helvetica', 'bold');
-  doc.text('AgroIA', 15, 18);
+  doc.text('AgroIA', 15, 22);
   
-  doc.setFontSize(11);
+  // Subtítulo del logo
+  doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'normal');
-  doc.text('Reporte de Sostenibilidad ESG', 15, 26);
+  doc.text('Sistema de Validacion Estadistica de Cosecha con IA', 15, 28);
+  
+  // Título del reporte (derecha)
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.text('REPORTE ESG', W - 15, 22, { align: 'right' });
   
   doc.setFontSize(9);
-  doc.setTextColor(200, 200, 200);
-  doc.text(`Valle de Viru, La Libertad | ${new Date().toLocaleDateString('es-PE')}`, 15, 32);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(220, 220, 220);
+  doc.text('Sostenibilidad e Impacto', W - 15, 28, { align: 'right' });
+  doc.text(`Generado: ${fechaHoy}`, W - 15, 34, { align: 'right' });
+  doc.text('Valle de Viru, La Libertad', W - 15, 40, { align: 'right' });
   
-  // === SCORE GLOBAL ===
-  let y = 55;
-  doc.setFillColor(99, 153, 34);
-  doc.roundedRect(15, y, 180, 35, 3, 3, 'F');
+  // ============================================
+  // SECCION 1: CALIFICACION GLOBAL
+  // ============================================
+  let y = 65;
   
   doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'normal');
-  doc.text('CALIFICACION ESG GLOBAL', 25, y + 10);
-  
-  doc.setFontSize(36);
+  doc.setTextColor(...colorGreen);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${d.scoreGlobal}/100`, 25, y + 25);
+  doc.text('1. CALIFICACION GLOBAL ESG', 15, y);
   
-  doc.setFontSize(22);
-  doc.text(d.rating, 150, y + 18);
+  // Línea separadora
+  doc.setDrawColor(...colorGreen);
+  doc.setLineWidth(0.5);
+  doc.line(15, y + 2, W - 15, y + 2);
   
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(d.ratingTitle, 130, y + 28);
+  y += 10;
   
-  y = 100;
+  // Caja del score con gradiente visual
+  doc.setFillColor(247, 250, 244);
+  doc.roundedRect(15, y, W - 30, 35, 3, 3, 'F');
   
-  // === IMPACTO AMBIENTAL ===
-  doc.setFontSize(14);
-  doc.setTextColor(36, 48, 36);
+  // Borde izquierdo de color
+  doc.setFillColor(...colorGreen);
+  doc.rect(15, y, 4, 35, 'F');
+  
+  // Score grande
+  doc.setFontSize(48);
+  doc.setTextColor(...colorPrimary);
   doc.setFont('helvetica', 'bold');
-  doc.text('Impacto Ambiental Acumulado', 15, y);
+  doc.text(`${d.scoreGlobal}`, 30, y + 23);
   
+  doc.setFontSize(11);
+  doc.setTextColor(...colorMuted);
+  doc.setFont('helvetica', 'normal');
+  doc.text('/ 100 puntos', 30, y + 31);
+  
+  // Rating grande
+  doc.setFontSize(38);
+  doc.setTextColor(...colorAccent);
+  doc.setFont('helvetica', 'bold');
+  doc.text(d.rating, 80, y + 23);
+  
+  doc.setFontSize(11);
+  doc.setTextColor(...colorPrimary);
+  doc.setFont('helvetica', 'bold');
+  doc.text(d.ratingTitle, 80, y + 31);
+  
+  // Texto descriptivo a la derecha
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...colorText);
+  
+  const descripcion = `AgroIA combina IA, validacion estadistica y digitalizacion completa para generar impacto positivo medible en las tres dimensiones del estandar ESG internacional (Environmental, Social, Governance).`;
+  const lineasDesc = doc.splitTextToSize(descripcion, 70);
+  doc.text(lineasDesc, 120, y + 8);
+  
+  y += 42;
+  
+  // ============================================
+  // SECCION 2: IMPACTO AMBIENTAL ACUMULADO
+  // ============================================
+  
+  doc.setFontSize(11);
+  doc.setTextColor(...colorGreen);
+  doc.setFont('helvetica', 'bold');
+  doc.text('2. IMPACTO AMBIENTAL ACUMULADO', 15, y);
+  doc.setDrawColor(...colorGreen);
+  doc.line(15, y + 2, W - 15, y + 2);
   y += 8;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(60, 60, 60);
   
+  doc.setFontSize(9);
+  doc.setTextColor(...colorMuted);
+  doc.setFont('helvetica', 'italic');
+  doc.text('Datos calculados con base en las pesadas registradas en el sistema.', 15, y);
+  y += 8;
+  
+  // Tabla de KPIs con diseño profesional
   const aguaTexto = d.aguaUsada >= 1000 
     ? (d.aguaUsada / 1000).toFixed(1) + ' m3'
     : Math.round(d.aguaUsada).toLocaleString() + ' L';
   
   const kpis = [
-    [`Huella hidrica`, aguaTexto, '37% mas eficiente que promedio mundial FAO'],
-    [`CO2 evitado`, d.co2Evitado.toFixed(2) + ' kg', 'Por digitalizacion del proceso'],
-    [`Papel ahorrado`, d.hojasEvitadas.toLocaleString() + ' hojas', `Equivale a ${(d.hojasEvitadas/8000).toFixed(2)} arboles preservados`],
-    [`Km no recorridos`, d.kmEvitados.toFixed(1) + ' km', 'Verificacion remota por vision IA']
+    { 
+      icon: 'Huella hidrica', 
+      color: [59, 130, 246],
+      valor: aguaTexto, 
+      indicador: '37% mas eficiente',
+      detalle: `Total acumulado para ${d.totalKg.toFixed(0)} kg de palta Hass cosechados.\nPromedio mundial: 1,981 L/kg (FAO). AgroIA: 1,250 L/kg (riego goteo).`
+    },
+    { 
+      icon: 'CO2 evitado', 
+      color: [16, 185, 129],
+      valor: d.co2Evitado.toFixed(2) + ' kg', 
+      indicador: '96% reduccion',
+      detalle: `Equivale a no recorrer ${(d.co2Evitado / 0.21).toFixed(1)} km en automovil.\nFuente: EPA 2024, MINAM Peru 2024.`
+    },
+    { 
+      icon: 'Papel ahorrado', 
+      color: [245, 158, 11],
+      valor: d.hojasEvitadas.toLocaleString() + ' hojas', 
+      indicador: '100% digital',
+      detalle: `Equivale a ${(d.hojasEvitadas / 8000).toFixed(2)} arboles adultos preservados.\nUn arbol adulto produce aprox. 8,000 hojas A4.`
+    },
+    { 
+      icon: 'Km no recorridos', 
+      color: [168, 85, 247],
+      valor: d.kmEvitados.toFixed(1) + ' km', 
+      indicador: '90% remoto',
+      detalle: `Verificacion in situ tradicional reemplazada por vision IA.\nEvita uso de vehiculos para inspeccion en campo.`
+    }
   ];
   
   kpis.forEach((kpi, i) => {
-    doc.setFillColor(245, 245, 220);
-    doc.rect(15, y, 180, 12, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(36, 48, 36);
-    doc.text(kpi[0], 18, y + 7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(99, 153, 34);
-    doc.text(kpi[1], 85, y + 7);
-    doc.setTextColor(100, 100, 100);
-    doc.setFontSize(9);
-    doc.text(kpi[2], 130, y + 7);
+    // Fondo alternado
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(15, y, W - 30, 20, 2, 2, 'F');
+    
+    // Borde izquierdo de color
+    doc.setFillColor(...kpi.color);
+    doc.rect(15, y, 3, 20, 'F');
+    
+    // Nombre del KPI
     doc.setFontSize(10);
-    y += 14;
+    doc.setTextColor(...kpi.color);
+    doc.setFont('helvetica', 'bold');
+    doc.text(kpi.icon, 22, y + 7);
+    
+    // Valor grande
+    doc.setFontSize(16);
+    doc.setTextColor(...colorPrimary);
+    doc.setFont('helvetica', 'bold');
+    doc.text(kpi.valor, 22, y + 16);
+    
+    // Indicador (badge)
+    doc.setFillColor(220, 252, 231);
+    doc.roundedRect(75, y + 3, 30, 6, 1, 1, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(22, 101, 52);
+    doc.setFont('helvetica', 'bold');
+    doc.text(kpi.indicador, 90, y + 7, { align: 'center' });
+    
+    // Detalle a la derecha
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...colorText);
+    const detalleLineas = doc.splitTextToSize(kpi.detalle, 85);
+    doc.text(detalleLineas, 115, y + 7);
+    
+    y += 23;
   });
   
-  y += 5;
+  // ============================================
+  // SECCION 3: DESGLOSE POR DIMENSION
+  // ============================================
   
-  // === DIMENSIONES ESG ===
-  doc.setFontSize(14);
-  doc.setTextColor(36, 48, 36);
+  // Nueva página
+  doc.addPage();
+  y = 20;
+  
+  doc.setFontSize(11);
+  doc.setTextColor(...colorGreen);
   doc.setFont('helvetica', 'bold');
-  doc.text('Desglose por Dimension', 15, y);
-  
+  doc.text('3. DESGLOSE POR DIMENSION ESG', 15, y);
+  doc.setDrawColor(...colorGreen);
+  doc.line(15, y + 2, W - 15, y + 2);
   y += 10;
   
   const dimensiones = [
-    ['Environmental (E)', d.scoreE, [16, 185, 129], 'Digitalizacion 100%, riego optimizado, reduccion merma ' + d.mermaEvitada.toFixed(1) + '%'],
-    ['Social (S)', d.scoreS, [59, 130, 246], `Cumplimiento Ley 31110, XAI auditable, ${d.dnisValidados}/${d.totalTrabajadores} trabajadores`],
-    ['Governance (G)', d.scoreG, [168, 85, 247], 'ISO 27001 65%, audit log, 5 roles, cifrado AES-256']
+    { 
+      nombre: 'ENVIRONMENTAL (E)', 
+      score: d.scoreE, 
+      color: [16, 185, 129],
+      ponderacion: '40%',
+      detalles: [
+        'Digitalizacion 100% del proceso de cosecha',
+        'Trazabilidad ambiental de cada pesada',
+        'Riego optimizado por goteo (37% mas eficiente)',
+        `Reduccion estimada de merma: ${d.mermaEvitada.toFixed(1)}%`
+      ]
+    },
+    { 
+      nombre: 'SOCIAL (S)', 
+      score: d.scoreS, 
+      color: [59, 130, 246],
+      ponderacion: '35%',
+      detalles: [
+        'Cumplimiento de Ley 31110 (Trabajadores Agrarios)',
+        'Validacion auditable con XAI (Explainable AI)',
+        'Transparencia salarial total via app',
+        `Trabajadores con paga justa registrada: ${d.dnisValidados}/${d.totalTrabajadores}`
+      ]
+    },
+    { 
+      nombre: 'GOVERNANCE (G)', 
+      score: d.scoreG, 
+      color: [168, 85, 247],
+      ponderacion: '25%',
+      detalles: [
+        'Cumplimiento ISO 27001 al 65%',
+        'Audit log completo con trazabilidad de acciones',
+        '5 roles diferenciados con permisos granulares',
+        'Cifrado AES-256 en datos en reposo y transito'
+      ]
+    }
   ];
   
   dimensiones.forEach(dim => {
-    doc.setFillColor(...dim[2]);
-    doc.rect(15, y, 5, 12, 'F');
+    // Caja completa
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(15, y, W - 30, 50, 3, 3, 'F');
     
+    // Borde izquierdo
+    doc.setFillColor(...dim.color);
+    doc.rect(15, y, 5, 50, 'F');
+    
+    // Header de la dimensión
+    doc.setFontSize(13);
+    doc.setTextColor(...dim.color);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...dim[2]);
-    doc.setFontSize(11);
-    doc.text(dim[0], 23, y + 5);
+    doc.text(dim.nombre, 25, y + 9);
     
-    doc.setFontSize(14);
-    doc.text(dim[1] + '%', 170, y + 5);
+    // Score grande a la derecha
+    doc.setFontSize(28);
+    doc.setTextColor(...colorPrimary);
+    doc.text(dim.score + '%', W - 25, y + 13, { align: 'right' });
     
+    // Ponderación
+    doc.setFontSize(8);
+    doc.setTextColor(...colorMuted);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    doc.text(dim[3], 23, y + 10);
+    doc.text(`Ponderacion: ${dim.ponderacion}`, W - 25, y + 18, { align: 'right' });
     
     // Barra de progreso
-    doc.setFillColor(220, 220, 220);
-    doc.rect(23, y + 12, 150, 2, 'F');
-    doc.setFillColor(...dim[2]);
-    doc.rect(23, y + 12, 150 * dim[1] / 100, 2, 'F');
+    doc.setFillColor(230, 230, 230);
+    doc.roundedRect(25, y + 14, 100, 3, 1, 1, 'F');
+    doc.setFillColor(...dim.color);
+    doc.roundedRect(25, y + 14, 100 * dim.score / 100, 3, 1, 1, 'F');
     
-    y += 22;
+    // Detalles (lista)
+    doc.setFontSize(9);
+    doc.setTextColor(...colorText);
+    doc.setFont('helvetica', 'normal');
+    
+    dim.detalles.forEach((det, i) => {
+      doc.setTextColor(...dim.color);
+      doc.setFont('helvetica', 'bold');
+      doc.text('+', 25, y + 24 + (i * 5.5));
+      doc.setTextColor(...colorText);
+      doc.setFont('helvetica', 'normal');
+      doc.text(det, 30, y + 24 + (i * 5.5));
+    });
+    
+    y += 55;
   });
   
-  // === FOOTER ===
-  y = 275;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(15, y, 195, y);
+  // ============================================
+  // SECCION 4: CONCLUSIONES
+  // ============================================
+  
+  doc.setFontSize(11);
+  doc.setTextColor(...colorGreen);
+  doc.setFont('helvetica', 'bold');
+  doc.text('4. CONCLUSIONES', 15, y);
+  doc.setDrawColor(...colorGreen);
+  doc.line(15, y + 2, W - 15, y + 2);
+  y += 10;
+  
+  // Box de conclusión principal
+  doc.setFillColor(255, 251, 235);
+  doc.roundedRect(15, y, W - 30, 35, 3, 3, 'F');
+  doc.setFillColor(...colorAccent);
+  doc.rect(15, y, 4, 35, 'F');
+  
+  doc.setFontSize(10);
+  doc.setTextColor(...colorAccent);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Resultado Principal', 22, y + 8);
+  
+  doc.setFontSize(9);
+  doc.setTextColor(...colorText);
+  doc.setFont('helvetica', 'normal');
+  
+  const conclusion = `AgroIA alcanza una calificacion ESG global de ${d.scoreGlobal}/100 puntos (rating ${d.rating}), reduciendo significativamente el impacto ambiental del proceso de validacion de cosecha. Por cada ${d.totalKg.toFixed(0)} kg cosechados, el sistema ha evitado ${d.hojasEvitadas} hojas de papel y ${d.co2Evitado.toFixed(2)} kg de CO2, manteniendo trazabilidad completa y cumplimiento normativo.`;
+  
+  const conclusionLineas = doc.splitTextToSize(conclusion, W - 35);
+  doc.text(conclusionLineas, 22, y + 15);
+  
+  y += 42;
+  
+  // ============================================
+  // SECCION 5: METODOLOGIA
+  // ============================================
+  
+  doc.setFontSize(11);
+  doc.setTextColor(...colorGreen);
+  doc.setFont('helvetica', 'bold');
+  doc.text('5. METODOLOGIA Y FUENTES', 15, y);
+  doc.setDrawColor(...colorGreen);
+  doc.line(15, y + 2, W - 15, y + 2);
+  y += 8;
   
   doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
-  doc.setFont('helvetica', 'italic');
-  doc.text('Metodologia: GRI (Global Reporting Initiative). Ponderacion E 40% + S 35% + G 25%.', 15, y + 5);
-  doc.text('Datos basados en pesadas registradas en el sistema. Esta evaluacion interna no sustituye una auditoria ESG formal.', 15, y + 10);
-  doc.text(`AgroIA | Universidad Cesar Vallejo | ${new Date().toLocaleDateString('es-PE')}`, 15, y + 15);
+  doc.setTextColor(...colorText);
+  doc.setFont('helvetica', 'normal');
+  
+  const metodologia = [
+    'Calificacion ESG: Promedio ponderado segun Global Reporting Initiative (GRI):',
+    '  - Environmental (E): 40% del peso',
+    '  - Social (S): 35% del peso',
+    '  - Governance (G): 25% del peso',
+    '',
+    'Fuentes cientificas:',
+    '  - Huella hidrica palta Hass: Mekonnen & Hoekstra (2010), FAO',
+    '  - Factor CO2 papel A4: U.S. Environmental Protection Agency (EPA 2024)',
+    '  - Factor CO2 vehiculo: Ministerio del Ambiente del Peru (MINAM 2024)',
+    '  - Estandar ESG: Global Reporting Initiative (GRI Standards 2021)',
+    '',
+    'Nota: Esta evaluacion interna no sustituye una auditoria ESG formal de un',
+    'tercero acreditado. Los datos se basan exclusivamente en pesadas registradas',
+    'en el sistema AgroIA.'
+  ];
+  
+  metodologia.forEach(linea => {
+    doc.text(linea, 15, y);
+    y += 4;
+  });
+  
+  // ============================================
+  // FOOTER en todas las páginas
+  // ============================================
+  
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    
+    // Línea superior del footer
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.3);
+    doc.line(15, 285, W - 15, 285);
+    
+    doc.setFontSize(8);
+    doc.setTextColor(...colorMuted);
+    doc.setFont('helvetica', 'normal');
+    doc.text('AgroIA - Reporte ESG Confidencial', 15, 290);
+    doc.text(`Pagina ${i} de ${pageCount}`, W - 15, 290, { align: 'right' });
+    
+    doc.setFontSize(7);
+    doc.text('Universidad Cesar Vallejo - Proyecto Academico', 15, 294);
+    doc.text(`Generado: ${fechaHoy}`, W - 15, 294, { align: 'right' });
+  }
   
   // Guardar
   doc.save(`AgroIA_Reporte_ESG_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -4398,8 +4648,8 @@ function exportarReporteESG() {
   // Auditoría
   if (typeof auditarAccion === 'function') {
     auditarAccion('EXPORTAR_ESG_PDF',
-      'Exportación de reporte ESG en PDF',
-      { score: d.scoreGlobal, rating: d.rating }
+      'Exportación de reporte ESG profesional en PDF',
+      { score: d.scoreGlobal, rating: d.rating, kg_validados: d.totalKg }
     );
   }
 }
