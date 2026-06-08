@@ -2842,6 +2842,270 @@ def reportar_problema():
         }), 500
 
 
+# ============================================================
+# ENDPOINT: NOTIFICAR ANOMALÍA AL SUPERVISOR
+# ============================================================
+
+# Anti-spam: tracking de emails por supervisor en últimas 60 minutos
+_notif_tracker = defaultdict(list)
+NOTIF_MAX_POR_HORA = 7
+
+@app.route('/api/notificar-anomalia', methods=['POST'])
+@rate_limit('default')
+def notificar_anomalia():
+    """
+    Envía notificación al supervisor cuando una pesada es anómala.
+    Solo se notifica si estado es 'red' (Bloqueada) o 'orange' (Alerta).
+    Anti-spam: máximo 7 emails/hora por supervisor.
+    """
+    try:
+        data = request.json or {}
+        
+        # Validar inputs
+        trabajador_dni = data.get('trabajador_dni', '')
+        trabajador_nombre = data.get('trabajador_nombre', '')
+        cuadrilla = data.get('cuadrilla', '').upper()
+        lote = data.get('lote', '')
+        kg = float(data.get('kg', 0))
+        horas = float(data.get('horas', 0))
+        z_score = float(data.get('z_score', 0))
+        estado_color = data.get('estado_color', '')  # red/orange/yellow/green
+        historico = float(data.get('historico', 23))
+        
+        # Solo notificar anomalías
+        if estado_color not in ['red', 'orange']:
+            return jsonify({
+                "success": False,
+                "skipped": True,
+                "reason": "No es una anomalía (estado: " + estado_color + ")"
+            })
+        
+        # Validar cuadrilla
+        if cuadrilla not in ['C3', 'C5', 'C7']:
+            return jsonify({"success": False, "error": "Cuadrilla inválida"}), 400
+        
+        # Obtener email del supervisor de esa cuadrilla
+        var_email = f'EMAIL_SUPERVISOR_{cuadrilla}'
+        email_supervisor = os.environ.get(var_email, '')
+        
+        if not email_supervisor:
+            print(f'[NOTIFICAR] No hay email configurado para {var_email}')
+            return jsonify({
+                "success": False,
+                "error": f"Email del supervisor {cuadrilla} no configurado"
+            }), 400
+        
+        # ANTI-SPAM: verificar cuántos emails se enviaron en última hora a este supervisor
+        ahora = time.time()
+        hora_atras = ahora - 3600  # 60 minutos
+        
+        # Limpiar registros viejos
+        _notif_tracker[email_supervisor] = [
+            t for t in _notif_tracker[email_supervisor] if t > hora_atras
+        ]
+        
+        if len(_notif_tracker[email_supervisor]) >= NOTIF_MAX_POR_HORA:
+            print(f'[NOTIFICAR] Límite anti-spam alcanzado para {email_supervisor}')
+            return jsonify({
+                "success": False,
+                "antispam": True,
+                "mensaje": f"Límite de {NOTIF_MAX_POR_HORA} emails/hora alcanzado. Anomalía registrada en logs pero no se envió email.",
+                "enviados_ultima_hora": len(_notif_tracker[email_supervisor])
+            })
+        
+        # === Construir email ===
+        productividad = kg / horas if horas > 0 else 0
+        pct_diferencia = ((productividad - historico) / historico) * 100 if historico > 0 else 0
+        fecha_legible = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        
+        # Estado label y color
+        if estado_color == 'red':
+            estado_label = 'BLOQUEADA'
+            estado_emoji = '🚨'
+            color_principal = '#DC2626'
+            motivo_default = 'Anomalía estadística significativa (z-score crítico)'
+        else:  # orange
+            estado_label = 'ALERTA'
+            estado_emoji = '⚠️'
+            color_principal = '#F97316'
+            motivo_default = 'Productividad muy diferente al histórico'
+        
+        # Determinar mensaje según z-score
+        if abs(z_score) > 3:
+            urgencia = 'CRÍTICA'
+            recomendacion = 'Verificar inmediatamente con el trabajador. Posible error de digitación o evento extraordinario.'
+        elif abs(z_score) > 2:
+            urgencia = 'ALTA'
+            recomendacion = 'Revisar durante el día. Confirmar si la cifra es correcta.'
+        else:
+            urgencia = 'MEDIA'
+            recomendacion = 'Mantener en observación.'
+        
+        # HTML del email
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: 'Segoe UI', Arial, sans-serif; background:#f5f5dc; margin:0; padding:20px; color:#243024;">
+            <div style="max-width:600px; margin:0 auto; background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+                
+                <!-- Header con alerta -->
+                <div style="background:linear-gradient(135deg, {color_principal}, #243024); padding:24px; color:white;">
+                    <div style="font-size:32px; margin-bottom:4px;">{estado_emoji}</div>
+                    <h1 style="margin:0; font-size:22px;">Pesada anómala detectada</h1>
+                    <div style="opacity:0.9; font-size:14px; margin-top:4px;">Tu cuadrilla {cuadrilla} requiere tu revisión</div>
+                </div>
+                
+                <!-- Badge urgencia -->
+                <div style="padding:14px 24px; background:#FEF3C7; border-bottom:1px solid #FBBF24;">
+                    <div style="display:inline-block; background:{color_principal}; color:white; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:bold;">
+                        🎯 URGENCIA: {urgencia}
+                    </div>
+                    <div style="display:inline-block; background:#243024; color:white; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:bold; margin-left:8px;">
+                        📅 {fecha_legible}
+                    </div>
+                </div>
+                
+                <!-- Datos del trabajador -->
+                <div style="padding:20px 24px; border-bottom:1px solid #eee;">
+                    <h2 style="color:#243024; margin:0 0 12px 0; font-size:16px;">👤 Datos del trabajador</h2>
+                    <table style="width:100%; font-size:13px;">
+                        <tr>
+                            <td style="padding:6px 0; color:#64748b;">Trabajador:</td>
+                            <td style="padding:6px 0; font-weight:bold; color:#243024;">{trabajador_nombre}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:6px 0; color:#64748b;">DNI:</td>
+                            <td style="padding:6px 0; font-weight:bold; color:#243024;">{trabajador_dni}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:6px 0; color:#64748b;">Cuadrilla:</td>
+                            <td style="padding:6px 0; font-weight:bold; color:#243024;">{cuadrilla}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:6px 0; color:#64748b;">Lote:</td>
+                            <td style="padding:6px 0; font-weight:bold; color:#243024;">{lote}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <!-- Datos de la pesada -->
+                <div style="padding:20px 24px; border-bottom:1px solid #eee;">
+                    <h2 style="color:#243024; margin:0 0 12px 0; font-size:16px;">📋 Detalle de la pesada</h2>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div style="background:#f5f5dc; padding:14px; border-radius:8px;">
+                            <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Kilos cosechados</div>
+                            <div style="color:#243024; font-size:24px; font-weight:bold; margin-top:4px;">{kg:.1f} kg</div>
+                        </div>
+                        <div style="background:#f5f5dc; padding:14px; border-radius:8px;">
+                            <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Horas trabajadas</div>
+                            <div style="color:#243024; font-size:24px; font-weight:bold; margin-top:4px;">{horas:.1f} h</div>
+                        </div>
+                        <div style="background:#FEF2F2; padding:14px; border-radius:8px;">
+                            <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Productividad real</div>
+                            <div style="color:{color_principal}; font-size:24px; font-weight:bold; margin-top:4px;">{productividad:.1f} kg/h</div>
+                        </div>
+                        <div style="background:#F0FDF4; padding:14px; border-radius:8px;">
+                            <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Histórico del trabajador</div>
+                            <div style="color:#639922; font-size:24px; font-weight:bold; margin-top:4px;">{historico:.1f} kg/h</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Análisis IA -->
+                <div style="padding:20px 24px; border-bottom:1px solid #eee;">
+                    <h2 style="color:#243024; margin:0 0 12px 0; font-size:16px;">🤖 Análisis del agente IA</h2>
+                    <div style="background:{color_principal}; color:white; padding:16px; border-radius:10px;">
+                        <div style="font-size:13px; opacity:0.95;">Z-Score (medida de anomalía estadística)</div>
+                        <div style="font-size:36px; font-weight:bold; margin-top:4px;">{z_score:+.2f}</div>
+                        <div style="font-size:12px; margin-top:6px; opacity:0.9;">
+                            Estado: <strong>{estado_label}</strong> · 
+                            Diferencia con histórico: <strong>{pct_diferencia:+.1f}%</strong>
+                        </div>
+                    </div>
+                    <p style="color:#64748b; font-size:12px; margin-top:12px; line-height:1.5;">
+                        <strong>Interpretación:</strong> {motivo_default}. Un z-score mayor a |3| indica anomalía 
+                        crítica (menos del 0.3% probabilidad estadística).
+                    </p>
+                </div>
+                
+                <!-- Acción recomendada -->
+                <div style="padding:20px 24px; background:#FFFBEB;">
+                    <h2 style="color:#EF9F27; margin:0 0 12px 0; font-size:16px;">🎯 Acción recomendada</h2>
+                    <p style="color:#243024; font-size:14px; line-height:1.6; margin:0 0 14px 0;">
+                        {recomendacion}
+                    </p>
+                    <a href="https://agroia-app.onrender.com" 
+                       style="display:inline-block; background:#243024; color:white; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">
+                        📊 Ver en AgroIA →
+                    </a>
+                </div>
+                
+                <!-- Footer -->
+                <div style="background:#243024; color:#94a3b8; padding:16px 24px; text-align:center; font-size:11px;">
+                    AgroIA · Sistema de Validación Estadística<br>
+                    Valle de Virú, La Libertad · Universidad César Vallejo
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Enviar email via Resend
+        api_key = os.getenv('RESEND_API_KEY')
+        if not api_key:
+            return jsonify({
+                "success": False,
+                "error": "RESEND_API_KEY no configurada"
+            }), 500
+        
+        email_payload = {
+            "from": os.getenv('EMAIL_FROM', 'AgroIA <onboarding@resend.dev>'),
+            "to": [email_supervisor],
+            "subject": f"{estado_emoji} Pesada {estado_label} en {cuadrilla} - {trabajador_nombre.split(',')[1].strip() if ',' in trabajador_nombre else trabajador_nombre}",
+            "html": html_body
+        }
+        
+        resp = requests.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json=email_payload,
+            timeout=15
+        )
+        
+        if resp.status_code in [200, 201]:
+            # Registrar en el tracker anti-spam
+            _notif_tracker[email_supervisor].append(ahora)
+            
+            print(f'[NOTIFICAR] Email enviado a supervisor {cuadrilla} ({email_supervisor})')
+            return jsonify({
+                "success": True,
+                "destinatario": email_supervisor,
+                "cuadrilla": cuadrilla,
+                "tipo": estado_label,
+                "enviados_ultima_hora": len(_notif_tracker[email_supervisor]),
+                "limite_hora": NOTIF_MAX_POR_HORA
+            })
+        else:
+            print(f'[NOTIFICAR] Error Resend: {resp.status_code} - {resp.text[:200]}')
+            return jsonify({
+                "success": False,
+                "error": f"Error de Resend: {resp.status_code}"
+            }), 500
+    
+    except Exception as e:
+        print(f'[NOTIFICAR] Error: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 @app.route('/api/cron-automatico', methods=['GET', 'POST'])
 @rate_limit('cron')
 def cron_automatico():
