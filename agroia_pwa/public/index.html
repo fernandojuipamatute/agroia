@@ -1120,6 +1120,9 @@ tr:hover td {
     <div class="nav-item" onclick="switchPage('sostenibilidad')" data-permiso="sostenibilidad">
       <span class="nav-icon">🌱</span> Sostenibilidad
     </div>
+    <div class="nav-item" onclick="switchPage('estado')" data-permiso="estado">
+      <span class="nav-icon">🩺</span> Estado del Sistema
+    </div>
   </div>
 
   <div class="nav-section">
@@ -2247,6 +2250,80 @@ tr:hover td {
     </div>
   </div>
 
+</div>
+
+<!-- ============= ESTADO DEL SISTEMA (Health Check) ============= -->
+<div class="page-section" id="page-estado">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">🩺 Estado del Sistema</h1>
+      <div class="page-subtitle">Monitoreo en vivo de todos los servicios externos</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn" onclick="verificarSalud()" id="btnVerificarSalud" style="padding:10px 16px;">
+        🔄 Probar ahora
+      </button>
+    </div>
+  </div>
+
+  <!-- Estado global -->
+  <div id="estadoGlobalCard" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:24px; margin-bottom:20px; display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+    <div id="estadoGlobalIcon" style="font-size:48px;">⏳</div>
+    <div style="flex:1; min-width:200px;">
+      <div style="color:#94a3b8; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">ESTADO GLOBAL DEL SISTEMA</div>
+      <h2 id="estadoGlobalMensaje" style="color:#fff; margin:6px 0; font-size:22px;">Verificando servicios...</h2>
+      <div id="estadoGlobalDetalle" style="color:#94a3b8; font-size:13px;">Aguarda mientras consultamos cada servicio</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Última verificación</div>
+      <div id="estadoUltimaVerif" style="color:#fff; font-size:14px; font-weight:600; margin-top:2px;">--</div>
+    </div>
+  </div>
+
+  <!-- Resumen de métricas -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:24px;">
+    <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">✅ Operativos</div>
+      <div id="estadoCountOk" style="color:#10B981; font-size:28px; font-weight:bold; margin-top:4px;">--</div>
+    </div>
+    <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🟡 Lentos</div>
+      <div id="estadoCountLento" style="color:#F59E0B; font-size:28px; font-weight:bold; margin-top:4px;">--</div>
+    </div>
+    <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25); border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🔴 Con error</div>
+      <div id="estadoCountError" style="color:#DC2626; font-size:28px; font-weight:bold; margin-top:4px;">--</div>
+    </div>
+    <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">⚡ Latencia promedio</div>
+      <div id="estadoLatenciaProm" style="color:#3B82F6; font-size:28px; font-weight:bold; margin-top:4px;">-- ms</div>
+    </div>
+  </div>
+
+  <!-- Lista detallada de servicios -->
+  <h2 style="color:#fff; margin:24px 0 16px 0; font-size:20px;">📊 Detalle por servicio</h2>
+  
+  <div id="estadoListaServicios" style="display:flex; flex-direction:column; gap:12px;">
+    <div style="text-align:center; padding:40px; color:#94a3b8;">
+      ⏳ Cargando estado de los servicios...
+    </div>
+  </div>
+
+  <!-- Info adicional -->
+  <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:14px; padding:20px; margin-top:24px;">
+    <div style="display:flex; align-items:flex-start; gap:14px;">
+      <div style="font-size:28px;">💡</div>
+      <div>
+        <h3 style="color:#3B82F6; margin:0 0 6px 0; font-size:15px;">¿Cómo funciona?</h3>
+        <p style="color:#cbd5e1; font-size:13px; line-height:1.6; margin:0;">
+          Este panel consulta en tiempo real el estado de cada servicio externo del que depende AgroIA: 
+          base de datos (Supabase), visión por IA (Google Gemini), email (Resend), datos meteorológicos 
+          (Open-Meteo) y monitoreo (Datadog). La verificación se hace automáticamente cada 60 segundos 
+          o cuando presionas "Probar ahora". Cumple parte de ISO 27001 A.12 (Operations Security).
+        </p>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ============= LOG DE DECISIONES ============= -->
@@ -4806,6 +4883,13 @@ function switchPage(page) {
   if (page === 'sostenibilidad' && typeof actualizarSostenibilidad === 'function') {
     actualizarSostenibilidad();
   }
+  
+  // Si entra a estado del sistema, verificar salud
+  if (page === 'estado' && typeof entrarAEstadoSistema === 'function') {
+    entrarAEstadoSistema();
+  } else if (typeof salirDeEstadoSistema === 'function') {
+    salirDeEstadoSistema();
+  }
 }
 
 // ============================================================
@@ -7194,7 +7278,7 @@ function mostrarUsuarioEnSidebar(perfil) {
 // Mapa de permisos: qué puede ver cada rol
 const PERMISOS_POR_ROL = {
   'admin': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'parametros', 'datadog'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'estado', 'parametros', 'datadog'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
@@ -7206,7 +7290,7 @@ const PERMISOS_POR_ROL = {
     }
   },
   'jefecampo': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'estado'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
@@ -7230,7 +7314,7 @@ const PERMISOS_POR_ROL = {
     }
   },
   'gerencia': {
-    nav: ['dashboard', 'reporte', 'sostenibilidad'],
+    nav: ['dashboard', 'reporte', 'sostenibilidad', 'estado'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: false,
@@ -7267,6 +7351,180 @@ const PERMISOS_POR_ROL = {
     }
   }
 };
+
+// =============================================================
+// HEALTH CHECK - Estado del Sistema en Vivo
+// =============================================================
+
+let _saludIntervalo = null;
+
+async function verificarSalud() {
+  const btn = document.getElementById('btnVerificarSalud');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Verificando...';
+    btn.style.opacity = '0.6';
+  }
+  
+  try {
+    const response = await fetch('https://agroi-api.onrender.com/api/health-completo', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    
+    const data = await response.json();
+    renderEstadoSistema(data);
+    
+    if (typeof auditarAccion === 'function') {
+      auditarAccion('VERIFICAR_SALUD_SISTEMA',
+        `Verificación de salud: ${data.estado_global}`,
+        { 
+          estado: data.estado_global,
+          ok: data.resumen.ok,
+          lento: data.resumen.lento,
+          error: data.resumen.error 
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Error verificando salud:', error);
+    if (typeof toastError === 'function') {
+      toastError('No se pudo conectar con el servidor para verificar. ¿Está dormido?', {
+        titulo: 'Error de verificación'
+      });
+    }
+    
+    // Mostrar estado de error
+    document.getElementById('estadoGlobalIcon').textContent = '🔴';
+    document.getElementById('estadoGlobalMensaje').textContent = 'Sin conexión al servidor';
+    document.getElementById('estadoGlobalMensaje').style.color = '#DC2626';
+    document.getElementById('estadoGlobalDetalle').textContent = 'El backend no responde. Puede estar despertando (Render free tier).';
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '🔄 Probar ahora';
+      btn.style.opacity = '1';
+    }
+  }
+}
+
+function renderEstadoSistema(data) {
+  // Estado global
+  const icons = {
+    'ok': '🟢',
+    'lento': '🟡',
+    'degradado': '🔴',
+    'desconocido': '⚪'
+  };
+  const colors = {
+    'ok': '#10B981',
+    'lento': '#F59E0B',
+    'degradado': '#DC2626',
+    'desconocido': '#94a3b8'
+  };
+  
+  document.getElementById('estadoGlobalIcon').textContent = icons[data.estado_global] || '⚪';
+  document.getElementById('estadoGlobalMensaje').textContent = data.mensaje_global;
+  document.getElementById('estadoGlobalMensaje').style.color = colors[data.estado_global];
+  document.getElementById('estadoGlobalDetalle').textContent = 
+    `Verificación completa en ${data.tiempo_verificacion_ms}ms · ${Object.keys(data.servicios).length} servicios consultados`;
+  
+  // Última verificación
+  const ahora = new Date();
+  document.getElementById('estadoUltimaVerif').textContent = 
+    ahora.getHours().toString().padStart(2,'0') + ':' + 
+    ahora.getMinutes().toString().padStart(2,'0') + ':' + 
+    ahora.getSeconds().toString().padStart(2,'0');
+  
+  // Resumen de métricas
+  document.getElementById('estadoCountOk').textContent = data.resumen.ok;
+  document.getElementById('estadoCountLento').textContent = data.resumen.lento;
+  document.getElementById('estadoCountError').textContent = data.resumen.error;
+  document.getElementById('estadoLatenciaProm').textContent = data.latencia_promedio_ms + ' ms';
+  
+  // Lista detallada
+  const lista = document.getElementById('estadoListaServicios');
+  let html = '';
+  
+  Object.entries(data.servicios).forEach(([key, s]) => {
+    let bgColor, borderColor, badgeBg, badgeColor, latencyColor;
+    
+    if (s.estado === 'ok') {
+      bgColor = 'rgba(16,185,129,0.06)';
+      borderColor = '#10B981';
+      badgeBg = 'rgba(16,185,129,0.15)';
+      badgeColor = '#10B981';
+      latencyColor = '#10B981';
+    } else if (s.estado === 'lento') {
+      bgColor = 'rgba(245,158,11,0.06)';
+      borderColor = '#F59E0B';
+      badgeBg = 'rgba(245,158,11,0.15)';
+      badgeColor = '#F59E0B';
+      latencyColor = '#F59E0B';
+    } else if (s.estado === 'error') {
+      bgColor = 'rgba(220,38,38,0.06)';
+      borderColor = '#DC2626';
+      badgeBg = 'rgba(220,38,38,0.15)';
+      badgeColor = '#DC2626';
+      latencyColor = '#DC2626';
+    } else {
+      bgColor = 'rgba(148,163,184,0.06)';
+      borderColor = '#64748B';
+      badgeBg = 'rgba(148,163,184,0.15)';
+      badgeColor = '#94a3b8';
+      latencyColor = '#94a3b8';
+    }
+    
+    const estadoTexto = {
+      'ok': 'OPERATIVO',
+      'lento': 'LENTO',
+      'error': 'ERROR',
+      'desconocido': 'DESCONOCIDO'
+    }[s.estado] || s.estado.toUpperCase();
+    
+    html += `
+      <div style="background:${bgColor}; border:1px solid ${borderColor}33; border-left:4px solid ${borderColor}; border-radius:10px; padding:16px 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:12px; flex:1; min-width:200px;">
+            <div style="font-size:28px;">${s.icono}</div>
+            <div>
+              <div style="color:#fff; font-weight:600; font-size:15px;">${s.nombre}</div>
+              <div style="color:#cbd5e1; font-size:12px; margin-top:2px;">${s.detalle}</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <div style="text-align:right;">
+              <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">Latencia</div>
+              <div style="color:${latencyColor}; font-weight:bold; font-size:18px;">${s.latencia_ms} ms</div>
+            </div>
+            <div style="background:${badgeBg}; color:${badgeColor}; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600;">
+              ${estadoTexto}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  lista.innerHTML = html;
+}
+
+// Auto-verificar cuando se entra a la sección
+function entrarAEstadoSistema() {
+  verificarSalud();
+  // Cada 60 segundos auto-refresh
+  if (_saludIntervalo) clearInterval(_saludIntervalo);
+  _saludIntervalo = setInterval(verificarSalud, 60000);
+}
+
+function salirDeEstadoSistema() {
+  if (_saludIntervalo) {
+    clearInterval(_saludIntervalo);
+    _saludIntervalo = null;
+  }
+}
 
 // =============================================================
 // MODO TRABAJADOR (UI simplificada con botones gigantes)
