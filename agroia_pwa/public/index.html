@@ -995,6 +995,7 @@ tr:hover td {
 
 <!-- Librería para generar PDFs en el navegador -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -2266,6 +2267,99 @@ tr:hover td {
 </div>
 
 </main>
+</div>
+
+<!-- ============================================================ -->
+<!-- BOTÓN FLOTANTE: REPORTAR PROBLEMA                            -->
+<!-- ============================================================ -->
+<button id="btnReportarProblema" onclick="abrirModalReporte()" style="display:none; position:fixed; bottom:24px; right:24px; z-index:9990; width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg, #EF9F27, #DC2626); color:white; border:none; box-shadow:0 8px 24px rgba(220,38,38,0.4); cursor:pointer; font-size:24px; display:none; align-items:center; justify-content:center; transition:transform 0.2s, box-shadow 0.2s;" 
+        onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 12px 30px rgba(220,38,38,0.5)';"
+        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 8px 24px rgba(220,38,38,0.4)';"
+        title="Reportar un problema">
+  🆘
+</button>
+
+<!-- ============================================================ -->
+<!-- MODAL: REPORTAR PROBLEMA                                     -->
+<!-- ============================================================ -->
+<div id="modalReporte" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99997; align-items:center; justify-content:center; backdrop-filter:blur(8px); padding:20px;">
+  <div style="background:linear-gradient(135deg, #243024 0%, #1a1f1a 100%); border:1px solid rgba(239,159,39,0.3); border-radius:20px; padding:32px 28px; max-width:540px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 30px 80px rgba(0,0,0,0.5);">
+    
+    <!-- Header -->
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+      <div>
+        <h2 style="color:#fff; margin:0 0 4px 0; font-size:22px; display:flex; align-items:center; gap:10px;">
+          <span style="font-size:32px;">🆘</span> Reportar un problema
+        </h2>
+        <div style="color:#94a3b8; font-size:13px;">Tu reporte ayuda a mejorar AgroIA</div>
+      </div>
+      <button onclick="cerrarModalReporte()" style="background:transparent; border:none; color:#94a3b8; font-size:24px; cursor:pointer; padding:0; line-height:1;">×</button>
+    </div>
+    
+    <!-- Tipo de problema -->
+    <div style="margin-bottom:18px;">
+      <label style="color:#cbd5e1; font-size:13px; font-weight:600; display:block; margin-bottom:8px;">Tipo de problema</label>
+      <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:8px;">
+        <label style="background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,0.08); transition:all 0.2s;">
+          <input type="radio" name="tipoReporte" value="bug" checked style="accent-color:#EF9F27;">
+          <span style="color:#cbd5e1; font-size:13px;">🐛 Bug o error</span>
+        </label>
+        <label style="background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,0.08); transition:all 0.2s;">
+          <input type="radio" name="tipoReporte" value="lento" style="accent-color:#EF9F27;">
+          <span style="color:#cbd5e1; font-size:13px;">🐢 Algo va lento</span>
+        </label>
+        <label style="background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,0.08); transition:all 0.2s;">
+          <input type="radio" name="tipoReporte" value="duda" style="accent-color:#EF9F27;">
+          <span style="color:#cbd5e1; font-size:13px;">❓ No entiendo algo</span>
+        </label>
+        <label style="background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,0.08); transition:all 0.2s;">
+          <input type="radio" name="tipoReporte" value="sugerencia" style="accent-color:#EF9F27;">
+          <span style="color:#cbd5e1; font-size:13px;">💡 Sugerencia</span>
+        </label>
+      </div>
+    </div>
+    
+    <!-- Descripción -->
+    <div style="margin-bottom:18px;">
+      <label style="color:#cbd5e1; font-size:13px; font-weight:600; display:block; margin-bottom:8px;">¿Qué estabas haciendo?</label>
+      <textarea id="descripcionReporte" rows="4" placeholder="Ejemplo: Intentaba registrar una pesada de María Pérez y al hacer click en Validar, la app se quedó cargando..." 
+                style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 14px; color:#fff; font-size:13px; font-family:inherit; resize:vertical; min-height:90px;"></textarea>
+    </div>
+    
+    <!-- Email opcional (para que les respondamos) -->
+    <div style="margin-bottom:18px;">
+      <label style="color:#cbd5e1; font-size:13px; font-weight:600; display:block; margin-bottom:8px;">📧 Tu email <span style="color:#94a3b8; font-weight:400;">(opcional, para responderte)</span></label>
+      <input type="email" id="emailReporte" placeholder="tu@correo.com"
+             style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 14px; color:#fff; font-size:13px; font-family:inherit;">
+    </div>
+    
+    <!-- Opciones de captura -->
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; margin-bottom:18px;">
+      <div style="color:#94a3b8; font-size:12px; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">Información que se enviará</div>
+      <label style="display:flex; align-items:center; gap:10px; margin-bottom:8px; cursor:pointer;">
+        <input type="checkbox" id="incluirCaptura" checked style="accent-color:#EF9F27;">
+        <span style="color:#cbd5e1; font-size:13px;">📸 Captura de pantalla actual</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:10px; margin-bottom:8px; cursor:pointer;">
+        <input type="checkbox" id="incluirTecnica" checked style="accent-color:#EF9F27;">
+        <span style="color:#cbd5e1; font-size:13px;">💻 Info técnica (navegador, sistema)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+        <input type="checkbox" id="incluirAuditLog" checked style="accent-color:#EF9F27;">
+        <span style="color:#cbd5e1; font-size:13px;">📋 Últimas 10 acciones (audit log)</span>
+      </label>
+    </div>
+    
+    <!-- Botones -->
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button onclick="cerrarModalReporte()" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.15); padding:11px 20px; border-radius:9px; cursor:pointer; font-size:13px;">
+        Cancelar
+      </button>
+      <button onclick="enviarReporteProblema()" id="btnEnviarReporte" style="background:linear-gradient(135deg, #EF9F27, #639922); color:white; border:none; padding:11px 24px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:8px;">
+        📤 Enviar reporte
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- ============================================================ -->
@@ -6559,6 +6653,198 @@ window.addEventListener('offline', () => {
 });
 
 // =============================================================
+// SISTEMA DE REPORTAR PROBLEMA
+// =============================================================
+
+function abrirModalReporte() {
+  // Pre-rellenar email si el usuario tiene perfil
+  if (window._perfilUsuario && window._perfilUsuario.email) {
+    document.getElementById('emailReporte').value = window._perfilUsuario.email;
+  }
+  document.getElementById('descripcionReporte').value = '';
+  document.getElementById('modalReporte').style.display = 'flex';
+  
+  if (typeof auditarAccion === 'function') {
+    auditarAccion('ABRIR_REPORTE_PROBLEMA', 'Usuario abrió el modal de reporte de problema');
+  }
+}
+
+function cerrarModalReporte() {
+  document.getElementById('modalReporte').style.display = 'none';
+}
+
+async function enviarReporteProblema() {
+  const descripcion = document.getElementById('descripcionReporte').value.trim();
+  const tipo = document.querySelector('input[name="tipoReporte"]:checked')?.value || 'bug';
+  const email = document.getElementById('emailReporte').value.trim();
+  const incluirCaptura = document.getElementById('incluirCaptura').checked;
+  const incluirTecnica = document.getElementById('incluirTecnica').checked;
+  const incluirAuditLog = document.getElementById('incluirAuditLog').checked;
+  
+  // Validar descripción mínima
+  if (descripcion.length < 10) {
+    toastWarning('Describe el problema con un poco más de detalle (mínimo 10 caracteres)', {
+      titulo: 'Descripción muy corta'
+    });
+    return;
+  }
+  
+  // Bloquear botón mientras envía
+  const btn = document.getElementById('btnEnviarReporte');
+  const btnTextoOriginal = btn.innerHTML;
+  btn.innerHTML = '⏳ Enviando...';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  
+  try {
+    // Construir payload
+    const payload = {
+      tipo: tipo,
+      descripcion: descripcion,
+      email_usuario: email || 'no-proporcionado',
+      timestamp: new Date().toISOString(),
+      usuario: window._perfilUsuario ? {
+        dni: window._perfilUsuario.dni,
+        nombre: window._perfilUsuario.nombre,
+        rol: window._perfilUsuario.rol,
+        cuadrilla: window._perfilUsuario.cuadrilla || null
+      } : { anonimo: true }
+    };
+    
+    // 1. CAPTURA DE PANTALLA (si está habilitada)
+    let capturaBase64 = null;
+    if (incluirCaptura && typeof html2canvas !== 'undefined') {
+      try {
+        // Ocultar el modal antes de capturar
+        document.getElementById('modalReporte').style.display = 'none';
+        await new Promise(r => setTimeout(r, 400));
+        
+        const canvas = await html2canvas(document.body, {
+          scale: 0.7,  // Reduce tamaño
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#0a0e0a',
+          width: Math.min(window.innerWidth, 1280),
+          height: Math.min(window.innerHeight, 720)
+        });
+        capturaBase64 = canvas.toDataURL('image/jpeg', 0.65);
+        
+        // Re-mostrar modal
+        document.getElementById('modalReporte').style.display = 'flex';
+      } catch(e) {
+        console.warn('No se pudo capturar pantalla:', e);
+        document.getElementById('modalReporte').style.display = 'flex';
+      }
+    }
+    
+    // 2. INFO TÉCNICA
+    if (incluirTecnica) {
+      payload.info_tecnica = {
+        url_actual: window.location.href,
+        pagina_activa: document.querySelector('.page-section.active')?.id || 'desconocida',
+        user_agent: navigator.userAgent,
+        plataforma: navigator.platform,
+        idioma: navigator.language,
+        resolucion: `${window.screen.width}x${window.screen.height}`,
+        viewport: `${window.innerWidth}x${window.innerHeight}`,
+        es_movil: /Mobi|Android/i.test(navigator.userAgent),
+        online: navigator.onLine,
+        cookies_habilitadas: navigator.cookieEnabled,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      };
+    }
+    
+    // 3. ÚLTIMAS ACCIONES DEL AUDIT LOG (desde Supabase)
+    if (incluirAuditLog && window._supabase && window._perfilUsuario) {
+      try {
+        const { data: ultimasAcciones } = await window._supabase
+          .from('audit_log')
+          .select('accion, descripcion, fecha, exitoso')
+          .eq('usuario_dni', window._perfilUsuario.dni)
+          .order('fecha', { ascending: false })
+          .limit(10);
+        payload.ultimas_acciones = ultimasAcciones || [];
+      } catch(e) {
+        console.warn('No se pudo obtener audit log:', e);
+        payload.ultimas_acciones = [];
+      }
+    }
+    
+    // 4. ENVIAR AL BACKEND
+    const response = await fetch('https://agroi-api.onrender.com/api/reportar-problema', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        captura_screenshot: capturaBase64
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Error desconocido');
+    }
+    
+    // ÉXITO
+    cerrarModalReporte();
+    toastExito('¡Gracias! Tu reporte fue enviado. Lo revisaremos pronto.', {
+      titulo: '✅ Reporte enviado',
+      duracion: 5000
+    });
+    
+    if (typeof auditarAccion === 'function') {
+      auditarAccion('REPORTAR_PROBLEMA', 
+        `Reporte enviado - tipo: ${tipo}`, 
+        { tipo, descripcion_corta: descripcion.substring(0, 100) }
+      );
+    }
+    
+  } catch (error) {
+    console.error('Error enviando reporte:', error);
+    
+    // Guardar local como respaldo si falla
+    try {
+      const respaldos = JSON.parse(localStorage.getItem('reportes_pendientes') || '[]');
+      respaldos.push({
+        descripcion, tipo, email,
+        timestamp: new Date().toISOString(),
+        usuario: window._perfilUsuario?.dni || 'anonimo'
+      });
+      localStorage.setItem('reportes_pendientes', JSON.stringify(respaldos));
+    } catch(e) {}
+    
+    if (typeof manejarError === 'function') {
+      manejarError(error, 'Error al enviar reporte');
+    } else {
+      toastError('No se pudo enviar el reporte ahora. Lo guardamos local y se enviará después.', {
+        titulo: '⚠️ Reporte guardado local'
+      });
+    }
+  } finally {
+    btn.innerHTML = btnTextoOriginal;
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+// Mostrar/ocultar botón flotante según estado de sesión
+function actualizarVisibilidadBotonReporte() {
+  const btn = document.getElementById('btnReportarProblema');
+  if (!btn) return;
+  if (window._perfilUsuario) {
+    btn.style.display = 'flex';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+// =============================================================
 // VERIFICAR SESIÓN AL CARGAR LA APP
 // =============================================================
 // =============================================================
@@ -6693,6 +6979,11 @@ function mostrarUsuarioEnSidebar(perfil) {
   
   // Aplicar permisos según el rol
   aplicarPermisos(perfil);
+  
+  // Mostrar botón de reportar problema
+  if (typeof actualizarVisibilidadBotonReporte === 'function') {
+    actualizarVisibilidadBotonReporte();
+  }
   
   // Mostrar onboarding (solo la primera vez)
   setTimeout(() => {
@@ -7469,6 +7760,11 @@ async function cerrarSesion() {
     document.getElementById('loginDni').value = '';
     document.getElementById('loginPassword').value = '';
     document.getElementById('loginMensaje').style.display = 'none';
+    
+    // Ocultar botón de reportar problema
+    if (typeof actualizarVisibilidadBotonReporte === 'function') {
+      actualizarVisibilidadBotonReporte();
+    }
     
     // Resetear botón login
     const btn = document.getElementById('btnLogin');
