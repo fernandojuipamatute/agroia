@@ -2270,6 +2270,194 @@ tr:hover td {
 </div>
 
 <!-- ============================================================ -->
+<!-- ============================================================ -->
+<!-- MODO TRABAJADOR (Vista simplificada con botones gigantes)   -->
+<!-- ============================================================ -->
+<div id="modoTrabajadorOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(135deg, #243024 0%, #1a1f1a 100%); z-index:9000; overflow-y:auto; padding:20px;">
+  
+  <!-- VISTA PRINCIPAL DEL TRABAJADOR -->
+  <div id="trabajadorVistaPrincipal" style="max-width:500px; margin:0 auto; padding:20px 16px;">
+    
+    <!-- Header con saludo -->
+    <div style="text-align:center; margin-bottom:24px;">
+      <div style="font-size:48px; margin-bottom:8px;">🥑</div>
+      <h1 style="color:#EF9F27; font-size:28px; margin:0; font-weight:bold;">AgroIA</h1>
+      <div style="color:#94a3b8; font-size:13px; margin-top:4px;">Valle de Virú</div>
+    </div>
+
+    <!-- Tarjeta de saludo -->
+    <div style="background:rgba(239,159,39,0.15); border:2px solid rgba(239,159,39,0.4); border-radius:16px; padding:20px; margin-bottom:24px; text-align:center;">
+      <div style="font-size:18px; color:#cbd5e1; margin-bottom:6px;">👋 Hola,</div>
+      <div id="trabajadorNombre" style="color:#fff; font-size:24px; font-weight:bold; margin-bottom:8px;">--</div>
+      <div style="display:inline-block; background:rgba(99,153,34,0.2); color:#10B981; padding:6px 16px; border-radius:20px; font-size:14px; font-weight:600;">
+        📍 Cuadrilla <span id="trabajadorCuadrilla">--</span>
+      </div>
+    </div>
+
+    <!-- BOTÓN GIGANTE: REGISTRAR PESADA -->
+    <button onclick="trabajadorAbrirRegistrar()" style="width:100%; background:linear-gradient(135deg, #639922, #4a7515); border:none; border-radius:18px; padding:28px 20px; margin-bottom:16px; cursor:pointer; box-shadow:0 8px 24px rgba(99,153,34,0.4); transition:transform 0.2s;"
+            onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">
+      <div style="font-size:56px; margin-bottom:8px;">⚖</div>
+      <div style="color:white; font-size:22px; font-weight:bold;">REGISTRAR</div>
+      <div style="color:white; font-size:22px; font-weight:bold;">MI PESADA</div>
+      <div style="color:rgba(255,255,255,0.8); font-size:13px; margin-top:6px;">Anotar cuántos kilos cosechaste</div>
+    </button>
+
+    <!-- BOTÓN GIGANTE: TOMAR FOTO -->
+    <button onclick="trabajadorAbrirFoto()" style="width:100%; background:linear-gradient(135deg, #3B82F6, #1d4ed8); border:none; border-radius:18px; padding:28px 20px; margin-bottom:16px; cursor:pointer; box-shadow:0 8px 24px rgba(59,130,246,0.4); transition:transform 0.2s;"
+            onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">
+      <div style="font-size:56px; margin-bottom:8px;">📸</div>
+      <div style="color:white; font-size:22px; font-weight:bold;">TOMAR FOTO</div>
+      <div style="color:white; font-size:22px; font-weight:bold;">DE COSECHA</div>
+      <div style="color:rgba(255,255,255,0.8); font-size:13px; margin-top:6px;">La IA analizará la calidad</div>
+    </button>
+
+    <!-- TARJETA DE RESUMEN DE HOY -->
+    <button onclick="trabajadorVerMisPesadas()" style="width:100%; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.1); border-radius:14px; padding:18px; margin-bottom:24px; cursor:pointer; text-align:left;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="color:#94a3b8; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">📊 Mis pesadas de hoy</div>
+          <div style="color:#fff; font-size:18px; font-weight:bold; margin-top:6px;">
+            <span id="trabajadorTotalKg">0</span> kg en <span id="trabajadorTotalPesadas">0</span> pesadas
+          </div>
+        </div>
+        <div style="color:#EF9F27; font-size:32px;">→</div>
+      </div>
+    </button>
+
+    <!-- Botón cerrar sesión -->
+    <button onclick="cerrarSesion()" style="width:100%; background:transparent; border:1px solid rgba(255,255,255,0.15); color:#94a3b8; padding:14px; border-radius:12px; font-size:14px; cursor:pointer;">
+      🚪 Cerrar sesión
+    </button>
+
+  </div>
+
+  <!-- VISTA: REGISTRAR PESADA SIMPLIFICADA -->
+  <div id="trabajadorVistaRegistrar" style="display:none; max-width:500px; margin:0 auto; padding:20px 16px;">
+    
+    <button onclick="trabajadorVolverPrincipal()" style="background:transparent; border:none; color:#cbd5e1; font-size:16px; padding:8px; cursor:pointer; margin-bottom:16px;">
+      ← Volver al inicio
+    </button>
+
+    <h2 style="color:#fff; text-align:center; font-size:24px; margin-bottom:24px;">⚖ Registrar mi pesada</h2>
+
+    <!-- PASO 1: KG -->
+    <div id="trabajadorPaso1" style="display:block;">
+      <div style="background:rgba(255,255,255,0.05); border-radius:14px; padding:20px; margin-bottom:20px;">
+        <label style="color:#EF9F27; font-size:14px; font-weight:bold; display:block; margin-bottom:10px;">PASO 1 de 3</label>
+        <div style="color:#fff; font-size:22px; font-weight:bold; margin-bottom:16px; text-align:center;">¿Cuántos kilos cosechaste?</div>
+        
+        <input type="number" id="trabajadorKg" placeholder="0" min="1" max="500" 
+               style="width:100%; background:rgba(0,0,0,0.4); border:2px solid rgba(239,159,39,0.4); border-radius:12px; padding:24px; color:#fff; font-size:48px; text-align:center; font-weight:bold;"
+               inputmode="numeric">
+        
+        <div style="color:#94a3b8; font-size:12px; text-align:center; margin-top:8px;">Ejemplo: 42</div>
+      </div>
+
+      <button onclick="trabajadorIrPaso2()" style="width:100%; background:linear-gradient(135deg, #639922, #4a7515); border:none; color:white; padding:18px; border-radius:14px; font-size:18px; font-weight:bold; cursor:pointer;">
+        Siguiente →
+      </button>
+    </div>
+
+    <!-- PASO 2: HORAS -->
+    <div id="trabajadorPaso2" style="display:none;">
+      <div style="background:rgba(255,255,255,0.05); border-radius:14px; padding:20px; margin-bottom:20px;">
+        <label style="color:#EF9F27; font-size:14px; font-weight:bold; display:block; margin-bottom:10px;">PASO 2 de 3</label>
+        <div style="color:#fff; font-size:22px; font-weight:bold; margin-bottom:16px; text-align:center;">¿Cuántas horas trabajaste?</div>
+        
+        <!-- Selector visual de horas -->
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:16px;">
+          <button onclick="trabajadorSetHoras(1)" class="btn-horas" style="background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15); color:#fff; padding:22px; border-radius:12px; font-size:24px; font-weight:bold; cursor:pointer;">1</button>
+          <button onclick="trabajadorSetHoras(2)" class="btn-horas" style="background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15); color:#fff; padding:22px; border-radius:12px; font-size:24px; font-weight:bold; cursor:pointer;">2</button>
+          <button onclick="trabajadorSetHoras(3)" class="btn-horas" style="background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15); color:#fff; padding:22px; border-radius:12px; font-size:24px; font-weight:bold; cursor:pointer;">3</button>
+          <button onclick="trabajadorSetHoras(4)" class="btn-horas" style="background:rgba(239,159,39,0.25); border:2px solid #EF9F27; color:#fff; padding:22px; border-radius:12px; font-size:24px; font-weight:bold; cursor:pointer;">4</button>
+          <button onclick="trabajadorSetHoras(5)" class="btn-horas" style="background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15); color:#fff; padding:22px; border-radius:12px; font-size:24px; font-weight:bold; cursor:pointer;">5</button>
+          <button onclick="trabajadorSetHoras(6)" class="btn-horas" style="background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15); color:#fff; padding:22px; border-radius:12px; font-size:24px; font-weight:bold; cursor:pointer;">6</button>
+          <button onclick="trabajadorSetHoras(7)" class="btn-horas" style="background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15); color:#fff; padding:22px; border-radius:12px; font-size:24px; font-weight:bold; cursor:pointer;">7</button>
+          <button onclick="trabajadorSetHoras(8)" class="btn-horas" style="background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15); color:#fff; padding:22px; border-radius:12px; font-size:24px; font-weight:bold; cursor:pointer;">8</button>
+        </div>
+        
+        <input type="hidden" id="trabajadorHoras" value="4">
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button onclick="trabajadorVolverPaso1()" style="flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:18px; border-radius:14px; font-size:16px; cursor:pointer;">
+          ← Atrás
+        </button>
+        <button onclick="trabajadorIrPaso3()" style="flex:2; background:linear-gradient(135deg, #639922, #4a7515); border:none; color:white; padding:18px; border-radius:14px; font-size:18px; font-weight:bold; cursor:pointer;">
+          Siguiente →
+        </button>
+      </div>
+    </div>
+
+    <!-- PASO 3: CONFIRMAR -->
+    <div id="trabajadorPaso3" style="display:none;">
+      <div style="background:rgba(255,255,255,0.05); border-radius:14px; padding:20px; margin-bottom:20px;">
+        <label style="color:#EF9F27; font-size:14px; font-weight:bold; display:block; margin-bottom:14px;">PASO 3 de 3 - Confirmar</label>
+        <div style="color:#fff; font-size:18px; font-weight:bold; margin-bottom:18px; text-align:center;">¿Está todo correcto?</div>
+        
+        <div style="background:rgba(239,159,39,0.1); border:2px dashed rgba(239,159,39,0.4); border-radius:12px; padding:20px;">
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.1);">
+            <span style="color:#94a3b8;">Kilos:</span>
+            <span style="color:#fff; font-size:24px; font-weight:bold;"><span id="trabajadorConfirmKg">0</span> kg</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.1);">
+            <span style="color:#94a3b8;">Horas:</span>
+            <span style="color:#fff; font-size:24px; font-weight:bold;"><span id="trabajadorConfirmHoras">0</span> hrs</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0;">
+            <span style="color:#94a3b8;">Cuadrilla:</span>
+            <span style="color:#fff; font-size:18px; font-weight:bold;" id="trabajadorConfirmCuadrilla">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button onclick="trabajadorVolverPaso2()" style="flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:18px; border-radius:14px; font-size:16px; cursor:pointer;">
+          ← Atrás
+        </button>
+        <button onclick="trabajadorConfirmarPesada()" id="btnConfirmarPesada" style="flex:2; background:linear-gradient(135deg, #10B981, #059669); border:none; color:white; padding:18px; border-radius:14px; font-size:18px; font-weight:bold; cursor:pointer;">
+          ✅ CONFIRMAR
+        </button>
+      </div>
+    </div>
+
+    <!-- PASO 4: EXITO -->
+    <div id="trabajadorPasoExito" style="display:none; text-align:center; padding:20px;">
+      <div style="font-size:80px; margin-bottom:16px;">🎉</div>
+      <h2 style="color:#10B981; font-size:28px; margin:0 0 12px 0;">¡Pesada registrada!</h2>
+      <p style="color:#cbd5e1; font-size:16px; margin-bottom:24px;">Tu trabajo quedó guardado en el sistema.</p>
+      
+      <div style="background:rgba(16,185,129,0.1); border:2px solid rgba(16,185,129,0.3); border-radius:14px; padding:20px; margin-bottom:24px;">
+        <div style="color:#10B981; font-size:14px; font-weight:bold; margin-bottom:8px;">RESUMEN</div>
+        <div style="color:#fff; font-size:32px; font-weight:bold;" id="trabajadorExitoKg">-- kg</div>
+        <div style="color:#94a3b8; font-size:14px; margin-top:4px;" id="trabajadorExitoEstado">--</div>
+      </div>
+
+      <button onclick="trabajadorVolverPrincipal()" style="width:100%; background:linear-gradient(135deg, #639922, #4a7515); border:none; color:white; padding:18px; border-radius:14px; font-size:18px; font-weight:bold; cursor:pointer;">
+        ← Volver al inicio
+      </button>
+    </div>
+
+  </div>
+
+  <!-- VISTA: MIS PESADAS DE HOY -->
+  <div id="trabajadorVistaMisPesadas" style="display:none; max-width:500px; margin:0 auto; padding:20px 16px;">
+    
+    <button onclick="trabajadorVolverPrincipal()" style="background:transparent; border:none; color:#cbd5e1; font-size:16px; padding:8px; cursor:pointer; margin-bottom:16px;">
+      ← Volver al inicio
+    </button>
+
+    <h2 style="color:#fff; text-align:center; font-size:24px; margin-bottom:8px;">📊 Mis pesadas de hoy</h2>
+    <div id="trabajadorResumenTexto" style="color:#94a3b8; text-align:center; font-size:14px; margin-bottom:20px;">--</div>
+
+    <div id="trabajadorListaPesadas">
+      <!-- Se llena con JS -->
+    </div>
+  </div>
+
+</div>
+
 <!-- BOTÓN FLOTANTE: REPORTAR PROBLEMA                            -->
 <!-- ============================================================ -->
 <button id="btnReportarProblema" onclick="abrirModalReporte()" style="display:none; position:fixed; bottom:24px; right:24px; z-index:9990; width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg, #EF9F27, #DC2626); color:white; border:none; box-shadow:0 8px 24px rgba(220,38,38,0.4); cursor:pointer; font-size:24px; display:none; align-items:center; justify-content:center; transition:transform 0.2s, box-shadow 0.2s;" 
@@ -6980,6 +7168,12 @@ function mostrarUsuarioEnSidebar(perfil) {
   // Aplicar permisos según el rol
   aplicarPermisos(perfil);
   
+  // Si es rol trabajador, activar modo trabajador (UI simplificada)
+  if (perfil.rol === 'trabajador') {
+    activarModoTrabajador(perfil);
+    return; // No mostrar el resto (botón reportar, tour, etc.)
+  }
+  
   // Mostrar botón de reportar problema
   if (typeof actualizarVisibilidadBotonReporte === 'function') {
     actualizarVisibilidadBotonReporte();
@@ -7058,8 +7252,315 @@ const PERMISOS_POR_ROL = {
       configurarParametros: false,
       verLogs: false
     }
+  },
+  'trabajador': {
+    nav: [],  // No usa el sidebar normal, tiene su propia vista
+    paginaInicial: 'trabajador',
+    puede: {
+      registrarPesada: true,       // Solo SUS propias pesadas
+      verTodasCuadrillas: false,
+      verTodosTrabajadores: false,
+      verTodosReportes: false,
+      configurarParametros: false,
+      verLogs: false,
+      modoTrabajador: true         // Activar UI especial
+    }
   }
 };
+
+// =============================================================
+// MODO TRABAJADOR (UI simplificada con botones gigantes)
+// =============================================================
+
+function activarModoTrabajador(perfil) {
+  // Ocultar TODO el resto de la app
+  document.querySelector('.sidebar')?.style.setProperty('display', 'none', 'important');
+  document.querySelector('main')?.style.setProperty('display', 'none', 'important');
+  document.getElementById('loginContainer').style.display = 'none';
+  
+  // Mostrar el overlay del modo trabajador
+  document.getElementById('modoTrabajadorOverlay').style.display = 'block';
+  
+  // Mostrar vista principal
+  document.getElementById('trabajadorVistaPrincipal').style.display = 'block';
+  document.getElementById('trabajadorVistaRegistrar').style.display = 'none';
+  document.getElementById('trabajadorVistaMisPesadas').style.display = 'none';
+  
+  // Llenar datos
+  const nombreCorto = perfil.nombre.split(',')[1]?.trim() || perfil.nombre.split(' ')[0];
+  document.getElementById('trabajadorNombre').textContent = nombreCorto;
+  document.getElementById('trabajadorCuadrilla').textContent = perfil.cuadrilla || '?';
+  document.getElementById('trabajadorConfirmCuadrilla').textContent = perfil.cuadrilla || '?';
+  
+  // Actualizar resumen del día
+  actualizarResumenTrabajador();
+  
+  if (typeof auditarAccion === 'function') {
+    auditarAccion('ENTRAR_MODO_TRABAJADOR',
+      'Trabajador ingresó a la app',
+      { dni: perfil.dni, cuadrilla: perfil.cuadrilla }
+    );
+  }
+}
+
+function actualizarResumenTrabajador() {
+  const perfil = window._perfilUsuario;
+  if (!perfil) return;
+  
+  // Filtrar pesadas de este trabajador del día actual
+  const hoy = new Date().toISOString().slice(0, 10);
+  const misPesadas = pesadas.filter(p => 
+    p.dni === perfil.dni && 
+    (p.estado === 'green' || p.estado === 'yellow')
+  );
+  
+  const totalKg = misPesadas.reduce((sum, p) => sum + (parseFloat(p.kg) || 0), 0);
+  document.getElementById('trabajadorTotalKg').textContent = totalKg.toFixed(0);
+  document.getElementById('trabajadorTotalPesadas').textContent = misPesadas.length;
+}
+
+function trabajadorAbrirRegistrar() {
+  document.getElementById('trabajadorVistaPrincipal').style.display = 'none';
+  document.getElementById('trabajadorVistaMisPesadas').style.display = 'none';
+  document.getElementById('trabajadorVistaRegistrar').style.display = 'block';
+  
+  // Mostrar paso 1
+  document.getElementById('trabajadorPaso1').style.display = 'block';
+  document.getElementById('trabajadorPaso2').style.display = 'none';
+  document.getElementById('trabajadorPaso3').style.display = 'none';
+  document.getElementById('trabajadorPasoExito').style.display = 'none';
+  
+  // Limpiar inputs
+  document.getElementById('trabajadorKg').value = '';
+  document.getElementById('trabajadorHoras').value = '4';
+  
+  // Focus en el input de kg
+  setTimeout(() => document.getElementById('trabajadorKg').focus(), 200);
+}
+
+function trabajadorIrPaso2() {
+  const kg = parseFloat(document.getElementById('trabajadorKg').value);
+  if (!kg || kg < 1) {
+    if (typeof toastWarning === 'function') {
+      toastWarning('Por favor ingresa cuántos kilos cosechaste', { titulo: 'Falta dato' });
+    }
+    return;
+  }
+  if (kg > 500) {
+    if (typeof toastWarning === 'function') {
+      toastWarning('¿Estás seguro de ese número? Parece muy alto', { titulo: 'Verifica' });
+    }
+    return;
+  }
+  
+  document.getElementById('trabajadorPaso1').style.display = 'none';
+  document.getElementById('trabajadorPaso2').style.display = 'block';
+}
+
+function trabajadorVolverPaso1() {
+  document.getElementById('trabajadorPaso2').style.display = 'none';
+  document.getElementById('trabajadorPaso1').style.display = 'block';
+}
+
+function trabajadorSetHoras(horas) {
+  document.getElementById('trabajadorHoras').value = horas;
+  
+  // Actualizar visual: resaltar el botón seleccionado
+  document.querySelectorAll('.btn-horas').forEach((btn, idx) => {
+    if (idx + 1 === horas) {
+      btn.style.background = 'rgba(239,159,39,0.25)';
+      btn.style.borderColor = '#EF9F27';
+    } else {
+      btn.style.background = 'rgba(255,255,255,0.08)';
+      btn.style.borderColor = 'rgba(255,255,255,0.15)';
+    }
+  });
+}
+
+function trabajadorIrPaso3() {
+  const kg = document.getElementById('trabajadorKg').value;
+  const horas = document.getElementById('trabajadorHoras').value;
+  
+  document.getElementById('trabajadorConfirmKg').textContent = kg;
+  document.getElementById('trabajadorConfirmHoras').textContent = horas;
+  
+  document.getElementById('trabajadorPaso2').style.display = 'none';
+  document.getElementById('trabajadorPaso3').style.display = 'block';
+}
+
+function trabajadorVolverPaso2() {
+  document.getElementById('trabajadorPaso3').style.display = 'none';
+  document.getElementById('trabajadorPaso2').style.display = 'block';
+}
+
+async function trabajadorConfirmarPesada() {
+  const perfil = window._perfilUsuario;
+  if (!perfil) return;
+  
+  const kg = parseFloat(document.getElementById('trabajadorKg').value);
+  const horas = parseFloat(document.getElementById('trabajadorHoras').value);
+  const cuadrilla = perfil.cuadrilla;
+  
+  // Bloquear botón
+  const btn = document.getElementById('btnConfirmarPesada');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Guardando...';
+  btn.style.opacity = '0.6';
+  
+  try {
+    // Buscar datos del trabajador en la tabla TRABAJADORES
+    const trabData = TRABAJADORES.find(t => t.dni === perfil.dni) || { 
+      historico: 23, sigma: 3 
+    };
+    
+    // Calcular z-score
+    const productividad = kg / horas;
+    const z = (productividad - trabData.historico) / trabData.sigma;
+    
+    // Decidir estado
+    let estado, color, motivo = null;
+    if (Math.abs(z) <= 1) { estado = 'Validada'; color = 'green'; }
+    else if (Math.abs(z) <= 2) { estado = 'Observación'; color = 'yellow'; motivo = 'Levemente fuera del rango'; }
+    else if (Math.abs(z) <= 3) { estado = 'Alerta'; color = 'orange'; motivo = 'Productividad muy diferente al histórico'; }
+    else { estado = 'Bloqueada'; color = 'red'; motivo = 'Posible anomalía estadística'; }
+    
+    // Lote aleatorio (en producción se seleccionaría)
+    const lotes = ['L-08', 'L-12', 'L-17', 'L-23'];
+    const lote = lotes[Math.floor(Math.random() * lotes.length)];
+    
+    // Crear pesada
+    const ahora = new Date();
+    const hora = `${ahora.getHours().toString().padStart(2,'0')}:${ahora.getMinutes().toString().padStart(2,'0')}`;
+    
+    pesadas.unshift({
+      hora, dni: perfil.dni, kg, horas, lote, estado: color,
+      z: parseFloat(z.toFixed(2)),
+      motivo: color !== 'green' ? motivo : null,
+      _localTimestamp: Date.now() / 1000
+    });
+    
+    // Auditoría
+    if (typeof auditarAccion === 'function') {
+      auditarAccion('REGISTRAR_PESADA_TRABAJADOR',
+        `Trabajador ${perfil.nombre} registró ${kg}kg en ${horas}h - ${estado}`,
+        {
+          trabajador_dni: perfil.dni,
+          cuadrilla: cuadrilla,
+          lote: lote,
+          kg: kg,
+          horas: horas,
+          productividad: parseFloat(productividad.toFixed(2)),
+          z_score: parseFloat(z.toFixed(2)),
+          estado_decision: estado,
+          banda_color: color,
+          via_modo_trabajador: true
+        }
+      );
+    }
+    
+    // Mostrar pantalla de éxito
+    document.getElementById('trabajadorPaso3').style.display = 'none';
+    document.getElementById('trabajadorPasoExito').style.display = 'block';
+    document.getElementById('trabajadorExitoKg').textContent = kg + ' kg';
+    
+    let estadoTexto = '';
+    if (color === 'green') estadoTexto = '✅ Validado correctamente';
+    else if (color === 'yellow') estadoTexto = '⚠️ Quedó marcado para revisión';
+    else if (color === 'orange') estadoTexto = '⚠️ Tu supervisor lo revisará';
+    else estadoTexto = '❌ Necesita verificación del supervisor';
+    
+    document.getElementById('trabajadorExitoEstado').textContent = estadoTexto;
+    
+    // Actualizar resumen
+    actualizarResumenTrabajador();
+    
+  } catch (error) {
+    console.error('Error registrando pesada:', error);
+    if (typeof toastError === 'function') {
+      toastError('No se pudo registrar la pesada. Intenta de nuevo.', { titulo: 'Error' });
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✅ CONFIRMAR';
+    btn.style.opacity = '1';
+  }
+}
+
+function trabajadorAbrirFoto() {
+  // Por ahora solo mostrar un toast (la integración con la cámara es compleja)
+  if (typeof toastInfo === 'function') {
+    toastInfo('Esta función estará disponible próximamente. Por ahora, registra tu pesada manualmente.', { 
+      titulo: '📸 Tomar foto', 
+      duracion: 5000 
+    });
+  }
+}
+
+function trabajadorVerMisPesadas() {
+  document.getElementById('trabajadorVistaPrincipal').style.display = 'none';
+  document.getElementById('trabajadorVistaRegistrar').style.display = 'none';
+  document.getElementById('trabajadorVistaMisPesadas').style.display = 'block';
+  
+  const perfil = window._perfilUsuario;
+  const misPesadas = pesadas.filter(p => p.dni === perfil.dni);
+  
+  const totalKg = misPesadas.reduce((sum, p) => sum + (parseFloat(p.kg) || 0), 0);
+  document.getElementById('trabajadorResumenTexto').textContent = 
+    `${misPesadas.length} pesadas · ${totalKg.toFixed(0)} kg en total`;
+  
+  // Render lista
+  const lista = document.getElementById('trabajadorListaPesadas');
+  
+  if (misPesadas.length === 0) {
+    lista.innerHTML = `
+      <div style="text-align:center; padding:40px 20px; color:#94a3b8;">
+        <div style="font-size:48px; margin-bottom:12px;">📭</div>
+        <div style="font-size:16px;">Aún no tienes pesadas registradas hoy</div>
+        <div style="font-size:13px; margin-top:6px;">¡Empieza a cosechar y registra tu primera pesada!</div>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = '';
+  misPesadas.forEach(p => {
+    let color = '#10B981', icono = '✅', texto = 'Validada';
+    if (p.estado === 'yellow') { color = '#F59E0B'; icono = '⚠️'; texto = 'Observación'; }
+    else if (p.estado === 'orange') { color = '#F97316'; icono = '⚠️'; texto = 'Alerta'; }
+    else if (p.estado === 'red') { color = '#DC2626'; icono = '❌'; texto = 'Bloqueada'; }
+    
+    html += `
+      <div style="background:rgba(255,255,255,0.04); border-left:4px solid ${color}; border-radius:10px; padding:16px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="color:#fff; font-size:20px; font-weight:bold;">${p.kg} kg</div>
+            <div style="color:#94a3b8; font-size:12px; margin-top:2px;">${p.hora} · Lote ${p.lote} · ${p.horas}h</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:${color}; font-size:20px;">${icono}</div>
+            <div style="color:${color}; font-size:12px; font-weight:600;">${texto}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  lista.innerHTML = html;
+}
+
+function trabajadorVolverPrincipal() {
+  document.getElementById('trabajadorVistaRegistrar').style.display = 'none';
+  document.getElementById('trabajadorVistaMisPesadas').style.display = 'none';
+  document.getElementById('trabajadorVistaPrincipal').style.display = 'block';
+  
+  // Actualizar resumen por si registró una nueva pesada
+  actualizarResumenTrabajador();
+}
+
+function desactivarModoTrabajador() {
+  document.getElementById('modoTrabajadorOverlay').style.display = 'none';
+  document.querySelector('.sidebar')?.style.removeProperty('display');
+  document.querySelector('main')?.style.removeProperty('display');
+}
 
 // =============================================================
 // SISTEMA DE TOUR INTERACTIVO (Spotlight + Tooltips)
@@ -7760,6 +8261,11 @@ async function cerrarSesion() {
     document.getElementById('loginDni').value = '';
     document.getElementById('loginPassword').value = '';
     document.getElementById('loginMensaje').style.display = 'none';
+    
+    // Desactivar modo trabajador si estaba activo
+    if (typeof desactivarModoTrabajador === 'function') {
+      desactivarModoTrabajador();
+    }
     
     // Ocultar botón de reportar problema
     if (typeof actualizarVisibilidadBotonReporte === 'function') {
