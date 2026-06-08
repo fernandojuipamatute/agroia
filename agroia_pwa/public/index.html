@@ -7273,24 +7273,36 @@ const PERMISOS_POR_ROL = {
 // =============================================================
 
 function activarModoTrabajador(perfil) {
-  // Ocultar TODO el resto de la app
-  document.querySelector('.sidebar')?.style.setProperty('display', 'none', 'important');
-  document.querySelector('main')?.style.setProperty('display', 'none', 'important');
-  document.getElementById('loginContainer').style.display = 'none';
+  // Ocultar TODO el resto de la app (con protección si algún elemento no existe)
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) sidebar.style.setProperty('display', 'none', 'important');
+  
+  const mainEl = document.querySelector('main');
+  if (mainEl) mainEl.style.setProperty('display', 'none', 'important');
+  
+  const loginEl = document.getElementById('pantallaLogin');
+  if (loginEl) loginEl.style.display = 'none';
   
   // Mostrar el overlay del modo trabajador
-  document.getElementById('modoTrabajadorOverlay').style.display = 'block';
+  const overlay = document.getElementById('modoTrabajadorOverlay');
+  if (overlay) overlay.style.display = 'block';
   
   // Mostrar vista principal
-  document.getElementById('trabajadorVistaPrincipal').style.display = 'block';
-  document.getElementById('trabajadorVistaRegistrar').style.display = 'none';
-  document.getElementById('trabajadorVistaMisPesadas').style.display = 'none';
+  const vistaPrincipal = document.getElementById('trabajadorVistaPrincipal');
+  const vistaRegistrar = document.getElementById('trabajadorVistaRegistrar');
+  const vistaMisPesadas = document.getElementById('trabajadorVistaMisPesadas');
+  if (vistaPrincipal) vistaPrincipal.style.display = 'block';
+  if (vistaRegistrar) vistaRegistrar.style.display = 'none';
+  if (vistaMisPesadas) vistaMisPesadas.style.display = 'none';
   
   // Llenar datos
   const nombreCorto = perfil.nombre.split(',')[1]?.trim() || perfil.nombre.split(' ')[0];
-  document.getElementById('trabajadorNombre').textContent = nombreCorto;
-  document.getElementById('trabajadorCuadrilla').textContent = perfil.cuadrilla || '?';
-  document.getElementById('trabajadorConfirmCuadrilla').textContent = perfil.cuadrilla || '?';
+  const elNombre = document.getElementById('trabajadorNombre');
+  const elCuadrilla = document.getElementById('trabajadorCuadrilla');
+  const elConfirmCuadrilla = document.getElementById('trabajadorConfirmCuadrilla');
+  if (elNombre) elNombre.textContent = nombreCorto;
+  if (elCuadrilla) elCuadrilla.textContent = perfil.cuadrilla || '?';
+  if (elConfirmCuadrilla) elConfirmCuadrilla.textContent = perfil.cuadrilla || '?';
   
   // Actualizar resumen del día
   actualizarResumenTrabajador();
@@ -7557,9 +7569,14 @@ function trabajadorVolverPrincipal() {
 }
 
 function desactivarModoTrabajador() {
-  document.getElementById('modoTrabajadorOverlay').style.display = 'none';
-  document.querySelector('.sidebar')?.style.removeProperty('display');
-  document.querySelector('main')?.style.removeProperty('display');
+  const overlay = document.getElementById('modoTrabajadorOverlay');
+  if (overlay) overlay.style.display = 'none';
+  
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) sidebar.style.removeProperty('display');
+  
+  const mainEl = document.querySelector('main');
+  if (mainEl) mainEl.style.removeProperty('display');
 }
 
 // =============================================================
@@ -8022,8 +8039,8 @@ function aplicarPermisos(perfil) {
     }
   });
   
-  // 3. Navegar a la página inicial según rol
-  if (typeof switchPage === 'function') {
+  // 3. Navegar a la página inicial según rol (excepto trabajador que usa su propia vista)
+  if (perfil.rol !== 'trabajador' && typeof switchPage === 'function') {
     setTimeout(() => {
       switchPage(permisos.paginaInicial);
     }, 100);
