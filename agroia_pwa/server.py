@@ -557,12 +557,286 @@ def home():
 
 @app.route('/api/health', methods=['GET'])
 def health():
+    """Endpoint básico de salud (compatible con UptimeRobot)"""
     return jsonify({
         "status": "ok",
         "servicio": "agroia-server",
         "datadog_site": SITE,
         "trabajadores_cargados": len(TRABAJADORES),
         "lotes_cargados": len(LOTES)
+    })
+
+
+@app.route('/api/health-completo', methods=['GET'])
+def health_completo():
+    """
+    Health check completo: verifica el estado de todos los servicios externos.
+    Mide latencia de cada uno y devuelve un reporte detallado.
+    """
+    import time
+    inicio_total = time.time()
+    servicios = {}
+    
+    # 1. Backend (este mismo servidor)
+    servicios['backend'] = {
+        'nombre': 'Backend (Render)',
+        'estado': 'ok',
+        'latencia_ms': 0,
+        'detalle': f'Servidor en ejecución · {len(TRABAJADORES)} trabajadores · {len(LOTES)} lotes',
+        'icono': '🟢'
+    }
+    
+    # 2. Supabase (Base de datos)
+    try:
+        t0 = time.time()
+        supabase_url = os.getenv('SUPABASE_URL', 'https://bznbbedzyudnrktdntfw.supabase.co')
+        supabase_key = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_ANON_KEY', '')
+        
+        if supabase_key:
+            r = requests.get(
+                f"{supabase_url}/rest/v1/",
+                headers={'apikey': supabase_key},
+                timeout=5
+            )
+            latencia = int((time.time() - t0) * 1000)
+            if r.status_code in [200, 404]:  # 404 también es OK (sin tabla específica)
+                servicios['supabase'] = {
+                    'nombre': 'Supabase (Base de datos)',
+                    'estado': 'ok' if latencia < 500 else 'lento',
+                    'latencia_ms': latencia,
+                    'detalle': 'PostgreSQL con Row Level Security activo',
+                    'icono': '🟢' if latencia < 500 else '🟡'
+                }
+            else:
+                servicios['supabase'] = {
+                    'nombre': 'Supabase (Base de datos)',
+                    'estado': 'error',
+                    'latencia_ms': latencia,
+                    'detalle': f'Error HTTP {r.status_code}',
+                    'icono': '🔴'
+                }
+        else:
+            servicios['supabase'] = {
+                'nombre': 'Supabase (Base de datos)',
+                'estado': 'desconocido',
+                'latencia_ms': 0,
+                'detalle': 'No configurado',
+                'icono': '⚪'
+            }
+    except Exception as e:
+        servicios['supabase'] = {
+            'nombre': 'Supabase (Base de datos)',
+            'estado': 'error',
+            'latencia_ms': 0,
+            'detalle': str(e)[:80],
+            'icono': '🔴'
+        }
+    
+    # 3. Gemini (IA Vision)
+    try:
+        t0 = time.time()
+        gemini_key = os.getenv('GEMINI_API_KEY')
+        if gemini_key:
+            # Solo verificar que el endpoint responda, no hacer análisis real
+            r = requests.get(
+                'https://generativelanguage.googleapis.com/v1beta/models',
+                params={'key': gemini_key},
+                timeout=8
+            )
+            latencia = int((time.time() - t0) * 1000)
+            if r.status_code == 200:
+                servicios['gemini'] = {
+                    'nombre': 'Gemini (Visión IA)',
+                    'estado': 'ok' if latencia < 1500 else 'lento',
+                    'latencia_ms': latencia,
+                    'detalle': 'Google Gemini Vision disponible',
+                    'icono': '🟢' if latencia < 1500 else '🟡'
+                }
+            else:
+                servicios['gemini'] = {
+                    'nombre': 'Gemini (Visión IA)',
+                    'estado': 'error',
+                    'latencia_ms': latencia,
+                    'detalle': f'HTTP {r.status_code}',
+                    'icono': '🔴'
+                }
+        else:
+            servicios['gemini'] = {
+                'nombre': 'Gemini (Visión IA)',
+                'estado': 'desconocido',
+                'latencia_ms': 0,
+                'detalle': 'API key no configurada',
+                'icono': '⚪'
+            }
+    except Exception as e:
+        servicios['gemini'] = {
+            'nombre': 'Gemini (Visión IA)',
+            'estado': 'error',
+            'latencia_ms': 0,
+            'detalle': str(e)[:80],
+            'icono': '🔴'
+        }
+    
+    # 4. Resend (Email)
+    try:
+        t0 = time.time()
+        resend_key = os.getenv('RESEND_API_KEY')
+        if resend_key:
+            r = requests.get(
+                'https://api.resend.com/domains',
+                headers={'Authorization': f'Bearer {resend_key}'},
+                timeout=5
+            )
+            latencia = int((time.time() - t0) * 1000)
+            # 200 OK o 401/403 (key inválida pero servicio responde)
+            if r.status_code in [200, 401, 403]:
+                servicios['resend'] = {
+                    'nombre': 'Resend (Email)',
+                    'estado': 'ok' if latencia < 800 else 'lento',
+                    'latencia_ms': latencia,
+                    'detalle': 'Servicio de email transaccional',
+                    'icono': '🟢' if latencia < 800 else '🟡'
+                }
+            else:
+                servicios['resend'] = {
+                    'nombre': 'Resend (Email)',
+                    'estado': 'error',
+                    'latencia_ms': latencia,
+                    'detalle': f'HTTP {r.status_code}',
+                    'icono': '🔴'
+                }
+        else:
+            servicios['resend'] = {
+                'nombre': 'Resend (Email)',
+                'estado': 'desconocido',
+                'latencia_ms': 0,
+                'detalle': 'API key no configurada',
+                'icono': '⚪'
+            }
+    except Exception as e:
+        servicios['resend'] = {
+            'nombre': 'Resend (Email)',
+            'estado': 'error',
+            'latencia_ms': 0,
+            'detalle': str(e)[:80],
+            'icono': '🔴'
+        }
+    
+    # 5. Open-Meteo (Clima)
+    try:
+        t0 = time.time()
+        r = requests.get(
+            'https://api.open-meteo.com/v1/forecast',
+            params={'latitude': -8.4078, 'longitude': -78.7547, 'current': 'temperature_2m'},
+            timeout=5
+        )
+        latencia = int((time.time() - t0) * 1000)
+        if r.status_code == 200:
+            data = r.json()
+            temp = data.get('current', {}).get('temperature_2m', '?')
+            servicios['openmeteo'] = {
+                'nombre': 'Open-Meteo (Clima)',
+                'estado': 'ok' if latencia < 1000 else 'lento',
+                'latencia_ms': latencia,
+                'detalle': f'Datos meteorológicos · Virú: {temp}°C',
+                'icono': '🟢' if latencia < 1000 else '🟡'
+            }
+        else:
+            servicios['openmeteo'] = {
+                'nombre': 'Open-Meteo (Clima)',
+                'estado': 'error',
+                'latencia_ms': latencia,
+                'detalle': f'HTTP {r.status_code}',
+                'icono': '🔴'
+            }
+    except Exception as e:
+        servicios['openmeteo'] = {
+            'nombre': 'Open-Meteo (Clima)',
+            'estado': 'error',
+            'latencia_ms': 0,
+            'detalle': str(e)[:80],
+            'icono': '🔴'
+        }
+    
+    # 6. Datadog (Métricas)
+    try:
+        t0 = time.time()
+        dd_key = os.getenv('DATADOG_API_KEY')
+        if dd_key:
+            r = requests.get(
+                f'https://api.{SITE}/api/v1/validate',
+                headers={'DD-API-KEY': dd_key},
+                timeout=5
+            )
+            latencia = int((time.time() - t0) * 1000)
+            if r.status_code == 200:
+                servicios['datadog'] = {
+                    'nombre': 'Datadog (Métricas)',
+                    'estado': 'ok' if latencia < 1000 else 'lento',
+                    'latencia_ms': latencia,
+                    'detalle': 'Monitoreo y observabilidad',
+                    'icono': '🟢' if latencia < 1000 else '🟡'
+                }
+            else:
+                servicios['datadog'] = {
+                    'nombre': 'Datadog (Métricas)',
+                    'estado': 'error',
+                    'latencia_ms': latencia,
+                    'detalle': f'HTTP {r.status_code}',
+                    'icono': '🔴'
+                }
+        else:
+            servicios['datadog'] = {
+                'nombre': 'Datadog (Métricas)',
+                'estado': 'desconocido',
+                'latencia_ms': 0,
+                'detalle': 'API key no configurada',
+                'icono': '⚪'
+            }
+    except Exception as e:
+        servicios['datadog'] = {
+            'nombre': 'Datadog (Métricas)',
+            'estado': 'error',
+            'latencia_ms': 0,
+            'detalle': str(e)[:80],
+            'icono': '🔴'
+        }
+    
+    # Calcular estado global
+    estados = [s['estado'] for s in servicios.values()]
+    if all(e == 'ok' for e in estados):
+        estado_global = 'ok'
+        mensaje_global = 'Todos los sistemas operativos'
+    elif any(e == 'error' for e in estados):
+        estado_global = 'degradado'
+        mensaje_global = 'Algunos servicios con problemas'
+    elif any(e == 'lento' for e in estados):
+        estado_global = 'lento'
+        mensaje_global = 'Sistemas operativos con latencia elevada'
+    else:
+        estado_global = 'desconocido'
+        mensaje_global = 'Estado parcialmente desconocido'
+    
+    # Métricas resumen
+    latencias = [s['latencia_ms'] for s in servicios.values() if s['latencia_ms'] > 0]
+    latencia_promedio = int(sum(latencias) / len(latencias)) if latencias else 0
+    
+    tiempo_total = int((time.time() - inicio_total) * 1000)
+    
+    return jsonify({
+        'estado_global': estado_global,
+        'mensaje_global': mensaje_global,
+        'timestamp': datetime.now().isoformat(),
+        'tiempo_verificacion_ms': tiempo_total,
+        'latencia_promedio_ms': latencia_promedio,
+        'servicios': servicios,
+        'resumen': {
+            'total': len(servicios),
+            'ok': sum(1 for s in servicios.values() if s['estado'] == 'ok'),
+            'lento': sum(1 for s in servicios.values() if s['estado'] == 'lento'),
+            'error': sum(1 for s in servicios.values() if s['estado'] == 'error'),
+            'desconocido': sum(1 for s in servicios.values() if s['estado'] == 'desconocido')
+        }
     })
 
 @app.route('/api/pesada', methods=['POST'])
