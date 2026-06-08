@@ -6174,6 +6174,21 @@ z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${
     }
   }
   
+  // NOTIFICAR AL SUPERVISOR si es anomalía (red u orange)
+  if (color === 'red' || color === 'orange') {
+    notificarAnomaliaSupervisor({
+      trabajador_dni: dni,
+      trabajador_nombre: nombre,
+      cuadrilla: cuadrilla,
+      lote: lote,
+      kg: kg,
+      horas: horas,
+      z_score: z,
+      estado_color: color,
+      historico: trab.historico
+    });
+  }
+  
   // ENVIAR A DATADOG via servidor Python
   const tiempoValidacion = Math.round(200 + Math.random() * 800);
   
@@ -7353,6 +7368,65 @@ const PERMISOS_POR_ROL = {
 };
 
 // =============================================================
+// NOTIFICACIONES INTELIGENTES A SUPERVISORES
+// =============================================================
+
+/**
+ * Envía notificación automática al supervisor cuando una pesada
+ * tiene anomalía (estado red u orange).
+ * El backend tiene anti-spam de 7 emails/hora.
+ */
+async function notificarAnomaliaSupervisor(datos) {
+  try {
+    const response = await fetch('https://agroi-api.onrender.com/api/notificar-anomalia', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(datos)
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log(`[Notificación] ✉ Email enviado a supervisor ${datos.cuadrilla}`);
+      // Toast informativo solo para admin/jefecampo
+      const rol = window._perfilUsuario?.rol;
+      if (rol === 'admin' || rol === 'jefecampo') {
+        if (typeof toastInfo === 'function') {
+          toastInfo(`Supervisor de ${datos.cuadrilla} notificado por email`, {
+            titulo: '📧 Notificación enviada',
+            duracion: 3000
+          });
+        }
+      }
+    } else if (result.antispam) {
+      console.warn('[Notificación] Anti-spam activado:', result.mensaje);
+    } else if (result.skipped) {
+      console.log('[Notificación] Saltada:', result.reason);
+    } else {
+      console.warn('[Notificación] Error:', result.error);
+    }
+    
+    if (typeof auditarAccion === 'function') {
+      auditarAccion('NOTIFICAR_SUPERVISOR',
+        `Notificación a supervisor ${datos.cuadrilla} - ${datos.estado_color}`,
+        { 
+          cuadrilla: datos.cuadrilla,
+          trabajador: datos.trabajador_dni,
+          z_score: datos.z_score,
+          enviado: result.success
+        },
+        result.success
+      );
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('[Notificación] Error de red:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// =============================================================
 // HEALTH CHECK - Estado del Sistema en Vivo
 // =============================================================
 
@@ -7726,6 +7800,21 @@ async function trabajadorConfirmarPesada() {
           via_modo_trabajador: true
         }
       );
+    }
+    
+    // NOTIFICAR AL SUPERVISOR si es anomalía
+    if (color === 'red' || color === 'orange') {
+      notificarAnomaliaSupervisor({
+        trabajador_dni: perfil.dni,
+        trabajador_nombre: perfil.nombre,
+        cuadrilla: cuadrilla,
+        lote: lote,
+        kg: kg,
+        horas: horas,
+        z_score: z,
+        estado_color: color,
+        historico: trabData.historico
+      });
     }
     
     // Mostrar pantalla de éxito
