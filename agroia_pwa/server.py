@@ -2344,6 +2344,230 @@ def _ejecutar_envios_programados(forzar=False):
     return resumen
 
 
+# ============================================================
+# ENDPOINT: REPORTAR PROBLEMA
+# ============================================================
+
+@app.route('/api/reportar-problema', methods=['POST'])
+@rate_limit('default')
+def reportar_problema():
+    """
+    Recibe reportes de problemas desde la app.
+    Envía email al administrador con toda la info recopilada.
+    """
+    try:
+        data = request.json or {}
+        
+        tipo = data.get('tipo', 'bug')
+        descripcion = data.get('descripcion', '').strip()
+        email_usuario = data.get('email_usuario', 'no-proporcionado')
+        timestamp = data.get('timestamp', datetime.now().isoformat())
+        usuario = data.get('usuario', {})
+        info_tecnica = data.get('info_tecnica', {})
+        ultimas_acciones = data.get('ultimas_acciones', [])
+        captura_screenshot = data.get('captura_screenshot')  # Base64
+        
+        if not descripcion or len(descripcion) < 10:
+            return jsonify({"success": False, "error": "Descripción muy corta"}), 400
+        
+        # Mapeo de tipos a labels amigables
+        tipos_labels = {
+            'bug': '🐛 Bug o error',
+            'lento': '🐢 Algo va lento',
+            'duda': '❓ No entiendo cómo usar algo',
+            'sugerencia': '💡 Sugerencia'
+        }
+        tipo_label = tipos_labels.get(tipo, '❓ Otro')
+        
+        # Construir el HTML del email
+        fecha_legible = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        
+        usuario_html = "Usuario anónimo (no autenticado)"
+        if not usuario.get('anonimo'):
+            usuario_html = f"""
+                <strong>DNI:</strong> {usuario.get('dni', 'N/D')}<br>
+                <strong>Nombre:</strong> {usuario.get('nombre', 'N/D')}<br>
+                <strong>Rol:</strong> {usuario.get('rol', 'N/D')}<br>
+                <strong>Cuadrilla:</strong> {usuario.get('cuadrilla') or 'N/A'}
+            """
+        
+        info_tec_html = ""
+        if info_tecnica:
+            info_tec_html = f"""
+            <h3 style="color:#243024; margin-top:24px;">💻 Información técnica</h3>
+            <table style="width:100%; font-size:13px; border-collapse:collapse;">
+                <tr><td style="padding:4px 8px; background:#f5f5dc;"><strong>URL:</strong></td><td style="padding:4px 8px;">{info_tecnica.get('url_actual', 'N/D')}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Página activa:</strong></td><td style="padding:4px 8px;">{info_tecnica.get('pagina_activa', 'N/D')}</td></tr>
+                <tr><td style="padding:4px 8px; background:#f5f5dc;"><strong>Navegador:</strong></td><td style="padding:4px 8px; word-break:break-all;">{info_tecnica.get('user_agent', 'N/D')}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Plataforma:</strong></td><td style="padding:4px 8px;">{info_tecnica.get('plataforma', 'N/D')}</td></tr>
+                <tr><td style="padding:4px 8px; background:#f5f5dc;"><strong>Resolución:</strong></td><td style="padding:4px 8px;">{info_tecnica.get('resolucion', 'N/D')}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Viewport:</strong></td><td style="padding:4px 8px;">{info_tecnica.get('viewport', 'N/D')}</td></tr>
+                <tr><td style="padding:4px 8px; background:#f5f5dc;"><strong>Dispositivo:</strong></td><td style="padding:4px 8px;">{'Móvil' if info_tecnica.get('es_movil') else 'Escritorio'}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Online:</strong></td><td style="padding:4px 8px;">{'Sí' if info_tecnica.get('online') else 'No'}</td></tr>
+                <tr><td style="padding:4px 8px; background:#f5f5dc;"><strong>Timezone:</strong></td><td style="padding:4px 8px;">{info_tecnica.get('timezone', 'N/D')}</td></tr>
+            </table>
+            """
+        
+        acciones_html = ""
+        if ultimas_acciones:
+            acciones_html = """
+            <h3 style="color:#243024; margin-top:24px;">📋 Últimas acciones del usuario</h3>
+            <table style="width:100%; font-size:12px; border-collapse:collapse; border:1px solid #ddd;">
+                <tr style="background:#243024; color:white;">
+                    <th style="padding:6px 8px; text-align:left;">Fecha</th>
+                    <th style="padding:6px 8px; text-align:left;">Acción</th>
+                    <th style="padding:6px 8px; text-align:left;">Descripción</th>
+                    <th style="padding:6px 8px; text-align:center;">Estado</th>
+                </tr>
+            """
+            for accion in ultimas_acciones[:10]:
+                fecha_a = accion.get('fecha', '')[:19].replace('T', ' ')
+                exitoso = '✅' if accion.get('exitoso') else '❌'
+                acciones_html += f"""
+                <tr>
+                    <td style="padding:6px 8px; border-bottom:1px solid #eee;">{fecha_a}</td>
+                    <td style="padding:6px 8px; border-bottom:1px solid #eee;"><strong>{accion.get('accion', 'N/D')}</strong></td>
+                    <td style="padding:6px 8px; border-bottom:1px solid #eee;">{accion.get('descripcion', '')[:80]}</td>
+                    <td style="padding:6px 8px; border-bottom:1px solid #eee; text-align:center;">{exitoso}</td>
+                </tr>
+                """
+            acciones_html += "</table>"
+        
+        # Email HTML completo
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; background:#f5f5dc; padding:20px; margin:0; color:#243024; }}
+                .container {{ max-width:680px; margin:0 auto; background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.1); }}
+                .header {{ background:linear-gradient(135deg, #243024, #639922); color:white; padding:24px; }}
+                .badge {{ background:#EF9F27; color:white; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600; display:inline-block; }}
+                .section {{ padding:20px 24px; border-bottom:1px solid #eee; }}
+                h2 {{ color:#243024; margin:0 0 12px 0; }}
+                h3 {{ color:#639922; margin:16px 0 8px 0; }}
+                .descripcion {{ background:#f5f5dc; padding:14px; border-left:4px solid #EF9F27; border-radius:4px; font-size:14px; line-height:1.6; }}
+                .footer {{ background:#243024; color:#94a3b8; padding:16px 24px; text-align:center; font-size:12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                        <div>
+                            <h2 style="color:white; margin:0;">🆘 Nuevo reporte de problema</h2>
+                            <div style="opacity:0.9; font-size:14px; margin-top:4px;">AgroIA - Sistema de validación de cosecha</div>
+                        </div>
+                        <div class="badge">{tipo_label}</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3>📅 Fecha del reporte</h3>
+                    <p style="margin:0;">{fecha_legible}</p>
+                </div>
+                
+                <div class="section">
+                    <h3>👤 Usuario que reportó</h3>
+                    <p style="margin:0; font-size:13px; line-height:1.7;">{usuario_html}</p>
+                    {f'<p style="margin:8px 0 0 0;"><strong>📧 Email de contacto:</strong> <a href="mailto:{email_usuario}">{email_usuario}</a></p>' if email_usuario != 'no-proporcionado' else ''}
+                </div>
+                
+                <div class="section">
+                    <h3>📝 Descripción del problema</h3>
+                    <div class="descripcion">{descripcion}</div>
+                </div>
+                
+                <div class="section">
+                    {info_tec_html}
+                    {acciones_html}
+                </div>
+                
+                {('<div class="section"><h3>📸 Captura de pantalla</h3><p style="font-size:12px; color:#666;">Ver archivo adjunto</p></div>') if captura_screenshot else ''}
+                
+                <div class="footer">
+                    AgroIA - Sistema de Reportes Automáticos<br>
+                    Universidad César Vallejo · Trujillo, Perú
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Enviar email via Resend
+        api_key = os.getenv('RESEND_API_KEY')
+        if not api_key:
+            print('[REPORTAR] RESEND_API_KEY no configurada, solo registrando en logs')
+            return jsonify({"success": True, "message": "Reporte registrado (sin email)"})
+        
+        # Destinatario: tu correo personal (gerencia o el que tengas configurado)
+        destinatario = os.getenv('EMAIL_GERENCIA') or os.getenv('EMAIL_JEFECAMPO')
+        if not destinatario:
+            print('[REPORTAR] No hay email de destino configurado')
+            return jsonify({"success": True, "message": "Reporte registrado (sin destinatario)"})
+        
+        # Preparar adjuntos si hay captura
+        attachments = []
+        if captura_screenshot:
+            try:
+                # captura_screenshot viene como "data:image/jpeg;base64,..."
+                if ',' in captura_screenshot:
+                    base64_data = captura_screenshot.split(',', 1)[1]
+                else:
+                    base64_data = captura_screenshot
+                
+                attachments.append({
+                    "filename": f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg",
+                    "content": base64_data
+                })
+            except Exception as e:
+                print(f'[REPORTAR] Error procesando screenshot: {e}')
+        
+        # Enviar email
+        email_payload = {
+            "from": os.getenv('EMAIL_FROM', 'AgroIA <onboarding@resend.dev>'),
+            "to": [destinatario],
+            "subject": f"[AgroIA Reporte] {tipo_label} - {fecha_legible}",
+            "html": html_body
+        }
+        if attachments:
+            email_payload["attachments"] = attachments
+        
+        resp = requests.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json=email_payload,
+            timeout=15
+        )
+        
+        if resp.status_code in [200, 201]:
+            print(f'[REPORTAR] Reporte enviado exitosamente a {destinatario}')
+            return jsonify({
+                "success": True,
+                "message": "Reporte enviado exitosamente",
+                "destinatario": destinatario
+            })
+        else:
+            print(f'[REPORTAR] Error de Resend: {resp.status_code} - {resp.text}')
+            return jsonify({
+                "success": False,
+                "error": f"Error al enviar email: {resp.status_code}"
+            }), 500
+    
+    except Exception as e:
+        print(f'[REPORTAR] Error: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 @app.route('/api/cron-automatico', methods=['GET', 'POST'])
 @rate_limit('cron')
 def cron_automatico():
