@@ -979,6 +979,18 @@ tr:hover td {
     -webkit-user-select: text;
   }
 }
+@keyframes toastSlideIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes toastSlideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(120%); opacity: 0; }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
 </style>
 
 <!-- Librería para generar PDFs en el navegador -->
@@ -2317,6 +2329,13 @@ tr:hover td {
       <!-- Generado por JavaScript -->
     </div>
   </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SISTEMA DE NOTIFICACIONES (Toasts)                          -->
+<!-- ============================================================ -->
+<div id="toastContainer" style="position:fixed; top:20px; right:20px; z-index:99999; display:flex; flex-direction:column; gap:10px; pointer-events:none; max-width:380px;">
+  <!-- Los toasts se inyectan aquí -->
 </div>
 
 <!-- MODAL: Nueva pesada -->
@@ -5776,6 +5795,19 @@ z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${
     }
   );
   
+  // Toast amigable según el estado
+  if (typeof toastExito === 'function') {
+    if (color === 'green') {
+      toastExito(`${nombre.split(',')[0]} · ${kg} kg · Validada ✓`, { titulo: 'Pesada registrada' });
+    } else if (color === 'yellow') {
+      toastWarning(`${nombre.split(',')[0]} · ${kg} kg · Marcada con observación`, { titulo: 'Pesada en revisión' });
+    } else if (color === 'orange') {
+      toastWarning(`${nombre.split(',')[0]} · ${kg} kg · Requiere supervisión`, { titulo: 'Alerta de productividad' });
+    } else {
+      toastError(`${nombre.split(',')[0]} · ${kg} kg · Bloqueada por anomalía`, { titulo: 'Pesada bloqueada' });
+    }
+  }
+  
   // ENVIAR A DATADOG via servidor Python
   const tiempoValidacion = Math.round(200 + Math.random() * 800);
   
@@ -6277,6 +6309,253 @@ const supabaseAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KE
     autoRefreshToken: true,
     detectSessionInUrl: false
   }
+});
+
+// =============================================================
+// SISTEMA DE NOTIFICACIONES (Toasts amigables)
+// =============================================================
+
+/**
+ * Muestra una notificación tipo toast en la esquina superior derecha.
+ * 
+ * @param {string} mensaje - Texto principal del toast
+ * @param {string} tipo - 'success' | 'error' | 'info' | 'warning'
+ * @param {object} opciones - { titulo, duracion (ms), accion: {texto, callback} }
+ */
+function mostrarToast(mensaje, tipo = 'info', opciones = {}) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  
+  const duracion = opciones.duracion || 4000;
+  const titulo = opciones.titulo || '';
+  
+  // Colores según tipo
+  const colores = {
+    success: { bg: 'rgba(16,185,129,0.15)', border: '#10B981', icon: '✅', text: '#86efac' },
+    error:   { bg: 'rgba(220,38,38,0.15)', border: '#DC2626', icon: '❌', text: '#fca5a5' },
+    warning: { bg: 'rgba(245,158,11,0.15)', border: '#F59E0B', icon: '⚠️', text: '#fcd34d' },
+    info:    { bg: 'rgba(59,130,246,0.15)', border: '#3B82F6', icon: 'ℹ️', text: '#93c5fd' }
+  };
+  
+  const c = colores[tipo] || colores.info;
+  
+  // Crear el toast
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    background: linear-gradient(135deg, ${c.bg}, rgba(36,48,36,0.95));
+    border: 1px solid ${c.border};
+    border-left: 4px solid ${c.border};
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    pointer-events: auto;
+    cursor: pointer;
+    animation: toastSlideIn 0.3s ease-out;
+    color: ${c.text};
+    font-size: 13px;
+    line-height: 1.5;
+    backdrop-filter: blur(10px);
+  `;
+  
+  let contenidoHTML = `
+    <div style="display:flex; align-items:flex-start; gap:10px;">
+      <div style="font-size:18px; flex-shrink:0;">${c.icon}</div>
+      <div style="flex:1; min-width:0;">
+        ${titulo ? `<div style="color:#fff; font-weight:600; margin-bottom:2px; font-size:13px;">${titulo}</div>` : ''}
+        <div style="color:#cbd5e1; word-wrap:break-word;">${mensaje}</div>
+        ${opciones.accion ? `<button onclick="(${opciones.accion.callback.toString()})(); this.closest('div[data-toast]').remove();" style="margin-top:8px; background:${c.border}; color:white; border:none; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">${opciones.accion.texto}</button>` : ''}
+      </div>
+      <button onclick="this.closest('div[data-toast]').remove();" style="background:transparent; border:none; color:#94a3b8; font-size:18px; cursor:pointer; padding:0; line-height:1; flex-shrink:0;">×</button>
+    </div>
+  `;
+  
+  toast.setAttribute('data-toast', 'true');
+  toast.innerHTML = contenidoHTML;
+  container.appendChild(toast);
+  
+  // Auto-dismiss
+  if (duracion > 0) {
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.style.animation = 'toastSlideOut 0.3s ease-in';
+        setTimeout(() => toast.remove(), 300);
+      }
+    }, duracion);
+  }
+}
+
+// Helpers de conveniencia
+function toastExito(mensaje, opciones = {}) { mostrarToast(mensaje, 'success', opciones); }
+function toastError(mensaje, opciones = {}) { mostrarToast(mensaje, 'error', { duracion: 6000, ...opciones }); }
+function toastInfo(mensaje, opciones = {}) { mostrarToast(mensaje, 'info', opciones); }
+function toastWarning(mensaje, opciones = {}) { mostrarToast(mensaje, 'warning', { duracion: 5000, ...opciones }); }
+
+/**
+ * Convierte errores técnicos en mensajes amigables al usuario.
+ * 
+ * @param {Error|object|string} error
+ * @returns {object} { titulo, mensaje, tipo }
+ */
+function mensajeAmigableError(error) {
+  const errStr = (error?.message || error?.toString() || String(error)).toLowerCase();
+  
+  // Sin conexión a internet
+  if (errStr.includes('failed to fetch') || errStr.includes('network') || errStr.includes('networkerror')) {
+    return {
+      titulo: 'Sin conexión a internet',
+      mensaje: 'Verifica tu conexión WiFi o datos móviles e intenta de nuevo. Tu trabajo se guardó localmente.',
+      tipo: 'warning'
+    };
+  }
+  
+  // Servidor dormido (Render free tier)
+  if (errStr.includes('503') || errStr.includes('service unavailable')) {
+    return {
+      titulo: 'Servidor despertando',
+      mensaje: 'El servidor está arrancando, esto tomará unos 30 segundos. Intenta de nuevo en un momento.',
+      tipo: 'info'
+    };
+  }
+  
+  // Rate limit
+  if (errStr.includes('429') || errStr.includes('rate limit') || errStr.includes('too many requests')) {
+    return {
+      titulo: 'Demasiadas solicitudes',
+      mensaje: 'Espera un momento antes de intentar de nuevo. El sistema protege contra uso excesivo.',
+      tipo: 'warning'
+    };
+  }
+  
+  // Timeout
+  if (errStr.includes('timeout') || errStr.includes('timed out')) {
+    return {
+      titulo: 'Tiempo agotado',
+      mensaje: 'La operación tardó demasiado. Verifica tu conexión e intenta de nuevo.',
+      tipo: 'warning'
+    };
+  }
+  
+  // Validación
+  if (errStr.includes('dni')) {
+    return {
+      titulo: 'DNI inválido',
+      mensaje: 'El DNI debe tener exactamente 8 dígitos numéricos.',
+      tipo: 'error'
+    };
+  }
+  
+  if (errStr.includes('email') || errStr.includes('correo')) {
+    return {
+      titulo: 'Email inválido',
+      mensaje: 'Verifica que el formato del correo sea correcto (ejemplo@dominio.com).',
+      tipo: 'error'
+    };
+  }
+  
+  // Cuota Gemini
+  if (errStr.includes('quota') || errStr.includes('gemini')) {
+    return {
+      titulo: 'Análisis IA no disponible',
+      mensaje: 'El servicio de visión IA está temporalmente ocupado. Intenta más tarde, tus datos están seguros.',
+      tipo: 'warning'
+    };
+  }
+  
+  // Autenticación
+  if (errStr.includes('401') || errStr.includes('unauthorized') || errStr.includes('invalid login')) {
+    return {
+      titulo: 'Sesión expirada',
+      mensaje: 'Por seguridad necesitas iniciar sesión de nuevo.',
+      tipo: 'warning'
+    };
+  }
+  
+  if (errStr.includes('403') || errStr.includes('forbidden')) {
+    return {
+      titulo: 'Sin permisos',
+      mensaje: 'Tu rol no tiene permiso para esta acción. Contacta al administrador.',
+      tipo: 'error'
+    };
+  }
+  
+  if (errStr.includes('404') || errStr.includes('not found')) {
+    return {
+      titulo: 'No encontrado',
+      mensaje: 'El recurso que buscas no existe o fue eliminado.',
+      tipo: 'error'
+    };
+  }
+  
+  if (errStr.includes('500') || errStr.includes('internal server')) {
+    return {
+      titulo: 'Error del servidor',
+      mensaje: 'Algo salió mal en el servidor. Intenta de nuevo o contacta soporte si persiste.',
+      tipo: 'error'
+    };
+  }
+  
+  // Genérico
+  return {
+    titulo: 'Algo salió mal',
+    mensaje: error?.message || 'Ocurrió un error inesperado. Intenta de nuevo.',
+    tipo: 'error'
+  };
+}
+
+/**
+ * Maneja un error mostrando un toast amigable al usuario.
+ */
+function manejarError(error, contextoExtra = '') {
+  console.error('[Error]', error);
+  const m = mensajeAmigableError(error);
+  if (contextoExtra) m.titulo = contextoExtra;
+  mostrarToast(m.mensaje, m.tipo, { titulo: m.titulo });
+}
+
+// =============================================================
+// LOADING STATE GLOBAL (overlay con mensaje contextual)
+// =============================================================
+
+function mostrarLoading(mensaje = 'Cargando...', subtexto = '') {
+  let overlay = document.getElementById('loadingOverlayGlobal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'loadingOverlayGlobal';
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); z-index: 99990;
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    `;
+    overlay.innerHTML = `
+      <div style="background:linear-gradient(135deg, #243024, #1a1f1a); border:1px solid rgba(239,159,39,0.3); border-radius:14px; padding:32px 40px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.5); min-width:280px;">
+        <div style="font-size:40px; margin-bottom:16px; animation: spin 1.5s linear infinite; display:inline-block;">⚙</div>
+        <div id="loadingMensaje" style="color:#fff; font-size:15px; font-weight:600; margin-bottom:6px;">Cargando...</div>
+        <div id="loadingSubtexto" style="color:#94a3b8; font-size:12px;"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+  document.getElementById('loadingMensaje').textContent = mensaje;
+  document.getElementById('loadingSubtexto').textContent = subtexto;
+  overlay.style.display = 'flex';
+}
+
+function ocultarLoading() {
+  const overlay = document.getElementById('loadingOverlayGlobal');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// Detectar pérdida y recuperación de conexión
+window.addEventListener('online', () => {
+  toastExito('Conexión restaurada', { titulo: '🌐 Internet de vuelta' });
+});
+
+window.addEventListener('offline', () => {
+  toastWarning('Sin internet. Tu trabajo se guardará localmente y se sincronizará al reconectarse.', { 
+    titulo: '📡 Sin conexión',
+    duracion: 8000
+  });
 });
 
 // =============================================================
