@@ -2271,11 +2271,12 @@ tr:hover td {
   <div style="background:linear-gradient(135deg, rgba(168,85,247,0.1), rgba(59,130,246,0.1)); border:1px solid rgba(168,85,247,0.3); border-radius:14px; padding:20px; margin-bottom:24px; display:flex; gap:16px; align-items:center;">
     <div style="font-size:40px;">🤖</div>
     <div style="flex:1;">
-      <h3 style="color:#A855F7; margin:0 0 4px 0; font-size:16px;">Agente IA Deliberativo</h3>
-      <p style="color:#cbd5e1; font-size:13px; margin:0; line-height:1.5;">
-        Sistema basado en estadística y regresión lineal. Analiza pesadas históricas para predecir producción futura, 
-        identificar trabajadores con bajo rendimiento y estimar el fin de campaña. Russell &amp; Norvig (2021).
+      <h3 style="color:#A855F7; margin:0 0 4px 0; font-size:16px;">Agente IA con Aprendizaje Adaptativo</h3>
+      <p style="color:#cbd5e1; font-size:13px; margin:0 0 6px 0; line-height:1.5;">
+        Sistema que aprende los patrones de productividad de cada día de la semana 
+        directamente de las pesadas históricas. Combina aprendizaje supervisado básico con análisis estadístico (z-score). Russell &amp; Norvig (2021).
       </p>
+      <div id="predInfoAprendizaje" style="color:#A855F7; font-size:12px; font-weight:600;">📚 Modelo en construcción...</div>
     </div>
     <div id="predConfianza" style="text-align:center; min-width:90px;">
       <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Confianza</div>
@@ -2401,7 +2402,7 @@ tr:hover td {
 
     <!-- ============ FOOTER METODOLOGÍA ============ -->
     <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; font-size:12px; color:#94a3b8; line-height:1.6;">
-      <strong style="color:#cbd5e1;">📐 Metodología:</strong> Las predicciones se calculan en tiempo real usando regresión lineal simple sobre los datos históricos de pesadas, comparando productividad real vs histórico de cada trabajador (z-score). La confianza se ajusta según la cantidad y consistencia de datos disponibles. Cumple el modelo de agente IA deliberativo (Russell &amp; Norvig, 2021).
+      <strong style="color:#cbd5e1;">📐 Metodología:</strong> El agente IA implementa <strong>aprendizaje supervisado básico</strong>: agrupa las pesadas históricas por día de la semana y calcula los factores de productividad reales de cada día. Si no hay datos suficientes de algún día, usa valores por defecto basados en patrones agrícolas tradicionales. La confianza del modelo crece a medida que se registran más pesadas y se cubren más días de la semana. Cumple el modelo de agente IA deliberativo con aprendizaje (Russell &amp; Norvig, 2021).
     </div>
   </div>
 </div>
@@ -7597,21 +7598,65 @@ function generarPredicciones() {
   const predicciones7dias = [];
   let totalProyectado = 0;
   
-  // Factores fijos por día de la semana (basados en patrones reales de cosecha)
-  // 0=Domingo, 1=Lunes, 2=Martes, 3=Miércoles, 4=Jueves, 5=Viernes, 6=Sábado
-  const FACTORES_DIA = {
-    0: 0.00,  // Domingo: descanso
-    1: 1.00,  // Lunes: día normal (referencia)
-    2: 1.05,  // Martes: alta productividad
-    3: 0.98,  // Miércoles: ligeramente bajo (cansancio acumulado)
-    4: 1.02,  // Jueves: recuperación
-    5: 1.08,  // Viernes: esfuerzo final de semana
-    6: 0.50   // Sábado: medio día
+  // ============================================================
+  // MODELO APRENDIDO: factores por día desde los datos históricos
+  // ============================================================
+  
+  // Valores por defecto (se usan solo si NO hay datos de ese día)
+  // 0=Domingo, 1=Lunes, ..., 6=Sábado
+  const FACTORES_DEFAULT = {
+    0: 0.00,  // Domingo: descanso (tradición agrícola peruana)
+    1: 1.00, 2: 1.05, 3: 0.98, 4: 1.02, 5: 1.08, 6: 0.50
   };
   
+  // Agrupar pesadas históricas por día de la semana
+  const kgPorDia = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+  
+  pesadasValidas.forEach(p => {
+    if (!p._localTimestamp) return; // Necesitamos timestamp para conocer el día
+    const fecha = new Date(p._localTimestamp * 1000);
+    const diaSem = fecha.getDay();
+    kgPorDia[diaSem].push(parseFloat(p.kg) || 0);
+  });
+  
+  // Calcular promedio por día y promedio general
+  const promediosPorDia = {};
+  const sumaTotal = pesadasValidas.reduce((s, p) => s + parseFloat(p.kg || 0), 0);
+  const promedioGeneralPesada = sumaTotal / pesadasValidas.length;
+  
+  let diasConDatos = 0;
+  
+  for (let d = 0; d < 7; d++) {
+    if (kgPorDia[d].length > 0) {
+      const sumDia = kgPorDia[d].reduce((s, kg) => s + kg, 0);
+      promediosPorDia[d] = sumDia / kgPorDia[d].length;
+      diasConDatos++;
+    } else {
+      promediosPorDia[d] = null; // sin datos
+    }
+  }
+  
+  // Construir factores APRENDIDOS por día
+  // Si hay datos de ese día: factor = promedio_dia / promedio_general
+  // Si NO hay datos: usar factor por defecto
+  const FACTORES_DIA = {};
+  const tieneFactorReal = {};
+  
+  for (let d = 0; d < 7; d++) {
+    if (promediosPorDia[d] !== null && promedioGeneralPesada > 0) {
+      FACTORES_DIA[d] = promediosPorDia[d] / promedioGeneralPesada;
+      tieneFactorReal[d] = true;
+    } else {
+      FACTORES_DIA[d] = FACTORES_DEFAULT[d];
+      tieneFactorReal[d] = false;
+    }
+  }
+  
+  // Aplicar factores a los próximos 7 días
   for (let i = 0; i < 7; i++) {
     const diaIdx = (hoyIdx + i) % 7;
     const factor = FACTORES_DIA[diaIdx];
+    const esAprendido = tieneFactorReal[diaIdx];
     
     const valor = Math.round(promedioDiario * factor);
     totalProyectado += valor;
@@ -7619,26 +7664,63 @@ function generarPredicciones() {
     predicciones7dias.push({
       dia: diasSemana[diaIdx],
       valor: valor,
-      esHoy: i === 0
+      esHoy: i === 0,
+      esAprendido: esAprendido  // marca si el factor viene de datos reales
     });
   }
   
+  // Guardar info de aprendizaje para mostrar al usuario
+  window._predDiasAprendidos = diasConDatos;
+  
   // Renderizar gráfico de barras
+  // Días APRENDIDOS = verde sólido, días ESTIMADOS = rayado/sin saturación
   const maxValor = Math.max(...predicciones7dias.map(p => p.valor), 1);
   const grafico = document.getElementById('predGrafico');
   grafico.innerHTML = predicciones7dias.map(p => {
     const altura = (p.valor / maxValor) * 100;
-    const color = p.valor === 0 ? '#475569' : (p.esHoy ? '#EF9F27' : '#10B981');
+    let color, opacidad, badge;
+    
+    if (p.valor === 0) {
+      color = '#475569'; opacidad = '0.3'; badge = '';
+    } else if (p.esHoy) {
+      color = '#EF9F27'; opacidad = '1'; badge = p.esAprendido ? '📊' : '';
+    } else if (p.esAprendido) {
+      color = '#10B981'; opacidad = '1'; badge = '📊';  // verde si aprendido
+    } else {
+      color = '#64748B'; opacidad = '0.6'; badge = '~';  // gris si estimado
+    }
+    
     return `
-      <div style="flex:1; display:flex; flex-direction:column; align-items:center; height:100%;">
-        <div style="color:#fff; font-size:11px; font-weight:bold; margin-bottom:4px;">${p.valor}</div>
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; height:100%;" 
+           title="${p.esAprendido ? 'Factor aprendido de datos reales' : 'Factor estimado por defecto (sin datos suficientes)'}">
+        <div style="color:#fff; font-size:11px; font-weight:bold; margin-bottom:4px;">
+          ${p.valor}${badge ? ' <span style="font-size:9px; color:#94a3b8;">' + badge + '</span>' : ''}
+        </div>
         <div style="flex:1; width:100%; display:flex; align-items:flex-end;">
-          <div style="background:${color}; width:100%; height:${altura}%; min-height:2px; border-radius:4px 4px 0 0; opacity:${p.valor === 0 ? '0.3' : '1'};"></div>
+          <div style="background:${color}; width:100%; height:${altura}%; min-height:2px; border-radius:4px 4px 0 0; opacity:${opacidad};"></div>
         </div>
         <div style="color:#94a3b8; font-size:11px; margin-top:6px; ${p.esHoy ? 'color:#EF9F27; font-weight:bold;' : ''}">${p.dia}</div>
       </div>
     `;
   }).join('');
+  
+  // Leyenda debajo del gráfico
+  if (!document.getElementById('predLeyenda')) {
+    const leyenda = document.createElement('div');
+    leyenda.id = 'predLeyenda';
+    leyenda.style.cssText = 'display:flex; gap:14px; justify-content:center; margin-top:10px; font-size:11px; color:#94a3b8; flex-wrap:wrap;';
+    leyenda.innerHTML = `
+      <div style="display:flex; align-items:center; gap:6px;">
+        <div style="width:14px; height:14px; background:#10B981; border-radius:3px;"></div>
+        <span>📊 Aprendido de datos reales</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <div style="width:14px; height:14px; background:#64748B; border-radius:3px; opacity:0.6;"></div>
+        <span>~ Estimado por defecto</span>
+      </div>
+    `;
+    grafico.parentNode.insertBefore(leyenda, grafico.nextSibling);
+  }
   
   document.getElementById('predTotal7dias').textContent = totalProyectado.toLocaleString() + ' kg';
   document.getElementById('predPromedio').textContent = Math.round(promedioDiario) + ' kg';
@@ -7860,15 +7942,39 @@ function generarPredicciones() {
   document.getElementById('predEstadoCampana').textContent = estadoCampana;
   
   // ============ CONFIANZA DEL MODELO ============
+  // Confianza combinada: cantidad de pesadas + diversidad de días aprendidos
   
-  let confianza = 0;
-  if (pesadasValidas.length >= 50) confianza = 92;
-  else if (pesadasValidas.length >= 30) confianza = 87;
-  else if (pesadasValidas.length >= 20) confianza = 78;
-  else if (pesadasValidas.length >= 10) confianza = 65;
-  else confianza = 50;
+  let confianzaBase = 0;
+  if (pesadasValidas.length >= 50) confianzaBase = 85;
+  else if (pesadasValidas.length >= 30) confianzaBase = 75;
+  else if (pesadasValidas.length >= 20) confianzaBase = 65;
+  else if (pesadasValidas.length >= 10) confianzaBase = 55;
+  else confianzaBase = 40;
+  
+  // Bonus por cobertura de días (de 0 a 7 días aprendidos)
+  // Cada día aprendido suma hasta 2% extra (max +14%)
+  const bonusAprendizaje = (diasConDatos / 7) * 14;
+  const confianza = Math.min(95, Math.round(confianzaBase + bonusAprendizaje));
   
   document.getElementById('predConfianza').querySelector('div:last-child').textContent = confianza + '%';
+  
+  // Actualizar info de aprendizaje
+  const elInfoApr = document.getElementById('predInfoAprendizaje');
+  if (elInfoApr) {
+    if (diasConDatos === 0) {
+      elInfoApr.innerHTML = '📚 Modelo usando valores por defecto (registra más pesadas para que aprenda)';
+      elInfoApr.style.color = '#94a3b8';
+    } else if (diasConDatos < 4) {
+      elInfoApr.innerHTML = `📚 Aprendido de ${diasConDatos}/7 días de la semana · Sigue registrando para mejorar`;
+      elInfoApr.style.color = '#F59E0B';
+    } else if (diasConDatos < 7) {
+      elInfoApr.innerHTML = `📚 Aprendido de ${diasConDatos}/7 días · Modelo casi completo`;
+      elInfoApr.style.color = '#3B82F6';
+    } else {
+      elInfoApr.innerHTML = `📚 Aprendido de los 7 días de la semana · Modelo completo y optimizado`;
+      elInfoApr.style.color = '#10B981';
+    }
+  }
 }
 
 // Auto-generar al entrar a la sección
