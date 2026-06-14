@@ -567,6 +567,41 @@ def health():
     })
 
 
+# ============================================================
+# CACHÉ DEL HEALTH CHECK
+# Evita sobrecargar servicios externos gratuitos (HTTP 429)
+# ============================================================
+
+_health_cache = {}
+HEALTH_CACHE_TTL = 300  # 5 minutos en segundos
+
+def obtener_de_cache_o_consultar(servicio_id, funcion_consulta):
+    """
+    Devuelve el resultado en caché si tiene menos de 5 minutos,
+    sino ejecuta la función de consulta y guarda en caché.
+    """
+    import time
+    ahora = time.time()
+    
+    if servicio_id in _health_cache:
+        entrada = _health_cache[servicio_id]
+        edad = ahora - entrada['timestamp']
+        if edad < HEALTH_CACHE_TTL:
+            # Marcar como cacheado para que el usuario sepa
+            resultado_cached = dict(entrada['resultado'])
+            resultado_cached['cacheado'] = True
+            resultado_cached['cache_edad_seg'] = int(edad)
+            return resultado_cached
+    
+    # No hay caché o expiró, hacer consulta real
+    resultado = funcion_consulta()
+    _health_cache[servicio_id] = {
+        'timestamp': ahora,
+        'resultado': resultado
+    }
+    return resultado
+
+
 @app.route('/api/health-completo', methods=['GET'])
 def health_completo():
     """
@@ -586,221 +621,270 @@ def health_completo():
         'icono': '🟢'
     }
     
-    # 2. Supabase (Base de datos)
-    try:
-        t0 = time.time()
-        supabase_url = os.getenv('SUPABASE_URL', 'https://bznbbedzyudnrktdntfw.supabase.co')
-        supabase_key = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_ANON_KEY', '')
-        
-        if supabase_key:
-            r = requests.get(
-                f"{supabase_url}/rest/v1/",
-                headers={'apikey': supabase_key},
-                timeout=5
-            )
-            latencia = int((time.time() - t0) * 1000)
-            if r.status_code in [200, 404]:  # 404 también es OK (sin tabla específica)
-                servicios['supabase'] = {
-                    'nombre': 'Supabase (Base de datos)',
-                    'estado': 'ok' if latencia < 500 else 'lento',
-                    'latencia_ms': latencia,
-                    'detalle': 'PostgreSQL con Row Level Security activo',
-                    'icono': '🟢' if latencia < 500 else '🟡'
-                }
+    # 2. Supabase (Base de datos) - con caché
+    def consultar_supabase():
+        try:
+            t0 = time.time()
+            supabase_url = os.getenv('SUPABASE_URL', 'https://bznbbedzyudnrktdntfw.supabase.co')
+            supabase_key = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_ANON_KEY', '')
+            
+            if supabase_key:
+                r = requests.get(
+                    f"{supabase_url}/rest/v1/",
+                    headers={'apikey': supabase_key},
+                    timeout=5
+                )
+                latencia = int((time.time() - t0) * 1000)
+                if r.status_code in [200, 404]:
+                    return {
+                        'nombre': 'Supabase (Base de datos)',
+                        'estado': 'ok' if latencia < 500 else 'lento',
+                        'latencia_ms': latencia,
+                        'detalle': 'PostgreSQL con Row Level Security activo',
+                        'icono': '🟢' if latencia < 500 else '🟡'
+                    }
+                elif r.status_code == 429:
+                    return {
+                        'nombre': 'Supabase (Base de datos)',
+                        'estado': 'lento',
+                        'latencia_ms': latencia,
+                        'detalle': 'Rate limit alcanzado (servicio funcionando)',
+                        'icono': '🟡'
+                    }
+                else:
+                    return {
+                        'nombre': 'Supabase (Base de datos)',
+                        'estado': 'error',
+                        'latencia_ms': latencia,
+                        'detalle': f'Error HTTP {r.status_code}',
+                        'icono': '🔴'
+                    }
             else:
-                servicios['supabase'] = {
+                return {
                     'nombre': 'Supabase (Base de datos)',
-                    'estado': 'error',
-                    'latencia_ms': latencia,
-                    'detalle': f'Error HTTP {r.status_code}',
-                    'icono': '🔴'
+                    'estado': 'desconocido',
+                    'latencia_ms': 0,
+                    'detalle': 'No configurado',
+                    'icono': '⚪'
                 }
-        else:
-            servicios['supabase'] = {
+        except Exception as e:
+            return {
                 'nombre': 'Supabase (Base de datos)',
-                'estado': 'desconocido',
-                'latencia_ms': 0,
-                'detalle': 'No configurado',
-                'icono': '⚪'
-            }
-    except Exception as e:
-        servicios['supabase'] = {
-            'nombre': 'Supabase (Base de datos)',
-            'estado': 'error',
-            'latencia_ms': 0,
-            'detalle': str(e)[:80],
-            'icono': '🔴'
-        }
-    
-    # 3. Gemini (IA Vision)
-    try:
-        t0 = time.time()
-        gemini_key = os.getenv('GEMINI_API_KEY')
-        if gemini_key:
-            # Solo verificar que el endpoint responda, no hacer análisis real
-            r = requests.get(
-                'https://generativelanguage.googleapis.com/v1beta/models',
-                params={'key': gemini_key},
-                timeout=8
-            )
-            latencia = int((time.time() - t0) * 1000)
-            if r.status_code == 200:
-                servicios['gemini'] = {
-                    'nombre': 'Gemini (Visión IA)',
-                    'estado': 'ok' if latencia < 1500 else 'lento',
-                    'latencia_ms': latencia,
-                    'detalle': 'Google Gemini Vision disponible',
-                    'icono': '🟢' if latencia < 1500 else '🟡'
-                }
-            else:
-                servicios['gemini'] = {
-                    'nombre': 'Gemini (Visión IA)',
-                    'estado': 'error',
-                    'latencia_ms': latencia,
-                    'detalle': f'HTTP {r.status_code}',
-                    'icono': '🔴'
-                }
-        else:
-            servicios['gemini'] = {
-                'nombre': 'Gemini (Visión IA)',
-                'estado': 'desconocido',
-                'latencia_ms': 0,
-                'detalle': 'API key no configurada',
-                'icono': '⚪'
-            }
-    except Exception as e:
-        servicios['gemini'] = {
-            'nombre': 'Gemini (Visión IA)',
-            'estado': 'error',
-            'latencia_ms': 0,
-            'detalle': str(e)[:80],
-            'icono': '🔴'
-        }
-    
-    # 4. Resend (Email)
-    try:
-        t0 = time.time()
-        resend_key = os.getenv('RESEND_API_KEY')
-        if resend_key:
-            r = requests.get(
-                'https://api.resend.com/domains',
-                headers={'Authorization': f'Bearer {resend_key}'},
-                timeout=5
-            )
-            latencia = int((time.time() - t0) * 1000)
-            # 200 OK o 401/403 (key inválida pero servicio responde)
-            if r.status_code in [200, 401, 403]:
-                servicios['resend'] = {
-                    'nombre': 'Resend (Email)',
-                    'estado': 'ok' if latencia < 800 else 'lento',
-                    'latencia_ms': latencia,
-                    'detalle': 'Servicio de email transaccional',
-                    'icono': '🟢' if latencia < 800 else '🟡'
-                }
-            else:
-                servicios['resend'] = {
-                    'nombre': 'Resend (Email)',
-                    'estado': 'error',
-                    'latencia_ms': latencia,
-                    'detalle': f'HTTP {r.status_code}',
-                    'icono': '🔴'
-                }
-        else:
-            servicios['resend'] = {
-                'nombre': 'Resend (Email)',
-                'estado': 'desconocido',
-                'latencia_ms': 0,
-                'detalle': 'API key no configurada',
-                'icono': '⚪'
-            }
-    except Exception as e:
-        servicios['resend'] = {
-            'nombre': 'Resend (Email)',
-            'estado': 'error',
-            'latencia_ms': 0,
-            'detalle': str(e)[:80],
-            'icono': '🔴'
-        }
-    
-    # 5. Open-Meteo (Clima)
-    try:
-        t0 = time.time()
-        r = requests.get(
-            'https://api.open-meteo.com/v1/forecast',
-            params={'latitude': -8.4078, 'longitude': -78.7547, 'current': 'temperature_2m'},
-            timeout=5
-        )
-        latencia = int((time.time() - t0) * 1000)
-        if r.status_code == 200:
-            data = r.json()
-            temp = data.get('current', {}).get('temperature_2m', '?')
-            servicios['openmeteo'] = {
-                'nombre': 'Open-Meteo (Clima)',
-                'estado': 'ok' if latencia < 1000 else 'lento',
-                'latencia_ms': latencia,
-                'detalle': f'Datos meteorológicos · Virú: {temp}°C',
-                'icono': '🟢' if latencia < 1000 else '🟡'
-            }
-        else:
-            servicios['openmeteo'] = {
-                'nombre': 'Open-Meteo (Clima)',
                 'estado': 'error',
-                'latencia_ms': latencia,
-                'detalle': f'HTTP {r.status_code}',
+                'latencia_ms': 0,
+                'detalle': str(e)[:80],
                 'icono': '🔴'
             }
-    except Exception as e:
-        servicios['openmeteo'] = {
-            'nombre': 'Open-Meteo (Clima)',
-            'estado': 'error',
-            'latencia_ms': 0,
-            'detalle': str(e)[:80],
-            'icono': '🔴'
-        }
+    servicios['supabase'] = obtener_de_cache_o_consultar('supabase', consultar_supabase)
     
-    # 6. Datadog (Métricas)
-    try:
-        t0 = time.time()
-        dd_key = os.getenv('DATADOG_API_KEY')
-        if dd_key:
+    # 3. Gemini (IA Vision) - con caché
+    def consultar_gemini():
+        try:
+            t0 = time.time()
+            gemini_key = os.getenv('GEMINI_API_KEY')
+            if gemini_key:
+                r = requests.get(
+                    'https://generativelanguage.googleapis.com/v1beta/models',
+                    params={'key': gemini_key},
+                    timeout=8
+                )
+                latencia = int((time.time() - t0) * 1000)
+                if r.status_code == 200:
+                    return {
+                        'nombre': 'Gemini (Visión IA)',
+                        'estado': 'ok' if latencia < 1500 else 'lento',
+                        'latencia_ms': latencia,
+                        'detalle': 'Google Gemini Vision disponible',
+                        'icono': '🟢' if latencia < 1500 else '🟡'
+                    }
+                elif r.status_code == 429:
+                    return {
+                        'nombre': 'Gemini (Visión IA)',
+                        'estado': 'lento',
+                        'latencia_ms': latencia,
+                        'detalle': 'Cuota gratuita alcanzada (reintenta más tarde)',
+                        'icono': '🟡'
+                    }
+                else:
+                    return {
+                        'nombre': 'Gemini (Visión IA)',
+                        'estado': 'error',
+                        'latencia_ms': latencia,
+                        'detalle': f'HTTP {r.status_code}',
+                        'icono': '🔴'
+                    }
+            else:
+                return {
+                    'nombre': 'Gemini (Visión IA)',
+                    'estado': 'desconocido',
+                    'latencia_ms': 0,
+                    'detalle': 'API key no configurada',
+                    'icono': '⚪'
+                }
+        except Exception as e:
+            return {
+                'nombre': 'Gemini (Visión IA)',
+                'estado': 'error',
+                'latencia_ms': 0,
+                'detalle': str(e)[:80],
+                'icono': '🔴'
+            }
+    servicios['gemini'] = obtener_de_cache_o_consultar('gemini', consultar_gemini)
+    
+    # 4. Resend (Email) - con caché
+    def consultar_resend():
+        try:
+            t0 = time.time()
+            resend_key = os.getenv('RESEND_API_KEY')
+            if resend_key:
+                r = requests.get(
+                    'https://api.resend.com/domains',
+                    headers={'Authorization': f'Bearer {resend_key}'},
+                    timeout=5
+                )
+                latencia = int((time.time() - t0) * 1000)
+                if r.status_code in [200, 401, 403]:
+                    return {
+                        'nombre': 'Resend (Email)',
+                        'estado': 'ok' if latencia < 800 else 'lento',
+                        'latencia_ms': latencia,
+                        'detalle': 'Servicio de email transaccional',
+                        'icono': '🟢' if latencia < 800 else '🟡'
+                    }
+                elif r.status_code == 429:
+                    return {
+                        'nombre': 'Resend (Email)',
+                        'estado': 'lento',
+                        'latencia_ms': latencia,
+                        'detalle': 'Rate limit alcanzado (servicio funcionando)',
+                        'icono': '🟡'
+                    }
+                else:
+                    return {
+                        'nombre': 'Resend (Email)',
+                        'estado': 'error',
+                        'latencia_ms': latencia,
+                        'detalle': f'HTTP {r.status_code}',
+                        'icono': '🔴'
+                    }
+            else:
+                return {
+                    'nombre': 'Resend (Email)',
+                    'estado': 'desconocido',
+                    'latencia_ms': 0,
+                    'detalle': 'API key no configurada',
+                    'icono': '⚪'
+                }
+        except Exception as e:
+            return {
+                'nombre': 'Resend (Email)',
+                'estado': 'error',
+                'latencia_ms': 0,
+                'detalle': str(e)[:80],
+                'icono': '🔴'
+            }
+    servicios['resend'] = obtener_de_cache_o_consultar('resend', consultar_resend)
+    
+    # 5. Open-Meteo (Clima) - con caché EXTENDIDO
+    # Open-Meteo es gratuito y tiene límites estrictos. Caché de 5 min protege el servicio.
+    def consultar_openmeteo():
+        try:
+            t0 = time.time()
             r = requests.get(
-                f'https://api.{SITE}/api/v1/validate',
-                headers={'DD-API-KEY': dd_key},
+                'https://api.open-meteo.com/v1/forecast',
+                params={'latitude': -8.4078, 'longitude': -78.7547, 'current': 'temperature_2m'},
                 timeout=5
             )
             latencia = int((time.time() - t0) * 1000)
             if r.status_code == 200:
-                servicios['datadog'] = {
-                    'nombre': 'Datadog (Métricas)',
+                data = r.json()
+                temp = data.get('current', {}).get('temperature_2m', '?')
+                return {
+                    'nombre': 'Open-Meteo (Clima)',
                     'estado': 'ok' if latencia < 1000 else 'lento',
                     'latencia_ms': latencia,
-                    'detalle': 'Monitoreo y observabilidad',
+                    'detalle': f'Datos meteorológicos · Virú: {temp}°C',
                     'icono': '🟢' if latencia < 1000 else '🟡'
                 }
+            elif r.status_code == 429:
+                return {
+                    'nombre': 'Open-Meteo (Clima)',
+                    'estado': 'lento',
+                    'latencia_ms': latencia,
+                    'detalle': 'Rate limit del servicio gratuito (servicio operativo)',
+                    'icono': '🟡'
+                }
             else:
-                servicios['datadog'] = {
-                    'nombre': 'Datadog (Métricas)',
+                return {
+                    'nombre': 'Open-Meteo (Clima)',
                     'estado': 'error',
                     'latencia_ms': latencia,
                     'detalle': f'HTTP {r.status_code}',
                     'icono': '🔴'
                 }
-        else:
-            servicios['datadog'] = {
-                'nombre': 'Datadog (Métricas)',
-                'estado': 'desconocido',
+        except Exception as e:
+            return {
+                'nombre': 'Open-Meteo (Clima)',
+                'estado': 'error',
                 'latencia_ms': 0,
-                'detalle': 'API key no configurada',
-                'icono': '⚪'
+                'detalle': str(e)[:80],
+                'icono': '🔴'
             }
-    except Exception as e:
-        servicios['datadog'] = {
-            'nombre': 'Datadog (Métricas)',
-            'estado': 'error',
-            'latencia_ms': 0,
-            'detalle': str(e)[:80],
-            'icono': '🔴'
-        }
+    servicios['openmeteo'] = obtener_de_cache_o_consultar('openmeteo', consultar_openmeteo)
+    
+    # 6. Datadog (Métricas) - con caché
+    def consultar_datadog():
+        try:
+            t0 = time.time()
+            dd_key = os.getenv('DATADOG_API_KEY')
+            if dd_key:
+                r = requests.get(
+                    f'https://api.{SITE}/api/v1/validate',
+                    headers={'DD-API-KEY': dd_key},
+                    timeout=5
+                )
+                latencia = int((time.time() - t0) * 1000)
+                if r.status_code == 200:
+                    return {
+                        'nombre': 'Datadog (Métricas)',
+                        'estado': 'ok' if latencia < 1000 else 'lento',
+                        'latencia_ms': latencia,
+                        'detalle': 'Monitoreo y observabilidad',
+                        'icono': '🟢' if latencia < 1000 else '🟡'
+                    }
+                elif r.status_code == 429:
+                    return {
+                        'nombre': 'Datadog (Métricas)',
+                        'estado': 'lento',
+                        'latencia_ms': latencia,
+                        'detalle': 'Rate limit alcanzado (servicio funcionando)',
+                        'icono': '🟡'
+                    }
+                else:
+                    return {
+                        'nombre': 'Datadog (Métricas)',
+                        'estado': 'error',
+                        'latencia_ms': latencia,
+                        'detalle': f'HTTP {r.status_code}',
+                        'icono': '🔴'
+                    }
+            else:
+                return {
+                    'nombre': 'Datadog (Métricas)',
+                    'estado': 'desconocido',
+                    'latencia_ms': 0,
+                    'detalle': 'API key no configurada',
+                    'icono': '⚪'
+                }
+        except Exception as e:
+            return {
+                'nombre': 'Datadog (Métricas)',
+                'estado': 'error',
+                'latencia_ms': 0,
+                'detalle': str(e)[:80],
+                'icono': '🔴'
+            }
+    servicios['datadog'] = obtener_de_cache_o_consultar('datadog', consultar_datadog)
     
     # Calcular estado global
     estados = [s['estado'] for s in servicios.values()]
