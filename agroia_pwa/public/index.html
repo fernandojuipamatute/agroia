@@ -2059,43 +2059,79 @@ tr:hover td {
           Coordenadas: -8.4078°, -78.7547° · Zona Camposol S.A. · Resolución 10m/pixel
         </div>
       </div>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
         <div style="background:rgba(16,185,129,0.15); color:#10B981; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600;">
           🟢 Sentinel-2 (ESA)
         </div>
-        <a href="https://apps.sentinel-hub.com/eo-browser/?zoom=12&lat=-8.4078&lng=-78.7547&themeId=DEFAULT-THEME&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&layerId=1_TRUE_COLOR" 
+        <a href="https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-8.4078&lng=-78.7547&themeId=DEFAULT-THEME&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&layerId=1_TRUE_COLOR" 
              target="_blank" 
              style="background:rgba(59,130,246,0.15); color:#3B82F6; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none; border:1px solid rgba(59,130,246,0.3);">
-          🔗 Abrir en EO Browser
+          🔗 Análisis Avanzado
         </a>
       </div>
     </div>
 
-    <!-- Selector de vista -->
-    <div style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:8px; flex-wrap:wrap;">
-      <button onclick="cambiarVistaSatelital('truecolor')" id="btnSatTrue" class="sat-btn-active" style="background:rgba(99,153,34,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.4); padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">
-        🎨 Color Real
-      </button>
-      <button onclick="cambiarVistaSatelital('ndvi')" id="btnSatNDVI" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer;">
-        🌿 NDVI (Vegetación)
-      </button>
-      <button onclick="cambiarVistaSatelital('moisture')" id="btnSatMoist" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer;">
-        💧 Humedad
-      </button>
-      <button onclick="cambiarVistaSatelital('falsecolor')" id="btnSatFalse" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer;">
-        🔴 Infrarrojo
-      </button>
+    <!-- BANNER INSTRUCTIVO (NUEVO) -->
+    <div style="background:linear-gradient(90deg, rgba(99,153,34,0.1), rgba(59,130,246,0.1)); padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.05);">
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <div style="font-size:22px;">💡</div>
+        <div>
+          <div style="color:#cbd5e1; font-size:13px; font-weight:600; margin-bottom:2px;">¿Cómo usar este monitor?</div>
+          <div style="color:#94a3b8; font-size:12px; line-height:1.5;">
+            Selecciona una vista abajo (color real, NDVI, humedad o infrarrojo). 
+            Cada vista te muestra información diferente del Valle de Virú. 
+            La imagen interactiva se actualiza automáticamente con datos del satélite Sentinel-2 de la ESA.
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Mapa embebido (Sentinel Hub Playground) -->
-    <div style="position:relative; height:500px; background:#0a0e0a;">
+    <!-- Selector de vista CON DESCRIPCIONES -->
+    <div style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.05);">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
+        <button onclick="cambiarVistaSatelital('truecolor')" id="btnSatTrue" class="sat-btn-active" style="background:rgba(99,153,34,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.4); padding:12px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-align:left;">
+          🎨 Color Real
+          <div style="font-size:11px; opacity:0.8; font-weight:normal; margin-top:3px;">Cómo se ve en realidad</div>
+        </button>
+        <button onclick="cambiarVistaSatelital('ndvi')" id="btnSatNDVI" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; font-size:13px; cursor:pointer; text-align:left;">
+          🌿 NDVI (Vegetación)
+          <div style="font-size:11px; opacity:0.7; margin-top:3px;">Salud de los cultivos</div>
+        </button>
+        <button onclick="cambiarVistaSatelital('moisture')" id="btnSatMoist" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; font-size:13px; cursor:pointer; text-align:left;">
+          💧 Humedad
+          <div style="font-size:11px; opacity:0.7; margin-top:3px;">Agua en suelo y plantas</div>
+        </button>
+        <button onclick="cambiarVistaSatelital('falsecolor')" id="btnSatFalse" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; font-size:13px; cursor:pointer; text-align:left;">
+          🔴 Infrarrojo
+          <div style="font-size:11px; opacity:0.7; margin-top:3px;">Vegetación destacada en rojo</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Descripción de vista actual (NUEVO - cambia con cada botón) -->
+    <div id="satDescripcionActual" style="padding:14px 20px; background:rgba(16,185,129,0.05); border-bottom:1px solid rgba(255,255,255,0.05); border-left:4px solid #10B981;">
+      <div style="color:#10B981; font-weight:600; font-size:13px; margin-bottom:4px;" id="satDescTitulo">🎨 Vista actual: Color Real</div>
+      <div style="color:#cbd5e1; font-size:12px; line-height:1.5;" id="satDescTexto">
+        Esta es la apariencia natural del Valle de Virú vista desde el espacio. 
+        Lo verde son los cultivos de palta Hass. El marrón corresponde a suelo desnudo o caminos. 
+        El azul/gris indica cuerpos de agua o infraestructura.
+      </div>
+    </div>
+
+    <!-- Mapa embebido CON ZOOM CORREGIDO -->
+    <div style="position:relative; height:550px; background:#0a0e0a;">
       <iframe 
         id="iframeSatelital"
-        src="https://apps.sentinel-hub.com/sentinel-playground/?source=S2L2A&lat=-8.4078&lng=-78.7547&zoom=12&preset=1_TRUE_COLOR&layers=B01,B02,B03&maxcc=20&gain=1.0&gamma=1.0&time=2024-01-01%7C2026-12-31&atmFilter=&showDates=false"
+        src="https://apps.sentinel-hub.com/sentinel-playground/?source=S2L2A&lat=-8.4078&lng=-78.7547&zoom=14&preset=1_TRUE_COLOR&layers=B01,B02,B03&maxcc=20&gain=1.0&gamma=1.0&time=2024-01-01%7C2026-12-31&atmFilter=&showDates=false"
         style="width:100%; height:100%; border:0;"
         loading="lazy"
         allowfullscreen>
       </iframe>
+      
+      <!-- Indicador de carga -->
+      <div style="position:absolute; bottom:12px; left:12px; background:rgba(0,0,0,0.7); color:#94a3b8; padding:6px 12px; border-radius:6px; font-size:11px; backdrop-filter:blur(8px);">
+        ⏳ Imagen en vivo · Puede tardar 10-15s en cargar
+      </div>
     </div>
 
     <!-- Info abajo del mapa -->
@@ -5538,9 +5574,42 @@ function cambiarVistaSatelital(tipo) {
     btn.style.border = '1px solid ' + color;
   }
   
-  // Actualizar iframe
-  const url = `https://apps.sentinel-hub.com/sentinel-playground/?source=S2L2A&lat=-8.4078&lng=-78.7547&zoom=12&preset=${preset}&layers=${layers}&maxcc=20&gain=1.0&gamma=1.0&time=2024-01-01%7C2026-12-31&atmFilter=&showDates=false`;
+  // Actualizar iframe con zoom 14 (más cercano al Valle de Virú)
+  const url = `https://apps.sentinel-hub.com/sentinel-playground/?source=S2L2A&lat=-8.4078&lng=-78.7547&zoom=14&preset=${preset}&layers=${layers}&maxcc=20&gain=1.0&gamma=1.0&time=2024-01-01%7C2026-12-31&atmFilter=&showDates=false`;
   iframe.src = url;
+  
+  // Actualizar descripción de la vista
+  const descripciones = {
+    'truecolor': {
+      titulo: '🎨 Vista actual: Color Real',
+      texto: 'Esta es la apariencia natural del Valle de Virú vista desde el espacio. Lo verde son los cultivos de palta Hass. El marrón corresponde a suelo desnudo o caminos. El azul/gris indica cuerpos de agua o infraestructura.'
+    },
+    'ndvi': {
+      titulo: '🌿 Vista actual: NDVI (Salud de Vegetación)',
+      texto: 'NDVI mide la salud de las plantas. Los tonos verde oscuro indican vegetación muy saludable y vigorosa. Verde claro/amarillo señalan vegetación con estrés. Rojo/marrón indica zonas sin cultivo o con problemas. Es la vista más útil para detectar problemas en los cultivos.'
+    },
+    'moisture': {
+      titulo: '💧 Vista actual: Humedad',
+      texto: 'Muestra el contenido de agua en el suelo y vegetación. Azul intenso indica alta humedad (riego reciente o cuerpos de agua). Marrón/amarillo señalan zonas secas. Ideal para verificar la eficiencia del sistema de riego y detectar sequías.'
+    },
+    'falsecolor': {
+      titulo: '🔴 Vista actual: Infrarrojo (Falso Color)',
+      texto: 'La vegetación sana aparece en rojo brillante porque las plantas reflejan mucha luz infrarroja cuando están saludables. Tonos rosados indican estrés. Gris/azul son suelo o agua. Esta vista resalta la actividad fotosintética de los cultivos.'
+    }
+  };
+  
+  const desc = descripciones[tipo];
+  if (desc) {
+    const elTitulo = document.getElementById('satDescTitulo');
+    const elTexto = document.getElementById('satDescTexto');
+    const elContenedor = document.getElementById('satDescripcionActual');
+    if (elTitulo) elTitulo.textContent = desc.titulo;
+    if (elTexto) elTexto.textContent = desc.texto;
+    if (elContenedor) {
+      elContenedor.style.borderLeftColor = color;
+      elTitulo.style.color = color;
+    }
+  }
   
   if (typeof auditarAccion === 'function') {
     auditarAccion('CAMBIAR_VISTA_SATELITAL',
