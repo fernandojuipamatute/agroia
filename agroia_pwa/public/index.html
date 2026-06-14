@@ -6175,18 +6175,23 @@ z-score = (${productividad.toFixed(2)} − ${historico}) / ${sigma} = <strong>${
   }
   
   // NOTIFICAR AL SUPERVISOR si es anomalía (red u orange)
+  // Envuelto en try-catch para que un error aquí NO rompa el guardado de la pesada
   if (color === 'red' || color === 'orange') {
-    notificarAnomaliaSupervisor({
-      trabajador_dni: dni,
-      trabajador_nombre: nombre,
-      cuadrilla: cuadrilla,
-      lote: lote,
-      kg: kg,
-      horas: horas,
-      z_score: z,
-      estado_color: color,
-      historico: trab.historico
-    });
+    try {
+      notificarAnomaliaSupervisor({
+        trabajador_dni: dni,
+        trabajador_nombre: nombre,
+        cuadrilla: cuadrilla,
+        lote: lote,
+        kg: kg,
+        horas: horas,
+        z_score: z,
+        estado_color: color,
+        historico: historico
+      });
+    } catch (notifError) {
+      console.warn('[Notificación] Error no crítico:', notifError);
+    }
   }
   
   // ENVIAR A DATADOG via servidor Python
@@ -7803,18 +7808,23 @@ async function trabajadorConfirmarPesada() {
     }
     
     // NOTIFICAR AL SUPERVISOR si es anomalía
+    // Envuelto en try-catch para que un error aquí NO rompa el guardado de la pesada
     if (color === 'red' || color === 'orange') {
-      notificarAnomaliaSupervisor({
-        trabajador_dni: perfil.dni,
-        trabajador_nombre: perfil.nombre,
-        cuadrilla: cuadrilla,
-        lote: lote,
-        kg: kg,
-        horas: horas,
-        z_score: z,
-        estado_color: color,
-        historico: trabData.historico
-      });
+      try {
+        notificarAnomaliaSupervisor({
+          trabajador_dni: perfil.dni,
+          trabajador_nombre: perfil.nombre,
+          cuadrilla: cuadrilla,
+          lote: lote,
+          kg: kg,
+          horas: horas,
+          z_score: z,
+          estado_color: color,
+          historico: trabData.historico
+        });
+      } catch (notifError) {
+        console.warn('[Notificación] Error no crítico:', notifError);
+      }
     }
     
     // Mostrar pantalla de éxito
