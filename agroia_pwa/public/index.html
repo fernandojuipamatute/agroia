@@ -3422,7 +3422,20 @@ function actualizarIndicadorServidor() {
 }
 
 async function enviarADatadog(endpoint, payload) {
-  if (!servidorConectado) return false;
+  // POKA-YOKE 3: Si offline o servidor caído, encolar para reintento posterior
+  if (!navigator.onLine) {
+    // Solo guardar pesadas en cola offline (endpoint /api/pesada)
+    if (endpoint === '/api/pesada' && typeof agregarAColaOffline === 'function') {
+      agregarAColaOffline(payload);
+    }
+    return false;
+  }
+  if (!servidorConectado) {
+    if (endpoint === '/api/pesada' && typeof agregarAColaOffline === 'function') {
+      agregarAColaOffline(payload);
+    }
+    return false;
+  }
   try {
     const r = await fetch(SERVIDOR_URL + endpoint, {
       method: 'POST',
@@ -3431,7 +3444,11 @@ async function enviarADatadog(endpoint, payload) {
     });
     return r.ok;
   } catch (e) {
-    console.warn('No se pudo enviar a Datadog:', e);
+    console.warn('No se pudo enviar al servidor:', e);
+    // Si era una pesada y falla por red, encolar
+    if (endpoint === '/api/pesada' && typeof agregarAColaOffline === 'function') {
+      agregarAColaOffline(payload);
+    }
     return false;
   }
 }
@@ -8309,6 +8326,275 @@ function detectarJornadaExcesiva(dni, horasNuevas) {
 }
 
 // =============================================================
+// POKA-YOKE BLOQUE 3: PLAN DE CONTINGENCIA
+// Modo offline, sincronización, backups automáticos
+// =============================================================
+
+const COLA_OFFLINE_KEY = 'agroia_pesadas_offline';
+const BACKUP_PESADAS_KEY = 'agroia_backup_pesadas';
+const BACKUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hora
+
+// Estado de conexión
+let _conexionEstado = navigator.onLine ? 'online' : 'offline';
+let _intervaloBackup = null;
+let _intervaloSyncOffline = null;
+
+/**
+ * POKA-YOKE 3.1: Indicador visual de estado de conexión
+ */
+function actualizarIndicadorConexion() {
+  let indicador = document.getElementById('pokaIndicadorConexion');
+  if (!indicador) {
+    indicador = document.createElement('div');
+    indicador.id = 'pokaIndicadorConexion';
+    indicador.style.cssText = `
+      position: fixed; bottom: 20px; right: 20px; z-index: 9500;
+      padding: 10px 16px; border-radius: 24px; font-size: 12px; font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer;
+      transition: all 0.3s ease; display: flex; align-items: center; gap: 8px;
+      backdrop-filter: blur(8px);
+    `;
+    indicador.onclick = mostrarPanelOffline;
+    document.body.appendChild(indicador);
+  }
+  
+  const cola = obtenerColaOffline();
+  
+  if (_conexionEstado === 'offline') {
+    indicador.style.background = 'rgba(220,38,38,0.95)';
+    indicador.style.color = 'white';
+    indicador.style.border = '1px solid #DC2626';
+    indicador.innerHTML = `🔴 Sin conexión${cola.length > 0 ? ` · ${cola.length} pendiente(s)` : ''}`;
+  } else if (cola.length > 0) {
+    indicador.style.background = 'rgba(245,158,11,0.95)';
+    indicador.style.color = 'white';
+    indicador.style.border = '1px solid #F59E0B';
+    indicador.innerHTML = `🟡 Sincronizando · ${cola.length} pendiente(s)`;
+  } else {
+    indicador.style.background = 'rgba(16,185,129,0.9)';
+    indicador.style.color = 'white';
+    indicador.style.border = '1px solid #10B981';
+    indicador.innerHTML = `🟢 En línea`;
+    // Auto-ocultar después de 3s si todo está OK
+    setTimeout(() => {
+      if (_conexionEstado === 'online' && obtenerColaOffline().length === 0 && indicador.parentNode) {
+        indicador.style.opacity = '0';
+        setTimeout(() => indicador.remove(), 400);
+      }
+    }, 3000);
+  }
+}
+
+/**
+ * Mostrar panel detallado del estado offline
+ */
+function mostrarPanelOffline() {
+  const cola = obtenerColaOffline();
+  const ultimoBackup = localStorage.getItem(BACKUP_PESADAS_KEY + '_timestamp');
+  const ultimoBackupTexto = ultimoBackup 
+    ? new Date(parseInt(ultimoBackup)).toLocaleString('es-PE')
+    : 'Aún no se ha realizado backup';
+  
+  let mensajeCola = '<em style="color:#94a3b8;">No hay pesadas pendientes.</em>';
+  if (cola.length > 0) {
+    mensajeCola = '<ul style="margin:8px 0 0 0; padding-left:18px; max-height:200px; overflow-y:auto;">' +
+      cola.map(p => `<li style="margin-bottom:4px;">${escaparHTML(p.nombre || p.dni)} · ${p.kg}kg · ${p.lote}</li>`).join('') +
+      '</ul>';
+  }
+  
+  confirmarAccion({
+    icono: _conexionEstado === 'offline' ? '🔴' : (cola.length > 0 ? '🟡' : '🟢'),
+    titulo: 'Estado del sistema',
+    mensaje: `
+      <div style="text-align:left;">
+        <div style="margin-bottom:14px;">
+          <strong style="color:#fff;">Conexión:</strong> 
+          <span style="color:${_conexionEstado === 'online' ? '#10B981' : '#DC2626'};">${_conexionEstado === 'online' ? '🟢 En línea' : '🔴 Sin conexión'}</span>
+        </div>
+        <div style="margin-bottom:14px;">
+          <strong style="color:#fff;">Pesadas pendientes (${cola.length}):</strong>
+          ${mensajeCola}
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:6px; font-size:12px; color:#94a3b8;">
+          <strong style="color:#cbd5e1;">💾 Último backup:</strong><br>${ultimoBackupTexto}
+        </div>
+      </div>
+    `,
+    textoConfirmar: cola.length > 0 ? 'Forzar sincronización' : 'Entendido',
+    textoCancelar: 'Cerrar'
+  }).then(forzar => {
+    if (forzar && cola.length > 0) {
+      sincronizarColaOffline();
+    }
+  });
+}
+
+/**
+ * POKA-YOKE 3.2: Cola offline de pesadas
+ */
+function obtenerColaOffline() {
+  try {
+    const data = localStorage.getItem(COLA_OFFLINE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function agregarAColaOffline(pesada) {
+  try {
+    const cola = obtenerColaOffline();
+    cola.push({
+      ...pesada,
+      _id_offline: 'off_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      _fecha_offline: Date.now()
+    });
+    localStorage.setItem(COLA_OFFLINE_KEY, JSON.stringify(cola));
+    actualizarIndicadorConexion();
+    return true;
+  } catch(e) {
+    console.error('Error guardando offline:', e);
+    return false;
+  }
+}
+
+function eliminarDeColaOffline(idOffline) {
+  try {
+    let cola = obtenerColaOffline();
+    cola = cola.filter(p => p._id_offline !== idOffline);
+    localStorage.setItem(COLA_OFFLINE_KEY, JSON.stringify(cola));
+    actualizarIndicadorConexion();
+  } catch(e) {
+    console.error('Error eliminando de cola:', e);
+  }
+}
+
+/**
+ * POKA-YOKE 3.3: Auto-sincronización al recuperar conexión
+ */
+async function sincronizarColaOffline() {
+  const cola = obtenerColaOffline();
+  if (cola.length === 0) return;
+  if (_conexionEstado !== 'online') return;
+  
+  if (typeof toastInfo === 'function') {
+    toastInfo(`Sincronizando ${cola.length} pesada(s) guardadas offline...`, {
+      titulo: '🔄 Sincronización'
+    });
+  }
+  
+  let exitosas = 0, fallidas = 0;
+  
+  for (const pesada of cola) {
+    try {
+      // Reintentar enviar al servidor (asume que existe enviarPesadaServer)
+      const resp = await fetch('https://agroi-api.onrender.com/api/pesada', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pesada)
+      });
+      if (resp.ok) {
+        eliminarDeColaOffline(pesada._id_offline);
+        exitosas++;
+      } else {
+        fallidas++;
+      }
+    } catch(e) {
+      fallidas++;
+      break; // Si una falla por red, parar
+    }
+  }
+  
+  if (exitosas > 0 && typeof toastExito === 'function') {
+    toastExito(`${exitosas} pesada(s) sincronizada(s) correctamente`, {
+      titulo: '✅ Sincronización completa'
+    });
+    
+    if (typeof auditarAccion === 'function') {
+      auditarAccion('SYNC_OFFLINE', `Sincronizadas ${exitosas} pesadas offline`,
+        { exitosas, fallidas, total: cola.length });
+    }
+  }
+  if (fallidas > 0 && typeof toastWarning === 'function') {
+    toastWarning(`${fallidas} pesada(s) no se pudieron sincronizar. Reintentando...`, {
+      titulo: '⚠️ Sincronización parcial'
+    });
+  }
+  
+  actualizarIndicadorConexion();
+}
+
+/**
+ * POKA-YOKE 3.4: Backup automático de pesadas cada hora
+ */
+function ejecutarBackup() {
+  try {
+    if (!Array.isArray(pesadas) || pesadas.length === 0) return;
+    
+    const backup = {
+      timestamp: Date.now(),
+      total_pesadas: pesadas.length,
+      pesadas: pesadas.slice(0, 100) // Solo últimas 100 para no saturar localStorage
+    };
+    
+    localStorage.setItem(BACKUP_PESADAS_KEY, JSON.stringify(backup));
+    localStorage.setItem(BACKUP_PESADAS_KEY + '_timestamp', String(Date.now()));
+    
+    console.log(`[POKA-YOKE] Backup automático: ${backup.total_pesadas} pesadas`);
+  } catch(e) {
+    console.error('Error ejecutando backup:', e);
+  }
+}
+
+/**
+ * Inicializar todo el sistema Poka-Yoke 3 al cargar la app
+ */
+function inicializarPokaYoke3() {
+  // Detectar cambios de conexión
+  window.addEventListener('online', () => {
+    _conexionEstado = 'online';
+    if (typeof toastExito === 'function') {
+      toastExito('Conexión recuperada. Sincronizando datos pendientes...', {
+        titulo: '🟢 En línea'
+      });
+    }
+    actualizarIndicadorConexion();
+    // Auto-sync con pequeño retraso
+    setTimeout(() => sincronizarColaOffline(), 1500);
+  });
+  
+  window.addEventListener('offline', () => {
+    _conexionEstado = 'offline';
+    if (typeof toastWarning === 'function') {
+      toastWarning('Sin conexión. Las pesadas se guardarán localmente y se sincronizarán cuando vuelva.', {
+        titulo: '🔴 Modo offline activado',
+        duracion: 6000
+      });
+    }
+    actualizarIndicadorConexion();
+  });
+  
+  // Mostrar indicador inicial
+  actualizarIndicadorConexion();
+  
+  // Backup automático cada hora
+  if (_intervaloBackup) clearInterval(_intervaloBackup);
+  _intervaloBackup = setInterval(ejecutarBackup, BACKUP_INTERVAL_MS);
+  // Backup inmediato al cargar (si hay datos)
+  setTimeout(ejecutarBackup, 5000);
+  
+  // Reintentar sincronización cada 30 segundos si hay cola pendiente
+  if (_intervaloSyncOffline) clearInterval(_intervaloSyncOffline);
+  _intervaloSyncOffline = setInterval(() => {
+    if (_conexionEstado === 'online' && obtenerColaOffline().length > 0) {
+      sincronizarColaOffline();
+    }
+  }, 30000);
+  
+  console.log('[POKA-YOKE 3] Sistema de contingencia inicializado');
+}
+
+// =============================================================
 // CONFIGURACIÓN DEL SISTEMA (Admin)
 // =============================================================
 
@@ -10692,6 +10978,11 @@ function mostrarMensajeLogin(texto, tipo) {
 // AL CARGAR LA APP: verificar si hay sesión activa
 // =============================================================
 document.addEventListener('DOMContentLoaded', async () => {
+  // Inicializar Poka-Yoke 3 (modo offline + backups)
+  if (typeof inicializarPokaYoke3 === 'function') {
+    inicializarPokaYoke3();
+  }
+  
   // Verificar sesión primero
   const sesionActiva = await verificarSesionActiva();
   
