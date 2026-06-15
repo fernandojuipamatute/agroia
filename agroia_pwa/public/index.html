@@ -8880,38 +8880,73 @@ function mostrarSpotlight(paso) {
 
 function posicionarTooltip(targetRect) {
   const tooltip = document.getElementById('tourTooltip');
-  const tooltipWidth = 340;
-  const tooltipHeight = tooltip.offsetHeight || 280;
   const margin = 16;
   const windowWidth = window.innerWidth;
   const windowHeight = window.innerHeight;
   
-  let top, left;
-  
   // Detectar si es móvil
   const esMobile = windowWidth < 768;
   
+  // Ancho del tooltip: en móvil usa casi todo el ancho disponible
+  let tooltipWidth;
   if (esMobile) {
-    // En móvil: posicionar abajo del elemento (o arriba si no cabe)
-    left = (windowWidth - tooltipWidth) / 2;
-    if (left < margin) left = margin;
-    if (left + tooltipWidth > windowWidth - margin) left = windowWidth - tooltipWidth - margin;
+    tooltipWidth = windowWidth - (margin * 2); // 90%+ del ancho con margen
+    tooltip.style.width = tooltipWidth + 'px';
+    tooltip.style.maxWidth = tooltipWidth + 'px';
+    tooltip.style.fontSize = '15px'; // Texto más grande en móvil
+  } else {
+    tooltipWidth = 340;
+    tooltip.style.width = '340px';
+    tooltip.style.maxWidth = '340px';
+    tooltip.style.fontSize = ''; // Vuelve al default
+  }
+  
+  const tooltipHeight = tooltip.offsetHeight || (esMobile ? 320 : 280);
+  
+  let top, left;
+  
+  if (esMobile) {
+    // === MODO MÓVIL ===
     
-    // ¿Cabe abajo?
-    if (targetRect.bottom + tooltipHeight + margin < windowHeight) {
-      top = targetRect.bottom + margin;
-    } else {
-      top = targetRect.top - tooltipHeight - margin;
+    // Auto-scroll para que el elemento sea visible primero
+    const elementoCentroY = targetRect.top + (targetRect.height / 2);
+    if (elementoCentroY < 100 || elementoCentroY > windowHeight - 100) {
+      window.scrollTo({
+        top: window.scrollY + targetRect.top - 100,
+        behavior: 'smooth'
+      });
     }
     
-    // Si no cabe en ningún lado, centrar
+    // Horizontalmente: SIEMPRE centrado con margen
+    left = margin;
+    
+    // Vertical: priorizar arriba o abajo del elemento, según donde haya más espacio
+    const espacioArriba = targetRect.top;
+    const espacioAbajo = windowHeight - targetRect.bottom;
+    
+    if (espacioAbajo >= tooltipHeight + margin) {
+      // Cabe abajo del elemento
+      top = targetRect.bottom + margin;
+    } else if (espacioArriba >= tooltipHeight + margin) {
+      // Cabe arriba del elemento
+      top = targetRect.top - tooltipHeight - margin;
+    } else {
+      // No cabe ni arriba ni abajo: centrar verticalmente y dar prioridad
+      // pero asegurándose de no chocar con el elemento
+      if (espacioAbajo > espacioArriba) {
+        top = windowHeight - tooltipHeight - margin;
+      } else {
+        top = margin;
+      }
+    }
+    
+    // Asegurar que no se salga
     if (top < margin) top = margin;
     if (top + tooltipHeight > windowHeight - margin) {
       top = windowHeight - tooltipHeight - margin;
     }
   } else {
-    // En desktop: posicionar a la derecha del elemento (preferido para sidebar)
-    // o abajo si el elemento está a la derecha
+    // === MODO DESKTOP ===
     
     if (targetRect.right + tooltipWidth + margin < windowWidth) {
       // Cabe a la derecha
@@ -8927,7 +8962,6 @@ function posicionarTooltip(targetRect) {
       top = targetRect.bottom + margin;
     }
     
-    // Ajustar para que no se salga
     if (top < margin) top = margin;
     if (top + tooltipHeight > windowHeight - margin) {
       top = windowHeight - tooltipHeight - margin;
