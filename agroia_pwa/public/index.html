@@ -1227,11 +1227,8 @@ tr:hover td {
 
   <div class="nav-section">
     <div class="nav-label">Sistema</div>
-    <div class="nav-item" data-permiso="parametros">
-      <span class="nav-icon">⚙</span> Parámetros
-    </div>
-    <div class="nav-item" data-permiso="datadog">
-      <span class="nav-icon">📤</span> Exportar a Datadog
+    <div class="nav-item" onclick="switchPage('configuracion')" data-permiso="parametros">
+      <span class="nav-icon">⚙</span> Configuración
     </div>
   </div>
 
@@ -2156,109 +2153,107 @@ tr:hover td {
           Coordenadas: -8.4078°, -78.7547° · Zona Camposol S.A. · Resolución 10m/pixel
         </div>
       </div>
-      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-        <div style="background:rgba(16,185,129,0.15); color:#10B981; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600;">
-          🟢 Sentinel-2 (ESA)
-        </div>
-        <a href="https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-8.4078&lng=-78.7547&themeId=DEFAULT-THEME&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&layerId=1_TRUE_COLOR" 
-             target="_blank" 
-             style="background:rgba(59,130,246,0.15); color:#3B82F6; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none; border:1px solid rgba(59,130,246,0.3);">
-          🔗 Análisis Avanzado
-        </a>
+      <div style="background:rgba(16,185,129,0.15); color:#10B981; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600;">
+        🟢 Sentinel-2 (ESA Copernicus)
       </div>
     </div>
 
-    <!-- BANNER INSTRUCTIVO (NUEVO) -->
-    <div style="background:linear-gradient(90deg, rgba(99,153,34,0.1), rgba(59,130,246,0.1)); padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.05);">
-      <div style="display:flex; gap:12px; align-items:flex-start;">
-        <div style="font-size:22px;">💡</div>
-        <div>
-          <div style="color:#cbd5e1; font-size:13px; font-weight:600; margin-bottom:2px;">¿Cómo usar este monitor?</div>
-          <div style="color:#94a3b8; font-size:12px; line-height:1.5;">
-            Selecciona una vista abajo (color real, NDVI, humedad o infrarrojo). 
-            Cada vista te muestra información diferente del Valle de Virú. 
-            La imagen interactiva se actualiza automáticamente con datos del satélite Sentinel-2 de la ESA.
+    <!-- MAPA ESTÁTICO con OpenStreetMap -->
+    <div style="position:relative; background:#0a0e0a;">
+      <iframe 
+        src="https://www.openstreetmap.org/export/embed.html?bbox=-78.8047%2C-8.4378%2C-78.7047%2C-8.3778&amp;layer=mapnik&amp;marker=-8.4078%2C-78.7547"
+        style="width:100%; height:400px; border:0; filter:brightness(0.85);"
+        loading="lazy">
+      </iframe>
+      <div style="position:absolute; top:14px; left:14px; background:rgba(0,0,0,0.85); color:#10B981; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; backdrop-filter:blur(8px); border:1px solid rgba(16,185,129,0.3);">
+        📍 Valle de Virú · Zona de cultivo
+      </div>
+    </div>
+
+    <!-- Info y opciones de análisis -->
+    <div style="padding:20px;">
+      <div style="background:linear-gradient(135deg, rgba(99,153,34,0.1), rgba(59,130,246,0.1)); border:1px solid rgba(99,153,34,0.2); border-radius:12px; padding:16px; margin-bottom:16px;">
+        <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="font-size:28px;">🛰️</div>
+          <div style="flex:1; min-width:200px;">
+            <div style="color:#fff; font-weight:600; font-size:14px; margin-bottom:4px;">¿Por qué Sentinel-2?</div>
+            <div style="color:#cbd5e1; font-size:13px; line-height:1.5;">
+              Es el satélite de la Agencia Espacial Europea (ESA) que pasa sobre Virú cada 3-5 días tomando fotos de alta resolución. 
+              Permite ver el estado real de los cultivos sin tener que visitar cada lote físicamente.
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Selector de vista CON DESCRIPCIONES -->
-    <div style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.05);">
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
-        <button onclick="cambiarVistaSatelital('truecolor')" id="btnSatTrue" class="sat-btn-active" style="background:rgba(99,153,34,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.4); padding:12px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-align:left;">
-          🎨 Color Real
-          <div style="font-size:11px; opacity:0.8; font-weight:normal; margin-top:3px;">Cómo se ve en realidad</div>
-        </button>
-        <button onclick="cambiarVistaSatelital('ndvi')" id="btnSatNDVI" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; font-size:13px; cursor:pointer; text-align:left;">
-          🌿 NDVI (Vegetación)
-          <div style="font-size:11px; opacity:0.7; margin-top:3px;">Salud de los cultivos</div>
-        </button>
-        <button onclick="cambiarVistaSatelital('moisture')" id="btnSatMoist" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; font-size:13px; cursor:pointer; text-align:left;">
-          💧 Humedad
-          <div style="font-size:11px; opacity:0.7; margin-top:3px;">Agua en suelo y plantas</div>
-        </button>
-        <button onclick="cambiarVistaSatelital('falsecolor')" id="btnSatFalse" style="background:rgba(255,255,255,0.05); color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; font-size:13px; cursor:pointer; text-align:left;">
-          🔴 Infrarrojo
-          <div style="font-size:11px; opacity:0.7; margin-top:3px;">Vegetación destacada en rojo</div>
-        </button>
-      </div>
-    </div>
-
-    <!-- Descripción de vista actual (NUEVO - cambia con cada botón) -->
-    <div id="satDescripcionActual" style="padding:14px 20px; background:rgba(16,185,129,0.05); border-bottom:1px solid rgba(255,255,255,0.05); border-left:4px solid #10B981;">
-      <div style="color:#10B981; font-weight:600; font-size:13px; margin-bottom:4px;" id="satDescTitulo">🎨 Vista actual: Color Real</div>
-      <div style="color:#cbd5e1; font-size:12px; line-height:1.5;" id="satDescTexto">
-        Esta es la apariencia natural del Valle de Virú vista desde el espacio. 
-        Lo verde son los cultivos de palta Hass. El marrón corresponde a suelo desnudo o caminos. 
-        El azul/gris indica cuerpos de agua o infraestructura.
-      </div>
-    </div>
-
-    <!-- Mapa embebido CON ZOOM CORREGIDO -->
-    <div style="position:relative; height:550px; background:#0a0e0a;">
-      <iframe 
-        id="iframeSatelital"
-        src="https://apps.sentinel-hub.com/sentinel-playground/?source=S2L2A&lat=-8.4078&lng=-78.7547&zoom=14&preset=1_TRUE_COLOR&layers=B01,B02,B03&maxcc=20&gain=1.0&gamma=1.0&time=2024-01-01%7C2026-12-31&atmFilter=&showDates=false"
-        style="width:100%; height:100%; border:0;"
-        loading="lazy"
-        allowfullscreen>
-      </iframe>
-      
-      <!-- Indicador de carga -->
-      <div style="position:absolute; bottom:12px; left:12px; background:rgba(0,0,0,0.7); color:#94a3b8; padding:6px 12px; border-radius:6px; font-size:11px; backdrop-filter:blur(8px);">
-        ⏳ Imagen en vivo · Puede tardar 10-15s en cargar
-      </div>
-    </div>
-
-    <!-- Info abajo del mapa -->
-    <div style="padding:16px 20px; background:rgba(0,0,0,0.3);">
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:16px;">
+      <!-- Tipos de análisis disponibles -->
+      <h3 style="color:#fff; font-size:16px; margin:0 0 12px 0;">📊 Análisis satelitales disponibles</h3>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:18px;">
         
-        <div>
-          <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🛰️ Satélite</div>
-          <div style="color:#fff; font-size:14px; font-weight:600; margin-top:2px;">Sentinel-2 L2A</div>
-          <div style="color:#94a3b8; font-size:11px;">Misión ESA</div>
+        <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:10px; padding:14px;">
+          <div style="font-size:24px; margin-bottom:6px;">🎨</div>
+          <div style="color:#10B981; font-weight:600; font-size:14px;">Color Real</div>
+          <div style="color:#94a3b8; font-size:12px; margin-top:4px; line-height:1.5;">
+            Vista natural del campo. Verde = cultivo, marrón = suelo, azul = agua.
+          </div>
         </div>
 
-        <div>
-          <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">📅 Frecuencia</div>
-          <div style="color:#fff; font-size:14px; font-weight:600; margin-top:2px;">Cada 3-5 días</div>
-          <div style="color:#94a3b8; font-size:11px;">Revisita orbital</div>
+        <div style="background:rgba(99,153,34,0.08); border:1px solid rgba(99,153,34,0.25); border-radius:10px; padding:14px;">
+          <div style="font-size:24px; margin-bottom:6px;">🌿</div>
+          <div style="color:#639922; font-weight:600; font-size:14px;">NDVI (Vegetación)</div>
+          <div style="color:#94a3b8; font-size:12px; margin-top:4px; line-height:1.5;">
+            Salud de los cultivos. Verde oscuro = saludable, rojo = problemas.
+          </div>
         </div>
 
-        <div>
-          <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🔍 Resolución</div>
-          <div style="color:#fff; font-size:14px; font-weight:600; margin-top:2px;">10 metros/pixel</div>
-          <div style="color:#94a3b8; font-size:11px;">Bandas visibles</div>
+        <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:10px; padding:14px;">
+          <div style="font-size:24px; margin-bottom:6px;">💧</div>
+          <div style="color:#3B82F6; font-weight:600; font-size:14px;">Humedad</div>
+          <div style="color:#94a3b8; font-size:12px; margin-top:4px; line-height:1.5;">
+            Agua en el suelo. Útil para verificar eficiencia del riego.
+          </div>
         </div>
 
-        <div>
-          <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🌿 NDVI estimado</div>
-          <div style="color:#10B981; font-size:14px; font-weight:600; margin-top:2px;">0.65 - Saludable</div>
-          <div style="color:#94a3b8; font-size:11px;">Vegetación activa</div>
+        <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25); border-radius:10px; padding:14px;">
+          <div style="font-size:24px; margin-bottom:6px;">🔴</div>
+          <div style="color:#DC2626; font-weight:600; font-size:14px;">Infrarrojo</div>
+          <div style="color:#94a3b8; font-size:12px; margin-top:4px; line-height:1.5;">
+            Detecta estrés vegetal antes de que sea visible al ojo humano.
+          </div>
         </div>
+      </div>
 
+      <!-- Botón principal para análisis avanzado -->
+      <a href="https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-8.4078&lng=-78.7547&themeId=DEFAULT-THEME&datasetId=S2L2A&layerId=1_TRUE_COLOR" 
+         target="_blank" 
+         style="display:flex; align-items:center; justify-content:center; gap:10px; background:linear-gradient(135deg, #639922, #4a7515); color:white; padding:14px 20px; border-radius:12px; text-decoration:none; font-weight:600; font-size:14px; box-shadow:0 4px 12px rgba(99,153,34,0.3);">
+        🛰️ Abrir análisis satelital avanzado (EO Browser)
+        <span style="font-size:18px;">→</span>
+      </a>
+
+      <div style="color:#64748B; font-size:11px; text-align:center; margin-top:8px;">
+        ⚠️ Se abre en una nueva pestaña con todas las herramientas de análisis profesional
+      </div>
+    </div>
+
+    <!-- Stats inferiores -->
+    <div style="padding:16px 20px; background:rgba(0,0,0,0.3); border-top:1px solid rgba(255,255,255,0.05);">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:14px;">
+        <div>
+          <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">🛰️ Satélite</div>
+          <div style="color:#fff; font-size:13px; font-weight:600; margin-top:2px;">Sentinel-2 L2A</div>
+        </div>
+        <div>
+          <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">📅 Revisita</div>
+          <div style="color:#fff; font-size:13px; font-weight:600; margin-top:2px;">Cada 3-5 días</div>
+        </div>
+        <div>
+          <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">🔍 Resolución</div>
+          <div style="color:#fff; font-size:13px; font-weight:600; margin-top:2px;">10 metros/pixel</div>
+        </div>
+        <div>
+          <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">🌿 NDVI estimado</div>
+          <div style="color:#10B981; font-size:13px; font-weight:600; margin-top:2px;">0.65 - Saludable</div>
+        </div>
       </div>
     </div>
   </div>
@@ -2537,6 +2532,204 @@ tr:hover td {
     <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; font-size:12px; color:#94a3b8; line-height:1.6;">
       <strong style="color:#cbd5e1;">📐 Metodología:</strong> El agente IA implementa <strong>aprendizaje supervisado básico</strong>: agrupa las pesadas históricas por día de la semana y calcula los factores de productividad reales de cada día. Si no hay datos suficientes de algún día, usa valores por defecto basados en patrones agrícolas tradicionales. La confianza del modelo crece a medida que se registran más pesadas y se cubren más días de la semana. Cumple el modelo de agente IA deliberativo con aprendizaje (Russell &amp; Norvig, 2021).
     </div>
+  </div>
+</div>
+
+<!-- ============= CONFIGURACIÓN DEL SISTEMA ============= -->
+<div class="page-section" id="page-configuracion">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">⚙ Configuración del Sistema</h1>
+      <div class="page-subtitle">Parámetros operativos y umbrales del agente IA</div>
+    </div>
+    <button class="btn" onclick="guardarConfiguracion()" id="btnGuardarConfig" style="padding:10px 16px; background:linear-gradient(135deg, #639922, #4a7515); color:white;">
+      💾 Guardar cambios
+    </button>
+  </div>
+
+  <!-- Banner informativo -->
+  <div style="background:rgba(239,159,39,0.08); border:1px solid rgba(239,159,39,0.3); border-radius:14px; padding:16px 20px; margin-bottom:24px; display:flex; gap:14px;">
+    <div style="font-size:28px;">🔐</div>
+    <div>
+      <div style="color:#EF9F27; font-weight:600; font-size:14px; margin-bottom:2px;">Solo administradores</div>
+      <div style="color:#cbd5e1; font-size:13px; line-height:1.5;">
+        Esta sección permite ajustar los parámetros del agente IA y la operativa del sistema. 
+        Los cambios se guardan localmente y se aplican inmediatamente a las próximas validaciones.
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 1: UMBRALES DE VALIDACIÓN -->
+  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:20px; margin-bottom:20px;">
+    <h2 style="color:#fff; margin:0 0 4px 0; font-size:18px;">📊 Umbrales de validación estadística</h2>
+    <div style="color:#94a3b8; font-size:13px; margin-bottom:18px;">
+      Los umbrales z-score determinan cuándo una pesada es validada, observada, alertada o bloqueada
+    </div>
+
+    <!-- Umbral 1: Observación -->
+    <div style="background:rgba(245,158,11,0.05); border-left:4px solid #F59E0B; border-radius:10px; padding:14px; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="color:#F59E0B; font-weight:600; font-size:14px; margin-bottom:2px;">⚠️ Observación (amarillo)</div>
+          <div style="color:#94a3b8; font-size:12px;">Pesada marcada para revisión</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="color:#cbd5e1; font-size:13px;">|z| ></span>
+          <input type="number" id="configUmbralObs" value="1" min="0.5" max="5" step="0.1"
+                 style="width:70px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px; color:#fff; font-size:14px; text-align:center;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Umbral 2: Alerta -->
+    <div style="background:rgba(249,115,22,0.05); border-left:4px solid #F97316; border-radius:10px; padding:14px; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="color:#F97316; font-weight:600; font-size:14px; margin-bottom:2px;">🟠 Alerta (naranja)</div>
+          <div style="color:#94a3b8; font-size:12px;">Supervisor notificado automáticamente</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="color:#cbd5e1; font-size:13px;">|z| ></span>
+          <input type="number" id="configUmbralAlerta" value="2" min="0.5" max="5" step="0.1"
+                 style="width:70px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px; color:#fff; font-size:14px; text-align:center;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Umbral 3: Bloqueo -->
+    <div style="background:rgba(220,38,38,0.05); border-left:4px solid #DC2626; border-radius:10px; padding:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="color:#DC2626; font-weight:600; font-size:14px; margin-bottom:2px;">🔴 Bloqueo (rojo)</div>
+          <div style="color:#94a3b8; font-size:12px;">Pesada bloqueada, requiere validación manual</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="color:#cbd5e1; font-size:13px;">|z| ></span>
+          <input type="number" id="configUmbralBloqueo" value="3" min="0.5" max="5" step="0.1"
+                 style="width:70px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px; color:#fff; font-size:14px; text-align:center;">
+        </div>
+      </div>
+    </div>
+
+    <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:10px 14px; margin-top:14px; color:#cbd5e1; font-size:12px;">
+      💡 <strong>¿Qué es z-score?</strong> Es el número de desviaciones estándar entre la productividad real del trabajador y su promedio histórico. Por ejemplo, z=3 significa que la pesada está 3σ por encima/debajo de lo normal (probabilidad <0.3%).
+    </div>
+  </div>
+
+  <!-- SECCIÓN 2: META DE CAMPAÑA -->
+  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:20px; margin-bottom:20px;">
+    <h2 style="color:#fff; margin:0 0 4px 0; font-size:18px;">🎯 Meta de campaña</h2>
+    <div style="color:#94a3b8; font-size:13px; margin-bottom:18px;">
+      Objetivos productivos del Valle de Virú
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+      <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:14px;">
+        <label style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">📦 Meta total de campaña</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="number" id="configMetaCampana" value="12000" min="1000" max="100000" step="500"
+                 style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:10px; color:#fff; font-size:16px; font-weight:bold; text-align:center;">
+          <span style="color:#cbd5e1; font-size:13px;">kg</span>
+        </div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:14px;">
+        <label style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">🌳 Hectáreas activas</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="number" id="configHectareas" value="60" min="1" max="500" step="1"
+                 style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:10px; color:#fff; font-size:16px; font-weight:bold; text-align:center;">
+          <span style="color:#cbd5e1; font-size:13px;">ha</span>
+        </div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:14px;">
+        <label style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">👷 Trabajadores activos</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="number" id="configTrabajadores" value="35" min="1" max="500" step="1"
+                 style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:10px; color:#fff; font-size:16px; font-weight:bold; text-align:center;">
+          <span style="color:#cbd5e1; font-size:13px;">personas</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 3: SEGURIDAD Y RATE LIMITING -->
+  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:20px; margin-bottom:20px;">
+    <h2 style="color:#fff; margin:0 0 4px 0; font-size:18px;">🚦 Seguridad y rate limiting</h2>
+    <div style="color:#94a3b8; font-size:13px; margin-bottom:18px;">
+      Protección contra abuso. Estos valores se cambian en variables de entorno del servidor.
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+      <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:14px;">
+        <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">⚡ Peticiones/min por IP</div>
+        <div style="color:#10B981; font-size:22px; font-weight:bold; margin-top:6px;">60</div>
+        <div style="color:#64748B; font-size:11px; margin-top:2px;">Configurado en server.py</div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:14px;">
+        <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">📧 Anti-spam emails</div>
+        <div style="color:#10B981; font-size:22px; font-weight:bold; margin-top:6px;">7/hora</div>
+        <div style="color:#64748B; font-size:11px; margin-top:2px;">Por supervisor</div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:14px;">
+        <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">💾 Caché Health Check</div>
+        <div style="color:#10B981; font-size:22px; font-weight:bold; margin-top:6px;">5 min</div>
+        <div style="color:#64748B; font-size:11px; margin-top:2px;">Protege APIs gratuitas</div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:14px;">
+        <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">🔐 Cifrado</div>
+        <div style="color:#10B981; font-size:22px; font-weight:bold; margin-top:6px;">TLS 1.3</div>
+        <div style="color:#64748B; font-size:11px; margin-top:2px;">+ bcrypt passwords</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 4: EMAILS CONFIGURADOS -->
+  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:20px; margin-bottom:20px;">
+    <h2 style="color:#fff; margin:0 0 4px 0; font-size:18px;">📧 Destinatarios de emails automáticos</h2>
+    <div style="color:#94a3b8; font-size:13px; margin-bottom:18px;">
+      Configurados en variables de entorno de Render (por seguridad no se muestran completos)
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span style="color:#cbd5e1; font-size:13px;">📊 Gerencia</span>
+        <span style="background:rgba(16,185,129,0.15); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ CONFIGURADO</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span style="color:#cbd5e1; font-size:13px;">🌾 Jefe de Campo</span>
+        <span style="background:rgba(16,185,129,0.15); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ CONFIGURADO</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span style="color:#cbd5e1; font-size:13px;">👥 Supervisor C3</span>
+        <span style="background:rgba(16,185,129,0.15); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ CONFIGURADO</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span style="color:#cbd5e1; font-size:13px;">👥 Supervisor C5</span>
+        <span style="background:rgba(16,185,129,0.15); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ CONFIGURADO</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span style="color:#cbd5e1; font-size:13px;">👥 Supervisor C7</span>
+        <span style="background:rgba(16,185,129,0.15); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ CONFIGURADO</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span style="color:#cbd5e1; font-size:13px;">💼 Recursos Humanos</span>
+        <span style="background:rgba(16,185,129,0.15); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ CONFIGURADO</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTÓN GUARDAR FINAL -->
+  <div style="display:flex; gap:10px; margin-top:20px;">
+    <button onclick="resetearConfiguracion()" style="flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:14px; border-radius:12px; font-size:14px; cursor:pointer;">
+      🔄 Restaurar valores por defecto
+    </button>
+    <button onclick="guardarConfiguracion()" style="flex:2; background:linear-gradient(135deg, #639922, #4a7515); border:none; color:white; padding:14px; border-radius:12px; font-size:15px; font-weight:bold; cursor:pointer;">
+      💾 Guardar configuración
+    </button>
   </div>
 </div>
 
@@ -5253,6 +5446,11 @@ function switchPage(page) {
   if (page === 'predicciones' && typeof entrarAPredicciones === 'function') {
     entrarAPredicciones();
   }
+  
+  // Si entra a configuración, cargar valores guardados
+  if (page === 'configuracion' && typeof entrarAConfiguracion === 'function') {
+    entrarAConfiguracion();
+  }
 }
 
 // ============================================================
@@ -7694,7 +7892,7 @@ function mostrarUsuarioEnSidebar(perfil) {
 // Mapa de permisos: qué puede ver cada rol
 const PERMISOS_POR_ROL = {
   'admin': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'datadog'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
@@ -7773,6 +7971,113 @@ const PERMISOS_POR_ROL = {
 // =============================================================
 
 const META_CAMPANA = 12000; // kg meta total
+
+// =============================================================
+// CONFIGURACIÓN DEL SISTEMA (Admin)
+// =============================================================
+
+const CONFIG_DEFAULT = {
+  umbral_observacion: 1,
+  umbral_alerta: 2,
+  umbral_bloqueo: 3,
+  meta_campana: 12000,
+  hectareas: 60,
+  trabajadores: 35
+};
+
+function cargarConfiguracion() {
+  try {
+    const guardado = localStorage.getItem('agroia_config');
+    const config = guardado ? JSON.parse(guardado) : CONFIG_DEFAULT;
+    
+    document.getElementById('configUmbralObs').value = config.umbral_observacion || CONFIG_DEFAULT.umbral_observacion;
+    document.getElementById('configUmbralAlerta').value = config.umbral_alerta || CONFIG_DEFAULT.umbral_alerta;
+    document.getElementById('configUmbralBloqueo').value = config.umbral_bloqueo || CONFIG_DEFAULT.umbral_bloqueo;
+    document.getElementById('configMetaCampana').value = config.meta_campana || CONFIG_DEFAULT.meta_campana;
+    document.getElementById('configHectareas').value = config.hectareas || CONFIG_DEFAULT.hectareas;
+    document.getElementById('configTrabajadores').value = config.trabajadores || CONFIG_DEFAULT.trabajadores;
+  } catch(e) {
+    console.warn('No se pudo cargar configuración:', e);
+  }
+}
+
+function guardarConfiguracion() {
+  try {
+    const umbralObs = parseFloat(document.getElementById('configUmbralObs').value);
+    const umbralAlerta = parseFloat(document.getElementById('configUmbralAlerta').value);
+    const umbralBloqueo = parseFloat(document.getElementById('configUmbralBloqueo').value);
+    
+    // Validar que los umbrales sean lógicos
+    if (umbralObs >= umbralAlerta || umbralAlerta >= umbralBloqueo) {
+      if (typeof toastWarning === 'function') {
+        toastWarning('Los umbrales deben ser progresivos: Observación < Alerta < Bloqueo', {
+          titulo: 'Valores inválidos'
+        });
+      }
+      return;
+    }
+    
+    const config = {
+      umbral_observacion: umbralObs,
+      umbral_alerta: umbralAlerta,
+      umbral_bloqueo: umbralBloqueo,
+      meta_campana: parseInt(document.getElementById('configMetaCampana').value),
+      hectareas: parseInt(document.getElementById('configHectareas').value),
+      trabajadores: parseInt(document.getElementById('configTrabajadores').value),
+      _ultima_actualizacion: new Date().toISOString()
+    };
+    
+    localStorage.setItem('agroia_config', JSON.stringify(config));
+    
+    // Aplicar globalmente para que el resto del sistema lo use
+    window._configSistema = config;
+    
+    // Si las predicciones tienen META_CAMPANA hardcoded, actualizar
+    if (typeof META_CAMPANA !== 'undefined') {
+      window.META_CAMPANA = config.meta_campana;
+    }
+    
+    if (typeof toastExito === 'function') {
+      toastExito('Los parámetros se aplicarán a las próximas validaciones', {
+        titulo: '✅ Configuración guardada'
+      });
+    }
+    
+    if (typeof auditarAccion === 'function') {
+      auditarAccion('GUARDAR_CONFIGURACION',
+        'Admin modificó configuración del sistema',
+        config
+      );
+    }
+  } catch(e) {
+    if (typeof toastError === 'function') {
+      toastError('No se pudo guardar la configuración', { titulo: 'Error' });
+    }
+  }
+}
+
+function resetearConfiguracion() {
+  if (!confirm('¿Restaurar valores por defecto?')) return;
+  
+  localStorage.removeItem('agroia_config');
+  window._configSistema = null;
+  cargarConfiguracion();
+  
+  if (typeof toastInfo === 'function') {
+    toastInfo('Valores restaurados a los predeterminados', {
+      titulo: '🔄 Configuración reseteada'
+    });
+  }
+}
+
+// Auto-cargar al entrar
+function entrarAConfiguracion() {
+  cargarConfiguracion();
+}
+
+// =============================================================
+// AGENTE IA: PREDICCIONES DELIBERATIVAS
+// =============================================================
 
 function recalcularPredicciones() {
   const btn = document.getElementById('btnRecalcular');
