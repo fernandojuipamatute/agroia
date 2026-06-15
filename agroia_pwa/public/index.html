@@ -8792,6 +8792,41 @@ const TOUR_PASOS = [
   },
   {
     tipo: 'spotlight',
+    selector: '[data-permiso="predicciones"]',
+    titulo: '🔮 Predicciones IA',
+    descripcion: 'El agente IA con aprendizaje supervisado predice la producción de los próximos 7 días, identifica trabajadores con bajo rendimiento y estima la fecha de fin de campaña.',
+    seccion: 'predicciones'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="estado"]',
+    titulo: '🩺 Estado del Sistema',
+    descripcion: 'Monitoreo en vivo de los 6 servicios externos (Supabase, Gemini, Resend, Open-Meteo, Datadog, Backend) con auto-refresh cada 60 segundos. Cumple ISO 27001 A.12.',
+    seccion: 'estado'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="logs"]',
+    titulo: '📋 Log de decisiones',
+    descripcion: 'Registro auditable de TODAS las acciones del sistema: logins, registros de pesada, generación de reportes y notificaciones. Cumple ISO 27001 A.12.4 (Logging and monitoring).',
+    seccion: 'logs'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="parametros"]',
+    titulo: '⚙ Parámetros del sistema',
+    descripcion: 'Configuración de los umbrales de validación (z-score), rate limiting y otros parámetros técnicos. Solo accesible para el administrador.',
+    seccion: 'parametros'
+  },
+  {
+    tipo: 'spotlight',
+    selector: '[data-permiso="datadog"]',
+    titulo: '📊 Métricas Datadog',
+    descripcion: 'Dashboard de observabilidad con métricas de uso de la API: requests por minuto, latencia, errores y trazabilidad completa de eventos.',
+    seccion: 'datadog'
+  },
+  {
+    tipo: 'spotlight',
     selector: '#usuarioActual',
     titulo: '👤 Tu perfil y cierre de sesión',
     descripcion: 'Tu información de usuario. Desde aquí puedes ver el tour de nuevo o cerrar sesión de forma segura cuando termines.',
@@ -8922,6 +8957,14 @@ function mostrarSpotlight(paso) {
     console.warn('Tour: elemento no encontrado:', paso.selector);
     // Si no está, saltamos al siguiente paso
     setTimeout(tourSiguiente, 500);
+    return;
+  }
+  
+  // Verificar si el elemento está visible (no oculto por permisos)
+  const computedStyle = window.getComputedStyle(target);
+  if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden') {
+    console.warn('Tour: elemento oculto por permisos:', paso.selector);
+    setTimeout(tourSiguiente, 300);
     return;
   }
   
