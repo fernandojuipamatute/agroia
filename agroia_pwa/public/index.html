@@ -6578,7 +6578,7 @@ function mostrarErrorValidacion(mensaje, campo) {
   setTimeout(() => { if (errorDiv.parentElement) errorDiv.remove(); }, 5000);
 }
 
-function validarPesada() {
+async function validarPesada() {
   const select = document.getElementById('inputTrabajador');
   const opt = select.options[select.selectedIndex];
   const kg = parseFloat(document.getElementById('inputKg').value);
@@ -6661,6 +6661,77 @@ function validarPesada() {
   const z = (productividad - historico) / sigma;
   const absZ = Math.abs(z);
   const nombre = opt.text.split(' — ')[0];
+  const dniTemp = opt.value;
+  
+  // =============================================================
+  // POKA-YOKE BLOQUE 2: DETECCIÓN ANTES DE GUARDAR
+  // =============================================================
+  
+  // POKA-YOKE 1: Detectar pesada duplicada
+  const verifDup = detectarDuplicado(dniTemp, kg, lote);
+  if (verifDup.duplicado) {
+    const continuar = await confirmarAccion({
+      icono: '🔄',
+      titulo: 'Posible pesada duplicada',
+      mensaje: `${nombre.split(',')[0]} registró una pesada idéntica (${kg} kg en lote ${lote}) ${verifDup.hace}.<br><br>¿Es una pesada NUEVA o un registro duplicado por error?`,
+      tipoConfirmar: 'peligro',
+      textoConfirmar: 'Es una pesada nueva',
+      textoCancelar: 'Cancelar (es duplicado)'
+    });
+    if (!continuar) {
+      if (typeof toastInfo === 'function') {
+        toastInfo('Pesada duplicada cancelada', { titulo: 'Cancelado por el usuario' });
+      }
+      return;
+    }
+  }
+  
+  // POKA-YOKE 2: Detectar jornada laboral excesiva (Ley 31110 Régimen Agrario PE)
+  const verifJornada = detectarJornadaExcesiva(dniTemp, horas);
+  if (verifJornada.excesivo) {
+    const continuar = await confirmarAccion({
+      icono: '⏱️',
+      titulo: 'Jornada laboral excesiva',
+      mensaje: `${nombre.split(',')[0]} acumularía <strong>${verifJornada.totalHoras} horas hoy</strong> con esta pesada (ya tiene ${verifJornada.horasPrevias}h registradas).<br><br>⚖️ Esto excede el máximo recomendado de ${POKA_CONFIG.MAX_HORAS_JORNADA}h diarias (Ley 31110 - Régimen Agrario, Perú).`,
+      tipoConfirmar: 'peligro',
+      textoConfirmar: 'Sí, registrar igual',
+      textoCancelar: 'Revisar horas'
+    });
+    if (!continuar) {
+      if (typeof toastWarning === 'function') {
+        toastWarning('Registro cancelado por jornada excesiva', { titulo: 'Cumplimiento Ley 31110' });
+      }
+      return;
+    }
+  }
+  
+  // POKA-YOKE 3: Detectar patrón sospechoso (anomalías recurrentes)
+  // Solo si esta pesada va a ser anomalía (z>2)
+  if (absZ > 2) {
+    const verifPatron = detectarPatronSospechoso(dniTemp);
+    if (verifPatron.sospechoso) {
+      const continuar = await confirmarAccion({
+        icono: '🚨',
+        titulo: 'Patrón sospechoso detectado',
+        mensaje: `${nombre.split(',')[0]} tiene <strong>${verifPatron.cantidad} anomalías</strong> en la última hora.<br><br>Esto podría indicar:<br>• Problema con la balanza<br>• Error de medición sistemático<br>• Situación que requiere supervisión presencial<br><br>Se recomienda revisar antes de continuar.`,
+        tipoConfirmar: 'peligro',
+        textoConfirmar: 'Continuar registrando',
+        textoCancelar: 'Revisar trabajador'
+      });
+      if (!continuar) {
+        if (typeof toastWarning === 'function') {
+          toastWarning('Registro pausado para revisión', { titulo: 'Patrón sospechoso' });
+        }
+        if (typeof auditarAccion === 'function') {
+          auditarAccion('POKA_YOKE_BLOQUEO',
+            'Registro bloqueado por patrón sospechoso',
+            { dni: dniTemp, anomalias_hora: verifPatron.cantidad }
+          );
+        }
+        return;
+      }
+    }
+  }
 
   let estado, color, texto, accion;
   if (absZ <= 1.5) {
@@ -8118,6 +8189,124 @@ const PERMISOS_POR_ROL = {
 // =============================================================
 
 const META_CAMPANA = 12000; // kg meta total
+
+// =============================================================
+// POKA-YOKE BLOQUE 2: DETECCIÓN AUTOMÁTICA DE ERRORES
+// Detectores que alertan ante patrones sospechosos
+// =============================================================
+
+const POKA_CONFIG = {
+  MAX_ANOMALIAS_POR_HORA: 5,     // Si un trabajador tiene 5+ anomalías/hora → alerta
+  VENTANA_DUPLICADO_MIN: 5,       // Si misma pesada se registra 2 veces en 5 min → duplicado
+  MAX_HORAS_JORNADA: 12,          // Si suma > 12h en un día → jornada excesiva (Ley laboral PE)
+  TOLERANCIA_KG_DUPLICADO: 0.5    // Diferencia máxima en kg para considerar "misma pesada"
+};
+
+/**
+ * POKA-YOKE: Detecta si un trabajador tiene patrones sospechosos
+ * Verifica si tiene 5+ anomalías en la última hora
+ * 
+ * @param {string} dni - DNI del trabajador
+ * @returns {object} { sospechoso: bool, cantidad: int, razon: string }
+ */
+function detectarPatronSospechoso(dni) {
+  if (!Array.isArray(pesadas)) return { sospechoso: false };
+  
+  const ahora = Date.now() / 1000;
+  const haceUnaHora = ahora - 3600;
+  
+  // Filtrar pesadas del trabajador en la última hora con anomalía
+  const anomaliasRecientes = pesadas.filter(p => {
+    if (p.dni !== dni) return false;
+    if (p.estado !== 'red' && p.estado !== 'orange') return false;
+    const timestamp = p._localTimestamp || (new Date(p.timestamp || p.fecha || 0).getTime() / 1000);
+    return timestamp >= haceUnaHora;
+  });
+  
+  if (anomaliasRecientes.length >= POKA_CONFIG.MAX_ANOMALIAS_POR_HORA) {
+    return {
+      sospechoso: true,
+      cantidad: anomaliasRecientes.length,
+      razon: `${anomaliasRecientes.length} anomalías en la última hora (umbral: ${POKA_CONFIG.MAX_ANOMALIAS_POR_HORA})`
+    };
+  }
+  
+  return { sospechoso: false, cantidad: anomaliasRecientes.length };
+}
+
+/**
+ * POKA-YOKE: Detecta si la pesada es un posible duplicado
+ * 
+ * @param {string} dni
+ * @param {number} kg
+ * @param {string} lote
+ * @returns {object} { duplicado: bool, ultimaSimilar: object|null }
+ */
+function detectarDuplicado(dni, kg, lote) {
+  if (!Array.isArray(pesadas)) return { duplicado: false };
+  
+  const ahora = Date.now() / 1000;
+  const ventanaSeg = POKA_CONFIG.VENTANA_DUPLICADO_MIN * 60;
+  const limite = ahora - ventanaSeg;
+  
+  // Buscar pesadas del mismo trabajador, en el mismo lote, con kg muy similar
+  const similar = pesadas.find(p => {
+    if (p.dni !== dni) return false;
+    if (p.lote !== lote) return false;
+    const diffKg = Math.abs(parseFloat(p.kg) - parseFloat(kg));
+    if (diffKg > POKA_CONFIG.TOLERANCIA_KG_DUPLICADO) return false;
+    const timestamp = p._localTimestamp || (new Date(p.timestamp || p.fecha || 0).getTime() / 1000);
+    return timestamp >= limite;
+  });
+  
+  if (similar) {
+    const timestamp = similar._localTimestamp || (new Date(similar.timestamp || similar.fecha || 0).getTime() / 1000);
+    const segundosAtras = Math.round(ahora - timestamp);
+    const minutosAtras = Math.round(segundosAtras / 60);
+    return {
+      duplicado: true,
+      ultimaSimilar: similar,
+      hace: minutosAtras < 1 ? 'hace menos de 1 minuto' : `hace ${minutosAtras} minuto(s)`
+    };
+  }
+  
+  return { duplicado: false };
+}
+
+/**
+ * POKA-YOKE: Detecta si el trabajador supera 12 horas trabajadas en el día
+ * Cumplimiento Ley 31110 (Régimen Agrario, Perú)
+ * 
+ * @param {string} dni
+ * @param {number} horasNuevas
+ * @returns {object} { excesivo: bool, totalHoras: number }
+ */
+function detectarJornadaExcesiva(dni, horasNuevas) {
+  if (!Array.isArray(pesadas)) return { excesivo: false };
+  
+  const ahora = new Date();
+  const inicioDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).getTime() / 1000;
+  
+  const horasDelDia = pesadas
+    .filter(p => {
+      if (p.dni !== dni) return false;
+      const ts = p._localTimestamp || (new Date(p.timestamp || p.fecha || 0).getTime() / 1000);
+      return ts >= inicioDia;
+    })
+    .reduce((sum, p) => sum + parseFloat(p.horas || 0), 0);
+  
+  const total = horasDelDia + parseFloat(horasNuevas || 0);
+  
+  if (total > POKA_CONFIG.MAX_HORAS_JORNADA) {
+    return {
+      excesivo: true,
+      totalHoras: total.toFixed(1),
+      horasPrevias: horasDelDia.toFixed(1)
+    };
+  }
+  
+  return { excesivo: false, totalHoras: total.toFixed(1) };
+}
 
 // =============================================================
 // CONFIGURACIÓN DEL SISTEMA (Admin)
