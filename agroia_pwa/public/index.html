@@ -8778,6 +8778,13 @@ const TOUR_PASOS = [
   },
   {
     tipo: 'spotlight',
+    selector: '[data-permiso="logs"]',
+    titulo: '📋 Log de decisiones',
+    descripcion: 'Registro auditable de TODAS las acciones del sistema: logins, registros de pesada, generación de reportes y notificaciones. Cumple ISO 27001 A.12.4 (Logging and monitoring).',
+    seccion: 'logs'
+  },
+  {
+    tipo: 'spotlight',
     selector: '[data-permiso="vision"]',
     titulo: '📷 Análisis IA Visual',
     descripcion: 'Toma una foto de la palta y el agente IA (Google Gemini Vision) analiza automáticamente: calidad, daños, madurez y conteo. Es percepción multimodal real.',
@@ -8803,27 +8810,6 @@ const TOUR_PASOS = [
     titulo: '🩺 Estado del Sistema',
     descripcion: 'Monitoreo en vivo de los 6 servicios externos (Supabase, Gemini, Resend, Open-Meteo, Datadog, Backend) con auto-refresh cada 60 segundos. Cumple ISO 27001 A.12.',
     seccion: 'estado'
-  },
-  {
-    tipo: 'spotlight',
-    selector: '[data-permiso="logs"]',
-    titulo: '📋 Log de decisiones',
-    descripcion: 'Registro auditable de TODAS las acciones del sistema: logins, registros de pesada, generación de reportes y notificaciones. Cumple ISO 27001 A.12.4 (Logging and monitoring).',
-    seccion: 'logs'
-  },
-  {
-    tipo: 'spotlight',
-    selector: '[data-permiso="parametros"]',
-    titulo: '⚙ Parámetros del sistema',
-    descripcion: 'Configuración de los umbrales de validación (z-score), rate limiting y otros parámetros técnicos. Solo accesible para el administrador.',
-    seccion: 'parametros'
-  },
-  {
-    tipo: 'spotlight',
-    selector: '[data-permiso="datadog"]',
-    titulo: '📊 Métricas Datadog',
-    descripcion: 'Dashboard de observabilidad con métricas de uso de la API: requests por minuto, latencia, errores y trazabilidad completa de eventos.',
-    seccion: 'datadog'
   },
   {
     tipo: 'spotlight',
