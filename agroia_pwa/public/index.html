@@ -8800,60 +8800,248 @@ function mostrarResultadoTrabajador(analisis, imagenBase64) {
   document.getElementById('trabajadorCamaraError').style.display = 'none';
   document.getElementById('trabajadorCamaraResultado').style.display = 'block';
   
-  // Determinar color de calidad
-  let colorCalidad = '#10B981', iconoCalidad = '✅', textoCalidad = 'BUENA';
-  
-  // Buscar palabras clave en el análisis para determinar calidad
-  const analisisStr = (typeof analisis === 'string' ? analisis : JSON.stringify(analisis)).toLowerCase();
-  
-  if (analisisStr.includes('mala') || analisisStr.includes('podrid') || analisisStr.includes('daño') || analisisStr.includes('grave')) {
-    colorCalidad = '#DC2626';
-    iconoCalidad = '❌';
-    textoCalidad = 'NECESITA REVISIÓN';
-  } else if (analisisStr.includes('regular') || analisisStr.includes('observ') || analisisStr.includes('algo') || analisisStr.includes('moderado')) {
-    colorCalidad = '#F59E0B';
-    iconoCalidad = '⚠️';
-    textoCalidad = 'REGULAR';
+  // Si analisis viene como string JSON, parsearlo
+  let datos = analisis;
+  if (typeof analisis === 'string') {
+    try {
+      // Intentar extraer JSON del texto (a veces viene con markdown)
+      const jsonMatch = analisis.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        datos = JSON.parse(jsonMatch[0]);
+      } else {
+        datos = { resumen: analisis };
+      }
+    } catch(e) {
+      datos = { resumen: analisis };
+    }
   }
   
-  // Limpiar y formatear el análisis para mostrar al trabajador
-  let textoAnalisis = '';
-  if (typeof analisis === 'object') {
-    // Si es objeto, extraer información clave
-    if (analisis.descripcion) textoAnalisis = analisis.descripcion;
-    else if (analisis.resultado) textoAnalisis = analisis.resultado;
-    else textoAnalisis = JSON.stringify(analisis, null, 2);
+  // Extraer campos importantes
+  const tipo = datos.tipo_detectado || datos.tipo || 'desconocido';
+  const calidad = datos.calidad_aparente || datos.calidad || '';
+  const color = datos.color_madurez || datos.madurez || '';
+  const danos = datos.daños_visibles || datos.danos_visibles || datos.daños || [];
+  const plagas = datos.posibles_plagas || datos.plagas || [];
+  const alerta = datos.alerta || null;
+  const confianza = datos.confianza || '';
+  const resumen = datos.resumen || datos.descripcion || '';
+  const recomendacion = datos.recomendacion || '';
+  
+  // Determinar si es una palta válida
+  const esPalta = tipo.toLowerCase().includes('palta') || tipo.toLowerCase().includes('aguacate') || tipo.toLowerCase().includes('avocado');
+  const esNoFruta = tipo.toLowerCase().includes('no_es') || tipo.toLowerCase().includes('no es');
+  
+  // Determinar color, icono y texto del estado principal
+  let colorPrincipal, iconoPrincipal, textoPrincipal;
+  
+  if (esNoFruta) {
+    colorPrincipal = '#DC2626';
+    iconoPrincipal = '❌';
+    textoPrincipal = 'NO ES PALTA';
+  } else if (!esPalta && tipo !== 'desconocido') {
+    colorPrincipal = '#F59E0B';
+    iconoPrincipal = '⚠️';
+    textoPrincipal = 'NO IDENTIFICADO';
   } else {
-    textoAnalisis = analisis;
+    // Es palta: usar calidad
+    const calidadLow = calidad.toLowerCase();
+    if (calidadLow.includes('exc') || calidadLow.includes('buen') || calidadLow.includes('óptim') || calidadLow.includes('optim')) {
+      colorPrincipal = '#10B981';
+      iconoPrincipal = '✅';
+      textoPrincipal = 'CALIDAD BUENA';
+    } else if (calidadLow.includes('reg') || calidadLow.includes('moder')) {
+      colorPrincipal = '#F59E0B';
+      iconoPrincipal = '⚠️';
+      textoPrincipal = 'CALIDAD REGULAR';
+    } else if (calidadLow.includes('def') || calidadLow.includes('mal')) {
+      colorPrincipal = '#DC2626';
+      iconoPrincipal = '❌';
+      textoPrincipal = 'CALIDAD DEFICIENTE';
+    } else {
+      colorPrincipal = '#3B82F6';
+      iconoPrincipal = '📊';
+      textoPrincipal = 'ANÁLISIS COMPLETO';
+    }
   }
   
-  // Limitar longitud y mejorar legibilidad
-  if (textoAnalisis.length > 600) {
-    textoAnalisis = textoAnalisis.substring(0, 600) + '...';
+  // Mapear color de madurez a algo legible
+  let colorMadurezLegible = color;
+  let colorMadurezBg = '#94a3b8';
+  if (color.toLowerCase().includes('verde_inmadur') || color.toLowerCase().includes('inmadur')) {
+    colorMadurezLegible = 'Verde inmadura (aún no lista)';
+    colorMadurezBg = '#10B981';
+  } else if (color.toLowerCase().includes('verde_madur')) {
+    colorMadurezLegible = 'Verde madura (lista para cosechar)';
+    colorMadurezBg = '#639922';
+  } else if (color.toLowerCase().includes('morad') || color.toLowerCase().includes('negr')) {
+    colorMadurezLegible = 'Morada/negra (muy madura)';
+    colorMadurezBg = '#7C3AED';
+  } else if (color.toLowerCase().includes('mancha') || color.toLowerCase().includes('podrid')) {
+    colorMadurezLegible = 'Con manchas o podredumbre';
+    colorMadurezBg = '#DC2626';
   }
   
-  document.getElementById('trabajadorCamaraResultado').innerHTML = `
-    <!-- Card principal con resultado -->
-    <div style="background:${colorCalidad}; padding:24px; border-radius:18px; margin-bottom:16px; text-align:center; box-shadow:0 8px 24px ${colorCalidad}44;">
-      <div style="font-size:60px; margin-bottom:8px;">${iconoCalidad}</div>
-      <div style="color:white; font-size:24px; font-weight:bold;">${textoCalidad}</div>
-      <div style="color:rgba(255,255,255,0.9); font-size:13px; margin-top:4px;">Análisis completado por IA</div>
+  // Confianza en español
+  let confianzaTexto = confianza;
+  if (confianza === 'alta') confianzaTexto = 'Alta (90-100%)';
+  else if (confianza === 'media') confianzaTexto = 'Media (50-89%)';
+  else if (confianza === 'baja') confianzaTexto = 'Baja (<50%)';
+  
+  // Tipo detectado más legible
+  let tipoLegible = tipo;
+  if (tipo === 'no_es_fruta') tipoLegible = 'No es una fruta';
+  else if (tipo === 'palta_hass') tipoLegible = 'Palta Hass ✓';
+  else if (tipo === 'desconocido') tipoLegible = 'No se pudo identificar';
+  
+  // Construir cards
+  let html = `
+    <!-- Card principal de resultado -->
+    <div style="background:${colorPrincipal}; padding:24px 20px; border-radius:18px; margin-bottom:14px; text-align:center; box-shadow:0 8px 24px ${colorPrincipal}44;">
+      <div style="font-size:64px; margin-bottom:8px;">${iconoPrincipal}</div>
+      <div style="color:white; font-size:22px; font-weight:bold;">${textoPrincipal}</div>
+      <div style="color:rgba(255,255,255,0.9); font-size:13px; margin-top:4px;">Análisis con IA Gemini Vision</div>
     </div>
     
     <!-- Imagen analizada -->
-    <div style="background:rgba(255,255,255,0.05); border-radius:14px; padding:14px; margin-bottom:16px; text-align:center;">
-      <div style="color:#94a3b8; font-size:12px; text-transform:uppercase; margin-bottom:10px;">📸 Foto tomada</div>
-      <img src="${imagenBase64}" style="max-width:100%; max-height:250px; border-radius:10px;" />
+    <div style="background:rgba(255,255,255,0.05); border-radius:14px; padding:12px; margin-bottom:14px; text-align:center;">
+      <img src="${imagenBase64}" style="max-width:100%; max-height:200px; border-radius:10px;" />
     </div>
-    
-    <!-- Detalle del análisis -->
-    <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:18px; margin-bottom:16px;">
-      <div style="color:#EF9F27; font-size:13px; font-weight:bold; text-transform:uppercase; margin-bottom:10px;">🤖 Detalle del análisis</div>
-      <div style="color:#cbd5e1; font-size:14px; line-height:1.6; white-space:pre-wrap;">${escaparHTML(textoAnalisis)}</div>
+  `;
+  
+  // Resumen (siempre se muestra si existe)
+  if (resumen) {
+    html += `
+      <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-left:4px solid #EF9F27; border-radius:12px; padding:16px; margin-bottom:14px;">
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+          <div style="font-size:24px;">📝</div>
+          <div style="flex:1;">
+            <div style="color:#EF9F27; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Qué vio la IA</div>
+            <div style="color:#cbd5e1; font-size:14px; line-height:1.5;">${escaparHTML(resumen)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Cards de información (grid 2x2)
+  html += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">';
+  
+  // Tipo detectado
+  html += `
+    <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px;">
+      <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">🔍 Tipo</div>
+      <div style="color:#fff; font-size:13px; font-weight:600;">${escaparHTML(tipoLegible)}</div>
     </div>
-    
-    <!-- Acciones -->
-    <div style="display:flex; gap:10px;">
+  `;
+  
+  // Confianza
+  if (confianza) {
+    html += `
+      <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px;">
+        <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">🎯 Confianza</div>
+        <div style="color:#fff; font-size:13px; font-weight:600;">${escaparHTML(confianzaTexto)}</div>
+      </div>
+    `;
+  }
+  
+  // Calidad
+  if (calidad) {
+    html += `
+      <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px;">
+        <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">⭐ Calidad</div>
+        <div style="color:#fff; font-size:13px; font-weight:600; text-transform:capitalize;">${escaparHTML(calidad)}</div>
+      </div>
+    `;
+  }
+  
+  // Madurez
+  if (color) {
+    html += `
+      <div style="background:rgba(0,0,0,0.3); border:1px solid ${colorMadurezBg}55; border-left:3px solid ${colorMadurezBg}; border-radius:10px; padding:12px;">
+        <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">🌱 Madurez</div>
+        <div style="color:${colorMadurezBg}; font-size:12px; font-weight:600; line-height:1.4;">${escaparHTML(colorMadurezLegible)}</div>
+      </div>
+    `;
+  }
+  
+  html += '</div>';
+  
+  // Daños visibles (si los hay)
+  if (Array.isArray(danos) && danos.length > 0) {
+    html += `
+      <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.3); border-left:4px solid #DC2626; border-radius:12px; padding:14px; margin-bottom:14px;">
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+          <div style="font-size:22px;">⚠️</div>
+          <div style="flex:1;">
+            <div style="color:#DC2626; font-size:12px; font-weight:bold; text-transform:uppercase; margin-bottom:6px;">Daños detectados</div>
+            <ul style="color:#cbd5e1; font-size:13px; line-height:1.6; margin:0; padding-left:16px;">
+              ${danos.map(d => `<li>${escaparHTML(d)}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (esPalta) {
+    html += `
+      <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-left:4px solid #10B981; border-radius:12px; padding:12px; margin-bottom:14px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <div style="font-size:20px;">✅</div>
+          <div style="color:#10B981; font-size:13px; font-weight:600;">Sin daños visibles</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Plagas (si las hay)
+  if (Array.isArray(plagas) && plagas.length > 0) {
+    html += `
+      <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-left:4px solid #F59E0B; border-radius:12px; padding:14px; margin-bottom:14px;">
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+          <div style="font-size:22px;">🐛</div>
+          <div style="flex:1;">
+            <div style="color:#F59E0B; font-size:12px; font-weight:bold; text-transform:uppercase; margin-bottom:6px;">Posibles plagas</div>
+            <ul style="color:#cbd5e1; font-size:13px; line-height:1.6; margin:0; padding-left:16px;">
+              ${plagas.map(p => `<li>${escaparHTML(p)}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Alerta (si la hay)
+  if (alerta) {
+    html += `
+      <div style="background:rgba(220,38,38,0.15); border:2px solid #DC2626; border-radius:12px; padding:14px; margin-bottom:14px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <div style="font-size:24px;">🚨</div>
+          <div style="flex:1;">
+            <div style="color:#DC2626; font-size:12px; font-weight:bold; text-transform:uppercase; margin-bottom:4px;">¡Atención!</div>
+            <div style="color:#fff; font-size:14px;">${escaparHTML(alerta)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Recomendación
+  if (recomendacion) {
+    html += `
+      <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.3); border-left:4px solid #3B82F6; border-radius:12px; padding:14px; margin-bottom:14px;">
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+          <div style="font-size:22px;">💡</div>
+          <div style="flex:1;">
+            <div style="color:#3B82F6; font-size:12px; font-weight:bold; text-transform:uppercase; margin-bottom:4px;">Recomendación</div>
+            <div style="color:#cbd5e1; font-size:14px; line-height:1.5;">${escaparHTML(recomendacion)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Acciones
+  html += `
+    <div style="display:flex; gap:10px; margin-top:18px;">
       <button onclick="trabajadorReintentar()" style="flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:16px; border-radius:12px; font-size:15px; cursor:pointer;">
         📸 Otra foto
       </button>
@@ -8862,6 +9050,8 @@ function mostrarResultadoTrabajador(analisis, imagenBase64) {
       </button>
     </div>
   `;
+  
+  document.getElementById('trabajadorCamaraResultado').innerHTML = html;
 }
 
 function trabajadorReintentar() {
