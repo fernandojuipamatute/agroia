@@ -7370,6 +7370,153 @@ function toastError(mensaje, opciones = {}) { mostrarToast(mensaje, 'error', { d
 function toastInfo(mensaje, opciones = {}) { mostrarToast(mensaje, 'info', opciones); }
 function toastWarning(mensaje, opciones = {}) { mostrarToast(mensaje, 'warning', { duracion: 5000, ...opciones }); }
 
+// =============================================================
+// POKA-YOKE: Sistema de confirmación a prueba de errores
+// Basado en el principio de Shigeo Shingo (Toyota Production System)
+// =============================================================
+
+/**
+ * Muestra un modal de confirmación antes de ejecutar acciones críticas.
+ * Devuelve una Promise que resuelve true si el usuario confirma, false si cancela.
+ * 
+ * @param {object} opciones
+ *   - titulo: título del modal
+ *   - mensaje: descripción de la acción
+ *   - icono: emoji a mostrar (default ⚠️)
+ *   - tipoConfirmar: 'normal' | 'peligro' (cambia el color del botón)
+ *   - textoConfirmar: texto del botón confirmar (default 'Confirmar')
+ *   - textoCancelar: texto del botón cancelar (default 'Cancelar')
+ *   - requiereEscribir: si se pasa una palabra, el usuario debe escribirla para habilitar el botón
+ * 
+ * @returns {Promise<boolean>}
+ */
+function confirmarAccion(opciones) {
+  return new Promise((resolve) => {
+    const titulo = opciones.titulo || '¿Confirmar acción?';
+    const mensaje = opciones.mensaje || '¿Estás seguro?';
+    const icono = opciones.icono || '⚠️';
+    const tipo = opciones.tipoConfirmar || 'normal';
+    const textoConfirmar = opciones.textoConfirmar || 'Confirmar';
+    const textoCancelar = opciones.textoCancelar || 'Cancelar';
+    const requiereEscribir = opciones.requiereEscribir || null;
+    
+    const colorConfirmar = tipo === 'peligro' ? '#DC2626' : '#639922';
+    const colorConfirmarHover = tipo === 'peligro' ? '#B91C1C' : '#4a7515';
+    
+    // Crear backdrop
+    const backdrop = document.createElement('div');
+    backdrop.id = 'pokaYokeBackdrop';
+    backdrop.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+      z-index: 99999; display: flex; align-items: center; justify-content: center;
+      padding: 20px; animation: pokaFadeIn 0.2s ease-out;
+    `;
+    
+    // Crear modal
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px; padding: 28px; max-width: 480px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: pokaScaleIn 0.25s ease-out;
+    `;
+    
+    let inputHTML = '';
+    if (requiereEscribir) {
+      inputHTML = `
+        <div style="margin-top: 18px;">
+          <div style="color: #94a3b8; font-size: 12px; margin-bottom: 6px;">
+            Para confirmar, escribe: <strong style="color: ${colorConfirmar};">${requiereEscribir}</strong>
+          </div>
+          <input type="text" id="pokaYokeInput" autocomplete="off"
+            style="width: 100%; padding: 12px; background: rgba(0,0,0,0.4);
+            border: 2px solid rgba(255,255,255,0.15); border-radius: 8px;
+            color: #fff; font-size: 14px; font-family: monospace;">
+        </div>
+      `;
+    }
+    
+    modal.innerHTML = `
+      <div style="text-align: center; margin-bottom: 18px;">
+        <div style="font-size: 56px; margin-bottom: 8px;">${icono}</div>
+        <h2 style="color: #fff; margin: 0; font-size: 20px; font-weight: 600;">${escaparHTML(titulo)}</h2>
+      </div>
+      <div style="color: #cbd5e1; font-size: 14px; line-height: 1.6; text-align: center; margin-bottom: 20px;">
+        ${mensaje}
+      </div>
+      ${inputHTML}
+      <div style="display: flex; gap: 10px; margin-top: 22px;">
+        <button id="pokaYokeCancelar" style="flex: 1; padding: 14px; background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1; border-radius: 10px;
+          font-size: 14px; font-weight: 600; cursor: pointer;">
+          ${escaparHTML(textoCancelar)}
+        </button>
+        <button id="pokaYokeConfirmar" style="flex: 2; padding: 14px;
+          background: ${colorConfirmar}; border: none; color: white; border-radius: 10px;
+          font-size: 14px; font-weight: 700; cursor: pointer; ${requiereEscribir ? 'opacity: 0.4; pointer-events: none;' : ''}">
+          ${escaparHTML(textoConfirmar)}
+        </button>
+      </div>
+    `;
+    
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    
+    // Inyectar animaciones si no existen
+    if (!document.getElementById('pokaYokeStyles')) {
+      const style = document.createElement('style');
+      style.id = 'pokaYokeStyles';
+      style.textContent = `
+        @keyframes pokaFadeIn { from {opacity:0} to {opacity:1} }
+        @keyframes pokaScaleIn { from {transform:scale(0.85); opacity:0} to {transform:scale(1); opacity:1} }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    const btnConfirmar = document.getElementById('pokaYokeConfirmar');
+    const btnCancelar = document.getElementById('pokaYokeCancelar');
+    const inputEscribir = document.getElementById('pokaYokeInput');
+    
+    // Si requiere escribir, validar texto
+    if (inputEscribir) {
+      inputEscribir.addEventListener('input', () => {
+        if (inputEscribir.value.trim() === requiereEscribir) {
+          btnConfirmar.style.opacity = '1';
+          btnConfirmar.style.pointerEvents = 'auto';
+        } else {
+          btnConfirmar.style.opacity = '0.4';
+          btnConfirmar.style.pointerEvents = 'none';
+        }
+      });
+      setTimeout(() => inputEscribir.focus(), 100);
+    }
+    
+    function cerrar(resultado) {
+      backdrop.style.animation = 'pokaFadeIn 0.15s ease-out reverse';
+      setTimeout(() => {
+        backdrop.remove();
+        resolve(resultado);
+      }, 150);
+    }
+    
+    btnConfirmar.addEventListener('click', () => cerrar(true));
+    btnCancelar.addEventListener('click', () => cerrar(false));
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) cerrar(false);
+    });
+    
+    // ESC para cancelar
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', escHandler);
+        cerrar(false);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
+  });
+}
+
 /**
  * Convierte errores técnicos en mensajes amigables al usuario.
  * 
@@ -8001,7 +8148,7 @@ function cargarConfiguracion() {
   }
 }
 
-function guardarConfiguracion() {
+async function guardarConfiguracion() {
   try {
     const umbralObs = parseFloat(document.getElementById('configUmbralObs').value);
     const umbralAlerta = parseFloat(document.getElementById('configUmbralAlerta').value);
@@ -8017,6 +8164,27 @@ function guardarConfiguracion() {
       return;
     }
     
+    // POKA-YOKE: confirmar si los valores son muy extremos
+    let advertencia = '';
+    if (umbralBloqueo > 4) {
+      advertencia += '⚠️ Umbral de bloqueo MUY alto: muchas anomalías pasarán como válidas.<br>';
+    }
+    if (umbralObs < 0.7) {
+      advertencia += '⚠️ Umbral de observación MUY bajo: se marcarán muchas pesadas normales como sospechosas.<br>';
+    }
+    
+    if (advertencia) {
+      const confirmar = await confirmarAccion({
+        icono: '⚠️',
+        titulo: 'Valores fuera del rango recomendado',
+        mensaje: `${advertencia}<br>Los valores recomendados son: 1, 2, 3 (z-score estándar). ¿Continuar de todas formas?`,
+        tipoConfirmar: 'peligro',
+        textoConfirmar: 'Sí, guardar igual',
+        textoCancelar: 'Revisar valores'
+      });
+      if (!confirmar) return;
+    }
+    
     const config = {
       umbral_observacion: umbralObs,
       umbral_alerta: umbralAlerta,
@@ -8028,11 +8196,8 @@ function guardarConfiguracion() {
     };
     
     localStorage.setItem('agroia_config', JSON.stringify(config));
-    
-    // Aplicar globalmente para que el resto del sistema lo use
     window._configSistema = config;
     
-    // Si las predicciones tienen META_CAMPANA hardcoded, actualizar
     if (typeof META_CAMPANA !== 'undefined') {
       window.META_CAMPANA = config.meta_campana;
     }
@@ -8056,8 +8221,17 @@ function guardarConfiguracion() {
   }
 }
 
-function resetearConfiguracion() {
-  if (!confirm('¿Restaurar valores por defecto?')) return;
+async function resetearConfiguracion() {
+  const confirmar = await confirmarAccion({
+    icono: '🔄',
+    titulo: '¿Restaurar configuración?',
+    mensaje: 'Todos los parámetros del sistema volverán a los valores por defecto. Esta acción afectará a los próximos análisis del agente IA.',
+    tipoConfirmar: 'peligro',
+    textoConfirmar: 'Sí, restaurar',
+    textoCancelar: 'Cancelar'
+  });
+  
+  if (!confirmar) return;
   
   localStorage.removeItem('agroia_config');
   window._configSistema = null;
@@ -10235,9 +10409,24 @@ async function iniciarSesion() {
 // CERRAR SESIÓN
 // =============================================================
 async function cerrarSesion() {
-  if (!confirm('¿Estás seguro de cerrar sesión?')) {
-    return;
+  // POKA-YOKE: detectar si hay pesadas pendientes (modo trabajador)
+  let mensajeAdicional = '';
+  if (window._pesadasOffline && window._pesadasOffline.length > 0) {
+    mensajeAdicional = `<div style="background:rgba(245,158,11,0.15); border:1px solid #F59E0B; border-radius:8px; padding:12px; margin-top:14px; color:#F59E0B; font-size:13px; font-weight:600;">
+      ⚠️ Tienes ${window._pesadasOffline.length} pesada(s) pendientes de sincronizar. Si cierras sesión podrías perderlas.
+    </div>`;
   }
+  
+  const confirmar = await confirmarAccion({
+    icono: '🚪',
+    titulo: '¿Cerrar sesión?',
+    mensaje: `Tu sesión se cerrará y deberás iniciar sesión nuevamente para continuar.${mensajeAdicional}`,
+    tipoConfirmar: 'peligro',
+    textoConfirmar: 'Cerrar sesión',
+    textoCancelar: 'Seguir conectado'
+  });
+  
+  if (!confirmar) return;
   
   try {
     // AUDITORÍA: Logout (antes de cerrar la sesión)
