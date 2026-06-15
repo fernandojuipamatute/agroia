@@ -2821,6 +2821,76 @@ tr:hover td {
     </div>
   </div>
 
+  <!-- VISTA: CÁMARA IA -->
+  <div id="trabajadorVistaCamara" style="display:none; max-width:500px; margin:0 auto; padding:20px 16px;">
+    
+    <button onclick="trabajadorVolverPrincipal()" style="background:transparent; border:none; color:#cbd5e1; font-size:16px; padding:8px; cursor:pointer; margin-bottom:16px;">
+      ← Volver al inicio
+    </button>
+
+    <h2 style="color:#fff; text-align:center; font-size:24px; margin-bottom:8px;">📸 Analizar mi cosecha</h2>
+    <div style="color:#94a3b8; text-align:center; font-size:14px; margin-bottom:20px;">Toma una foto de tus paltas y la IA las revisará</div>
+
+    <!-- PASO INICIAL: Botón gigante para abrir cámara -->
+    <div id="trabajadorCamaraInicial" style="display:block;">
+      <div style="background:linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,153,34,0.15)); border:2px solid rgba(59,130,246,0.3); border-radius:18px; padding:30px 20px; margin-bottom:20px; text-align:center;">
+        <div style="font-size:80px; margin-bottom:14px;">📷</div>
+        <h3 style="color:#fff; margin:0 0 8px 0; font-size:18px;">Apunta tu cámara a la cosecha</h3>
+        <p style="color:#94a3b8; font-size:13px; margin:0 0 22px 0; line-height:1.5;">
+          La IA analizará automáticamente las paltas para ver si están bien.
+        </p>
+        
+        <!-- Input de cámara oculto -->
+        <input type="file" id="inputCamaraTrabajador" accept="image/*" capture="environment" 
+               style="display:none;" onchange="trabajadorProcesarFoto(this)">
+        
+        <button onclick="document.getElementById('inputCamaraTrabajador').click()" 
+                style="width:100%; background:linear-gradient(135deg, #3B82F6, #1d4ed8); border:none; color:white; padding:22px; border-radius:14px; font-size:20px; font-weight:bold; cursor:pointer; box-shadow:0 8px 24px rgba(59,130,246,0.4);">
+          📸 ABRIR CÁMARA
+        </button>
+      </div>
+    </div>
+
+    <!-- PASO: PROCESANDO -->
+    <div id="trabajadorCamaraProcesando" style="display:none; text-align:center; padding:40px 20px;">
+      <div style="font-size:60px; margin-bottom:16px;">⏳</div>
+      <h3 style="color:#fff; font-size:20px; margin:0 0 8px 0;">Analizando con IA...</h3>
+      <p style="color:#94a3b8; font-size:14px;">Esto puede tardar 10-30 segundos</p>
+      
+      <!-- Animación de progreso -->
+      <div style="margin-top:24px; background:rgba(0,0,0,0.3); height:6px; border-radius:3px; overflow:hidden;">
+        <div style="background:linear-gradient(90deg, #3B82F6, #10B981); height:100%; width:100%; animation:progresoIA 2s ease-in-out infinite;"></div>
+      </div>
+      
+      <!-- Preview de imagen -->
+      <div style="margin-top:24px;">
+        <img id="trabajadorImagenPreview" style="max-width:100%; max-height:200px; border-radius:12px; opacity:0.6;" />
+      </div>
+    </div>
+
+    <!-- PASO: RESULTADO -->
+    <div id="trabajadorCamaraResultado" style="display:none;">
+      <!-- Se llena con JS -->
+    </div>
+
+    <!-- PASO: ERROR -->
+    <div id="trabajadorCamaraError" style="display:none; text-align:center; padding:30px 20px;">
+      <div style="font-size:60px; margin-bottom:14px;">😔</div>
+      <h3 style="color:#DC2626; font-size:20px; margin:0 0 8px 0;">No se pudo analizar</h3>
+      <p id="trabajadorErrorTexto" style="color:#94a3b8; font-size:14px; margin-bottom:20px;">Intenta de nuevo en unos segundos</p>
+      <button onclick="trabajadorReintentar()" style="width:100%; background:#3B82F6; border:none; color:white; padding:16px; border-radius:12px; font-size:16px; font-weight:bold; cursor:pointer;">
+        🔄 Intentar de nuevo
+      </button>
+    </div>
+  </div>
+  
+  <style>
+    @keyframes progresoIA {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+  </style>
+
 </div>
 
 <!-- BOTÓN FLOTANTE: REPORTAR PROBLEMA                            -->
@@ -8639,13 +8709,209 @@ async function trabajadorConfirmarPesada() {
 }
 
 function trabajadorAbrirFoto() {
-  // Por ahora solo mostrar un toast (la integración con la cámara es compleja)
-  if (typeof toastInfo === 'function') {
-    toastInfo('Esta función estará disponible próximamente. Por ahora, registra tu pesada manualmente.', { 
-      titulo: '📸 Tomar foto', 
-      duracion: 5000 
-    });
+  // Mostrar vista de cámara
+  document.getElementById('trabajadorVistaPrincipal').style.display = 'none';
+  document.getElementById('trabajadorVistaRegistrar').style.display = 'none';
+  document.getElementById('trabajadorVistaMisPesadas').style.display = 'none';
+  document.getElementById('trabajadorVistaCamara').style.display = 'block';
+  
+  // Mostrar paso inicial
+  document.getElementById('trabajadorCamaraInicial').style.display = 'block';
+  document.getElementById('trabajadorCamaraProcesando').style.display = 'none';
+  document.getElementById('trabajadorCamaraResultado').style.display = 'none';
+  document.getElementById('trabajadorCamaraError').style.display = 'none';
+  
+  // Limpiar input
+  document.getElementById('inputCamaraTrabajador').value = '';
+  
+  if (typeof auditarAccion === 'function') {
+    auditarAccion('ABRIR_CAMARA_TRABAJADOR', 'Trabajador abrió la cámara IA');
   }
+}
+
+async function trabajadorProcesarFoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  // Cambiar a paso procesando
+  document.getElementById('trabajadorCamaraInicial').style.display = 'none';
+  document.getElementById('trabajadorCamaraProcesando').style.display = 'block';
+  document.getElementById('trabajadorCamaraResultado').style.display = 'none';
+  document.getElementById('trabajadorCamaraError').style.display = 'none';
+  
+  try {
+    // Convertir a base64 con redimensión para no enviar imágenes gigantes
+    const imagenBase64 = await redimensionarImagen(file, 1024);
+    
+    // Mostrar preview
+    document.getElementById('trabajadorImagenPreview').src = imagenBase64;
+    
+    // Llamar al endpoint de análisis IA
+    const response = await fetch('https://agroi-api.onrender.com/api/analizar-imagen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imagen_base64: imagenBase64.split(',')[1],  // Solo la parte base64 sin el header
+        contexto: 'Imagen de cosecha de palta Hass tomada por trabajador en el Valle de Virú, Perú. Analiza la cantidad aproximada, calidad y estado de madurez.'
+      }),
+      signal: AbortSignal.timeout(60000)
+    });
+    
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+    
+    const data = await response.json();
+    
+    if (data.exito && data.analisis) {
+      mostrarResultadoTrabajador(data.analisis, imagenBase64);
+      
+      if (typeof auditarAccion === 'function') {
+        auditarAccion('ANALISIS_IA_TRABAJADOR',
+          'Trabajador analizó imagen con IA',
+          { 
+            proveedor: data.proveedor || 'gemini',
+            tiene_resultado: true 
+          }
+        );
+      }
+    } else {
+      throw new Error(data.error || 'No se pudo analizar la imagen');
+    }
+  } catch (error) {
+    console.error('Error análisis IA:', error);
+    document.getElementById('trabajadorCamaraProcesando').style.display = 'none';
+    document.getElementById('trabajadorCamaraError').style.display = 'block';
+    
+    let mensaje = 'Intenta de nuevo en unos segundos';
+    if (error.name === 'TimeoutError') {
+      mensaje = 'El análisis tardó demasiado. Intenta con una foto más clara.';
+    } else if (error.message.includes('429')) {
+      mensaje = 'Demasiadas consultas a la IA. Espera 1 minuto e intenta de nuevo.';
+    } else if (!navigator.onLine) {
+      mensaje = 'Sin conexión a internet. Verifica tu Wi-Fi o datos.';
+    }
+    document.getElementById('trabajadorErrorTexto').textContent = mensaje;
+  }
+}
+
+function mostrarResultadoTrabajador(analisis, imagenBase64) {
+  document.getElementById('trabajadorCamaraProcesando').style.display = 'none';
+  document.getElementById('trabajadorCamaraError').style.display = 'none';
+  document.getElementById('trabajadorCamaraResultado').style.display = 'block';
+  
+  // Determinar color de calidad
+  let colorCalidad = '#10B981', iconoCalidad = '✅', textoCalidad = 'BUENA';
+  
+  // Buscar palabras clave en el análisis para determinar calidad
+  const analisisStr = (typeof analisis === 'string' ? analisis : JSON.stringify(analisis)).toLowerCase();
+  
+  if (analisisStr.includes('mala') || analisisStr.includes('podrid') || analisisStr.includes('daño') || analisisStr.includes('grave')) {
+    colorCalidad = '#DC2626';
+    iconoCalidad = '❌';
+    textoCalidad = 'NECESITA REVISIÓN';
+  } else if (analisisStr.includes('regular') || analisisStr.includes('observ') || analisisStr.includes('algo') || analisisStr.includes('moderado')) {
+    colorCalidad = '#F59E0B';
+    iconoCalidad = '⚠️';
+    textoCalidad = 'REGULAR';
+  }
+  
+  // Limpiar y formatear el análisis para mostrar al trabajador
+  let textoAnalisis = '';
+  if (typeof analisis === 'object') {
+    // Si es objeto, extraer información clave
+    if (analisis.descripcion) textoAnalisis = analisis.descripcion;
+    else if (analisis.resultado) textoAnalisis = analisis.resultado;
+    else textoAnalisis = JSON.stringify(analisis, null, 2);
+  } else {
+    textoAnalisis = analisis;
+  }
+  
+  // Limitar longitud y mejorar legibilidad
+  if (textoAnalisis.length > 600) {
+    textoAnalisis = textoAnalisis.substring(0, 600) + '...';
+  }
+  
+  document.getElementById('trabajadorCamaraResultado').innerHTML = `
+    <!-- Card principal con resultado -->
+    <div style="background:${colorCalidad}; padding:24px; border-radius:18px; margin-bottom:16px; text-align:center; box-shadow:0 8px 24px ${colorCalidad}44;">
+      <div style="font-size:60px; margin-bottom:8px;">${iconoCalidad}</div>
+      <div style="color:white; font-size:24px; font-weight:bold;">${textoCalidad}</div>
+      <div style="color:rgba(255,255,255,0.9); font-size:13px; margin-top:4px;">Análisis completado por IA</div>
+    </div>
+    
+    <!-- Imagen analizada -->
+    <div style="background:rgba(255,255,255,0.05); border-radius:14px; padding:14px; margin-bottom:16px; text-align:center;">
+      <div style="color:#94a3b8; font-size:12px; text-transform:uppercase; margin-bottom:10px;">📸 Foto tomada</div>
+      <img src="${imagenBase64}" style="max-width:100%; max-height:250px; border-radius:10px;" />
+    </div>
+    
+    <!-- Detalle del análisis -->
+    <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:18px; margin-bottom:16px;">
+      <div style="color:#EF9F27; font-size:13px; font-weight:bold; text-transform:uppercase; margin-bottom:10px;">🤖 Detalle del análisis</div>
+      <div style="color:#cbd5e1; font-size:14px; line-height:1.6; white-space:pre-wrap;">${escaparHTML(textoAnalisis)}</div>
+    </div>
+    
+    <!-- Acciones -->
+    <div style="display:flex; gap:10px;">
+      <button onclick="trabajadorReintentar()" style="flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:16px; border-radius:12px; font-size:15px; cursor:pointer;">
+        📸 Otra foto
+      </button>
+      <button onclick="trabajadorVolverPrincipal()" style="flex:2; background:linear-gradient(135deg, #639922, #4a7515); border:none; color:white; padding:16px; border-radius:12px; font-size:16px; font-weight:bold; cursor:pointer;">
+        ✓ Volver al inicio
+      </button>
+    </div>
+  `;
+}
+
+function trabajadorReintentar() {
+  document.getElementById('trabajadorCamaraInicial').style.display = 'block';
+  document.getElementById('trabajadorCamaraProcesando').style.display = 'none';
+  document.getElementById('trabajadorCamaraResultado').style.display = 'none';
+  document.getElementById('trabajadorCamaraError').style.display = 'none';
+  document.getElementById('inputCamaraTrabajador').value = '';
+}
+
+// Helper: redimensionar imagen antes de enviar
+async function redimensionarImagen(file, maxWidth) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Redimensionar si es muy grande
+        if (width > maxWidth) {
+          height = (maxWidth / width) * height;
+          width = maxWidth;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Comprimir a JPEG con calidad 0.85
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve(dataUrl);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Helper: escapar HTML para evitar XSS
+function escaparHTML(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function trabajadorVerMisPesadas() {
@@ -8702,6 +8968,8 @@ function trabajadorVerMisPesadas() {
 function trabajadorVolverPrincipal() {
   document.getElementById('trabajadorVistaRegistrar').style.display = 'none';
   document.getElementById('trabajadorVistaMisPesadas').style.display = 'none';
+  const vCam = document.getElementById('trabajadorVistaCamara');
+  if (vCam) vCam.style.display = 'none';
   document.getElementById('trabajadorVistaPrincipal').style.display = 'block';
   
   // Actualizar resumen por si registró una nueva pesada
