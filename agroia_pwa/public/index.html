@@ -1230,6 +1230,9 @@ tr:hover td {
     <div class="nav-item" onclick="switchPage('configuracion')" data-permiso="parametros">
       <span class="nav-icon">⚙</span> Configuración
     </div>
+    <div class="nav-item" onclick="switchPage('clientes')" data-permiso="clientes" style="background:linear-gradient(135deg, rgba(168,85,247,0.15), rgba(99,102,241,0.15)); border:1px solid rgba(168,85,247,0.3); margin-top:8px;">
+      <span class="nav-icon">🛠</span> Panel de Cliente
+    </div>
   </div>
 
   <!-- BOTÓN CERRAR SESIÓN -->
@@ -2531,6 +2534,120 @@ tr:hover td {
     <!-- ============ FOOTER METODOLOGÍA ============ -->
     <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; font-size:12px; color:#94a3b8; line-height:1.6;">
       <strong style="color:#cbd5e1;">📐 Metodología:</strong> El agente IA implementa <strong>aprendizaje supervisado básico</strong>: agrupa las pesadas históricas por día de la semana y calcula los factores de productividad reales de cada día. Si no hay datos suficientes de algún día, usa valores por defecto basados en patrones agrícolas tradicionales. La confianza del modelo crece a medida que se registran más pesadas y se cubren más días de la semana. Cumple el modelo de agente IA deliberativo con aprendizaje (Russell &amp; Norvig, 2021).
+    </div>
+  </div>
+</div>
+
+<!-- ============= PANEL DE CONTROL DE CLIENTE (DEMO ONLY) ============= -->
+<div class="page-section" id="page-clientes">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">🛠 Panel de Control de Cliente</h1>
+      <div class="page-subtitle">Adaptación del agente IA según nivel tecnológico de la empresa cliente</div>
+    </div>
+  </div>
+
+  <!-- Banner explicativo -->
+  <div style="background:linear-gradient(135deg, rgba(168,85,247,0.1), rgba(99,102,241,0.1)); border:1px solid rgba(168,85,247,0.3); border-radius:14px; padding:18px 20px; margin-bottom:24px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="font-size:36px;">🎯</div>
+      <div style="flex:1;">
+        <h3 style="color:#A855F7; margin:0 0 4px 0; font-size:16px;">Adaptación según mercado destino</h3>
+        <p style="color:#cbd5e1; font-size:13px; margin:0; line-height:1.6;">
+          AgroIA se adapta al nivel de adopción tecnológica de cada empresa de la agroindustria. Una empresa que aún usa Excel necesita una solución diferente que una con tablets en campo. Este panel permite cambiar la vista del cliente para que veas exactamente lo que verá según su nivel contratado.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nivel actual -->
+  <div id="panelNivelActual" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:20px; margin-bottom:20px;">
+    <div style="color:#94a3b8; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Nivel actualmente activo</div>
+    <div id="panelNivelActualContenido"><!-- JS rellena --></div>
+  </div>
+
+  <!-- Selector de nivel -->
+  <h2 style="color:#fff; font-size:18px; margin:24px 0 12px 0;">📊 Cambiar nivel tecnológico</h2>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:24px;">
+
+    <!-- Nivel 1 -->
+    <div onclick="cambiarNivelCliente(1)" id="panelNivel1" class="panel-nivel-card" style="background:rgba(148,163,184,0.05); border:2px solid rgba(148,163,184,0.2); border-radius:14px; padding:18px; cursor:pointer; transition:all 0.2s;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div style="font-size:36px;">📊</div>
+        <div id="badgeNivel1" style="display:none; background:rgba(16,185,129,0.2); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ ACTIVO</div>
+      </div>
+      <div style="color:#fff; font-weight:700; font-size:16px; margin-bottom:4px;">Nivel 1 — Manual</div>
+      <div style="color:#94a3b8; font-size:12px; margin-bottom:12px; line-height:1.5;">
+        Empresa que registra todo en Excel/papel. AgroIA importa, valida y exporta.
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px; margin-top:10px;">
+        <div style="color:#10B981; font-size:11px;">✓ Dashboard básico</div>
+        <div style="color:#10B981; font-size:11px;">✓ Importar/Exportar Excel</div>
+        <div style="color:#10B981; font-size:11px;">✓ Validación estadística</div>
+        <div style="color:#94a3b8; font-size:11px;">— Sin IA en cámara</div>
+        <div style="color:#94a3b8; font-size:11px;">— Sin predicciones</div>
+      </div>
+    </div>
+
+    <!-- Nivel 2 -->
+    <div onclick="cambiarNivelCliente(2)" id="panelNivel2" class="panel-nivel-card" style="background:rgba(59,130,246,0.05); border:2px solid rgba(59,130,246,0.2); border-radius:14px; padding:18px; cursor:pointer; transition:all 0.2s;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div style="font-size:36px;">💻</div>
+        <div id="badgeNivel2" style="display:none; background:rgba(16,185,129,0.2); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ ACTIVO</div>
+      </div>
+      <div style="color:#fff; font-weight:700; font-size:16px; margin-bottom:4px;">Nivel 2 — Híbrido</div>
+      <div style="color:#94a3b8; font-size:12px; margin-bottom:12px; line-height:1.5;">
+        Empresa con supervisores usando tablets/laptops en campo. App web simplificada.
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px; margin-top:10px;">
+        <div style="color:#3B82F6; font-size:11px;">✓ Todo Nivel 1 +</div>
+        <div style="color:#3B82F6; font-size:11px;">✓ Notificaciones email</div>
+        <div style="color:#3B82F6; font-size:11px;">✓ Monitoreo satelital</div>
+        <div style="color:#3B82F6; font-size:11px;">✓ Cámara IA con Gemini</div>
+        <div style="color:#94a3b8; font-size:11px;">— Sin predicciones IA</div>
+      </div>
+    </div>
+
+    <!-- Nivel 3 -->
+    <div onclick="cambiarNivelCliente(3)" id="panelNivel3" class="panel-nivel-card" style="background:rgba(16,185,129,0.05); border:2px solid rgba(16,185,129,0.2); border-radius:14px; padding:18px; cursor:pointer; transition:all 0.2s;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div style="font-size:36px;">🚀</div>
+        <div id="badgeNivel3" style="display:none; background:rgba(16,185,129,0.2); color:#10B981; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;">✓ ACTIVO</div>
+      </div>
+      <div style="color:#fff; font-weight:700; font-size:16px; margin-bottom:4px;">Nivel 3 — Completo</div>
+      <div style="color:#94a3b8; font-size:12px; margin-bottom:12px; line-height:1.5;">
+        Empresa con full digitalización: IA, predicciones, satelital, integraciones B2B.
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px; margin-top:10px;">
+        <div style="color:#10B981; font-size:11px;">✓ Todo Nivel 2 +</div>
+        <div style="color:#10B981; font-size:11px;">✓ Cámara IA con Gemini</div>
+        <div style="color:#10B981; font-size:11px;">✓ Predicciones IA</div>
+        <div style="color:#10B981; font-size:11px;">✓ Estado del Sistema</div>
+        <div style="color:#10B981; font-size:11px;">✓ Integración B2B</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aviso para demostración -->
+  <div style="background:rgba(239,159,39,0.08); border:1px solid rgba(239,159,39,0.3); border-radius:12px; padding:14px 18px; margin-bottom:20px;">
+    <div style="display:flex; gap:12px; align-items:flex-start;">
+      <div style="font-size:22px;">💡</div>
+      <div style="color:#cbd5e1; font-size:13px; line-height:1.6;">
+        <strong style="color:#EF9F27;">Para tu presentación:</strong> Inicia sesión como admin en una pestaña de incógnito y verás la vista del cliente según el nivel seleccionado. Tu sesión actual (DEMO) siempre ve todo.
+      </div>
+    </div>
+  </div>
+
+  <!-- Cuentas demo de cliente -->
+  <h2 style="color:#fff; font-size:18px; margin:24px 0 12px 0;">🔑 Cuentas demo para presentación</h2>
+  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:18px;">
+    <div style="color:#94a3b8; font-size:12px; margin-bottom:12px;">
+      Crea estas cuentas en Supabase para que el profesor pueda probar cada vista cliente:
+    </div>
+    <div style="background:rgba(0,0,0,0.4); border-radius:8px; padding:14px; font-family:monospace; font-size:12px; color:#cbd5e1; line-height:1.8;">
+      <div>📊 Cliente Nivel 1: <strong style="color:#10B981;">admin1@agroia.local</strong> / cliente2026</div>
+      <div>💻 Cliente Nivel 2: <strong style="color:#10B981;">admin2@agroia.local</strong> / cliente2026</div>
+      <div>🚀 Cliente Nivel 3: <strong style="color:#10B981;">admin3@agroia.local</strong> / cliente2026</div>
     </div>
   </div>
 </div>
@@ -5468,6 +5585,11 @@ function switchPage(page) {
   if (page === 'configuracion' && typeof entrarAConfiguracion === 'function') {
     entrarAConfiguracion();
   }
+  
+  // Si entra al Panel de Cliente, renderizar nivel activo
+  if (page === 'clientes' && typeof entrarAPanelClientes === 'function') {
+    entrarAPanelClientes();
+  }
 }
 
 // ============================================================
@@ -8126,8 +8248,10 @@ function mostrarUsuarioEnSidebar(perfil) {
 
 // Mapa de permisos: qué puede ver cada rol
 const PERMISOS_POR_ROL = {
-  'admin': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros'],
+  // ROL DEMO/DESARROLLADOR (solo para Jhonny)
+  // Ve TODAS las funciones sin restricción. Es la vista interna completa.
+  'demo': {
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
@@ -8135,11 +8259,29 @@ const PERMISOS_POR_ROL = {
       verTodosTrabajadores: true,
       verTodosReportes: true,
       configurarParametros: true,
-      verLogs: true
+      verLogs: true,
+      controlarNivelCliente: true,   // EXCLUSIVO demo
+      verAvanzado: true               // Ve secciones técnicas
+    }
+  },
+  // ROL ADMIN — vista simplificada según nivel tecnológico contratado
+  // El sistema filtra dinámicamente las funciones según NIVEL_TECNOLOGICO
+  'admin': {
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'sostenibilidad'],
+    paginaInicial: 'dashboard',
+    puede: {
+      registrarPesada: true,
+      verTodasCuadrillas: true,
+      verTodosTrabajadores: true,
+      verTodosReportes: true,
+      configurarParametros: false,    // Cambiado: ya no configura (lo hace demo)
+      verLogs: false,                 // Cambiado: oculto para "menos es más"
+      controlarNivelCliente: false,
+      verAvanzado: false
     }
   },
   'jefecampo': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'sostenibilidad'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
@@ -8147,29 +8289,29 @@ const PERMISOS_POR_ROL = {
       verTodosTrabajadores: true,
       verTodosReportes: true,
       configurarParametros: false,
-      verLogs: true
+      verLogs: false
     }
   },
   'supervisor': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'vision', 'reporte'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'reporte'],
     paginaInicial: 'pesadas',
     puede: {
       registrarPesada: true,
-      verTodasCuadrillas: false,    // Solo su cuadrilla
-      verTodosTrabajadores: false,  // Solo su cuadrilla
-      verTodosReportes: false,      // Solo Supervisor (su cuadrilla)
+      verTodasCuadrillas: false,
+      verTodosTrabajadores: false,
+      verTodosReportes: false,
       configurarParametros: false,
       verLogs: false
     }
   },
   'gerencia': {
-    nav: ['dashboard', 'reporte', 'sostenibilidad', 'predicciones', 'estado'],
+    nav: ['dashboard', 'reporte', 'sostenibilidad'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: false,
       verTodasCuadrillas: true,
       verTodosTrabajadores: false,
-      verTodosReportes: false,      // Solo Gerencia
+      verTodosReportes: false,
       configurarParametros: false,
       verLogs: false
     }
@@ -8181,25 +8323,242 @@ const PERMISOS_POR_ROL = {
       registrarPesada: false,
       verTodasCuadrillas: true,
       verTodosTrabajadores: true,
-      verTodosReportes: false,      // Solo RR.HH.
+      verTodosReportes: false,
       configurarParametros: false,
       verLogs: false
     }
   },
   'trabajador': {
-    nav: [],  // No usa el sidebar normal, tiene su propia vista
+    nav: [],
     paginaInicial: 'trabajador',
     puede: {
-      registrarPesada: true,       // Solo SUS propias pesadas
+      registrarPesada: true,
       verTodasCuadrillas: false,
       verTodosTrabajadores: false,
       verTodosReportes: false,
       configurarParametros: false,
       verLogs: false,
-      modoTrabajador: true         // Activar UI especial
+      modoTrabajador: true
     }
   }
 };
+
+// =============================================================
+// NIVELES TECNOLÓGICOS DEL CLIENTE
+// Cada empresa contrata un nivel según su madurez digital
+// El admin ve solo lo que su nivel tecnológico permite
+// =============================================================
+const NIVELES_TECNOLOGICOS = {
+  1: {
+    nombre: 'Nivel 1 - Manual / Excel',
+    descripcion: 'Empresa que sigue usando Excel. AgroIA importa/exporta.',
+    icono: '📊',
+    color: '#94a3b8',
+    nav_extra: ['importar_excel'],  // Funciones extra para este nivel
+    nav_oculto: ['logs', 'predicciones', 'vision', 'estado'],  // Funciones ocultas
+    funciones_activas: {
+      camaraIA: false,
+      prediccionesIA: false,
+      modoTrabajador: false,
+      notificacionesEmail: false,
+      importarExcel: true,
+      exportarExcel: true
+    }
+  },
+  2: {
+    nombre: 'Nivel 2 - App Web Híbrida',
+    descripcion: 'Empresa con app web para supervisores con tablets/laptops.',
+    icono: '💻',
+    color: '#3B82F6',
+    nav_extra: ['vision'],
+    nav_oculto: ['predicciones', 'estado'],
+    funciones_activas: {
+      camaraIA: true,
+      prediccionesIA: false,
+      modoTrabajador: false,
+      notificacionesEmail: true,
+      importarExcel: true,
+      exportarExcel: true
+    }
+  },
+  3: {
+    nombre: 'Nivel 3 - Sistema Completo',
+    descripcion: 'Empresa con todas las funciones: IA, predicciones, satelital.',
+    icono: '🚀',
+    color: '#10B981',
+    nav_extra: ['vision', 'predicciones', 'estado'],
+    nav_oculto: [],
+    funciones_activas: {
+      camaraIA: true,
+      prediccionesIA: true,
+      modoTrabajador: false,  // Esconder por defecto (decisión del profesor)
+      notificacionesEmail: true,
+      importarExcel: true,
+      exportarExcel: true
+    }
+  }
+};
+
+// Helper: leer nivel tecnológico actual del cliente
+function getNivelTecnologico() {
+  try {
+    const guardado = localStorage.getItem('agroia_nivel_tecnologico');
+    return guardado ? parseInt(guardado) : 3;  // Default: nivel 3
+  } catch(e) {
+    return 3;
+  }
+}
+
+// Helper: cambiar nivel tecnológico (solo demo)
+function setNivelTecnologico(nivel) {
+  if (![1, 2, 3].includes(parseInt(nivel))) return false;
+  localStorage.setItem('agroia_nivel_tecnologico', String(nivel));
+  return true;
+}
+
+// Helper: verificar si una función está activa según nivel
+function funcionActiva(nombreFuncion) {
+  const nivel = getNivelTecnologico();
+  return NIVELES_TECNOLOGICOS[nivel]?.funciones_activas?.[nombreFuncion] || false;
+}
+
+// Cambiar nivel del cliente (solo demo)
+async function cambiarNivelCliente(nivel) {
+  const nivelConfig = NIVELES_TECNOLOGICOS[nivel];
+  if (!nivelConfig) return;
+  
+  const actual = getNivelTecnologico();
+  if (actual === nivel) {
+    if (typeof toastInfo === 'function') {
+      toastInfo(`Ya estás en ${nivelConfig.nombre}`, { titulo: 'Sin cambios' });
+    }
+    return;
+  }
+  
+  const confirmar = await confirmarAccion({
+    icono: nivelConfig.icono,
+    titulo: `¿Cambiar al ${nivelConfig.nombre}?`,
+    mensaje: `Los clientes verán solo las funciones de este nivel.<br><br><strong style="color:${nivelConfig.color};">${escaparHTML(nivelConfig.descripcion)}</strong>`,
+    tipoConfirmar: 'normal',
+    textoConfirmar: 'Cambiar nivel',
+    textoCancelar: 'Cancelar'
+  });
+  
+  if (!confirmar) return;
+  
+  setNivelTecnologico(nivel);
+  
+  if (typeof toastExito === 'function') {
+    toastExito(`Los clientes ahora verán la experiencia ${nivelConfig.nombre}`, {
+      titulo: `${nivelConfig.icono} Nivel cambiado`
+    });
+  }
+  
+  if (typeof auditarAccion === 'function') {
+    auditarAccion('CAMBIO_NIVEL_CLIENTE',
+      `Demo cambió nivel del cliente a ${nivel}`,
+      { nivel_anterior: actual, nivel_nuevo: nivel }
+    );
+  }
+  
+  // Recargar panel para mostrar nuevo nivel activo
+  entrarAPanelClientes();
+}
+
+// Renderizar panel de clientes al entrar
+function entrarAPanelClientes() {
+  const nivel = getNivelTecnologico();
+  const nivelConfig = NIVELES_TECNOLOGICOS[nivel];
+  
+  // Resaltar nivel activo
+  [1, 2, 3].forEach(n => {
+    const card = document.getElementById('panelNivel' + n);
+    const badge = document.getElementById('badgeNivel' + n);
+    if (n === nivel) {
+      if (card) {
+        card.style.boxShadow = `0 0 0 3px ${nivelConfig.color}, 0 8px 24px ${nivelConfig.color}44`;
+        card.style.borderColor = nivelConfig.color;
+      }
+      if (badge) badge.style.display = 'block';
+    } else {
+      if (card) {
+        card.style.boxShadow = 'none';
+      }
+      if (badge) badge.style.display = 'none';
+    }
+  });
+  
+  // Mostrar resumen del nivel actual
+  const cont = document.getElementById('panelNivelActualContenido');
+  if (cont && nivelConfig) {
+    const funciones = nivelConfig.funciones_activas;
+    cont.innerHTML = `
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <div style="font-size:48px;">${nivelConfig.icono}</div>
+        <div style="flex:1; min-width:200px;">
+          <div style="color:${nivelConfig.color}; font-size:20px; font-weight:700;">${escaparHTML(nivelConfig.nombre)}</div>
+          <div style="color:#cbd5e1; font-size:13px; margin-top:4px;">${escaparHTML(nivelConfig.descripcion)}</div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px; margin-top:14px;">
+        ${Object.keys(funciones).map(f => {
+          const activa = funciones[f];
+          const label = f.replace(/([A-Z])/g, ' $1').replace(/^./, m => m.toUpperCase());
+          return `<div style="background:rgba(0,0,0,0.2); padding:8px 10px; border-radius:6px; font-size:11px; color:${activa ? '#10B981' : '#64748B'};">
+            ${activa ? '✓' : '○'} ${escaparHTML(label)}
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+}
+
+/**
+ * Muestra un badge flotante en la esquina superior:
+ *  - Rol DEMO → badge violeta "🛠 MODO DESARROLLADOR"
+ *  - Rol cliente → badge con el nivel tecnológico
+ */
+function mostrarBadgeNivel(perfil) {
+  let badge = document.getElementById('agroiaBadgeNivel');
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'agroiaBadgeNivel';
+    badge.style.cssText = `
+      position: fixed; top: 12px; right: 16px; z-index: 9000;
+      padding: 8px 14px; border-radius: 20px; font-size: 11px;
+      font-weight: 700; letter-spacing: 0.5px; cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      backdrop-filter: blur(8px); display: flex; align-items: center; gap: 6px;
+      transition: all 0.2s ease;
+    `;
+    document.body.appendChild(badge);
+  }
+  
+  if (perfil.rol === 'demo') {
+    badge.style.background = 'linear-gradient(135deg, #A855F7, #6366F1)';
+    badge.style.color = 'white';
+    badge.style.border = '1px solid rgba(168,85,247,0.5)';
+    badge.innerHTML = '🛠 MODO DESARROLLADOR';
+    badge.onclick = () => switchPage('clientes');
+    badge.title = 'Click para abrir el Panel de Control de Cliente';
+  } else if (perfil.rol === 'admin') {
+    const nivel = getNivelTecnologico();
+    const nivelConfig = NIVELES_TECNOLOGICOS[nivel];
+    if (nivelConfig) {
+      badge.style.background = nivelConfig.color + '33';
+      badge.style.color = nivelConfig.color;
+      badge.style.border = `1px solid ${nivelConfig.color}66`;
+      badge.innerHTML = `${nivelConfig.icono} ${nivelConfig.nombre.toUpperCase()}`;
+      badge.onclick = null;
+      badge.title = nivelConfig.descripcion;
+      badge.style.cursor = 'default';
+    }
+  } else {
+    badge.style.display = 'none';
+  }
+  
+  badge.style.display = 'flex';
+}
 
 // =============================================================
 // AGENTE IA: PREDICCIONES DELIBERATIVAS
@@ -10647,10 +11006,27 @@ window.addEventListener('resize', () => {
 function aplicarPermisos(perfil) {
   const permisos = PERMISOS_POR_ROL[perfil.rol] || PERMISOS_POR_ROL['supervisor'];
   
-  // 1. Ocultar/mostrar items del sidebar según el rol
+  // POKA-YOKE A1: filtrar también por NIVEL TECNOLÓGICO contratado
+  // (solo aplica si el rol NO es demo; demo ve todo)
+  let navFinal = [...permisos.nav];
+  
+  if (perfil.rol !== 'demo') {
+    const nivel = getNivelTecnologico();
+    const nivelConfig = NIVELES_TECNOLOGICOS[nivel];
+    if (nivelConfig) {
+      // Quitar funciones que el nivel NO incluye
+      navFinal = navFinal.filter(p => !nivelConfig.nav_oculto.includes(p));
+      // Agregar funciones extra del nivel
+      nivelConfig.nav_extra.forEach(extra => {
+        if (!navFinal.includes(extra)) navFinal.push(extra);
+      });
+    }
+  }
+  
+  // 1. Ocultar/mostrar items del sidebar según el rol Y NIVEL
   document.querySelectorAll('[data-permiso]').forEach(item => {
     const permiso = item.getAttribute('data-permiso');
-    if (permisos.nav.includes(permiso)) {
+    if (navFinal.includes(permiso)) {
       item.style.display = '';
     } else {
       item.style.display = 'none';
@@ -10673,6 +11049,10 @@ function aplicarPermisos(perfil) {
       switchPage(permisos.paginaInicial);
     }, 100);
   }
+  
+  // POKA-YOKE A1: Mostrar badge de "MODO DEMO" si el usuario es demo
+  // o badge del nivel tecnológico si es admin
+  mostrarBadgeNivel(perfil);
   
   // 4. Filtrar selectores de cuadrilla si el usuario es supervisor
   if (perfil.rol === 'supervisor' && perfil.cuadrilla) {
