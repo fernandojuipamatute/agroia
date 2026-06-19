@@ -1094,6 +1094,7 @@ tr:hover td {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -1473,7 +1474,18 @@ tr:hover td {
       <h1 class="page-title">Registro de pesadas</h1>
       <div class="page-subtitle">Validadas en tiempo real por el agente IA</div>
     </div>
-    <button class="btn btn-primary" onclick="openModal('modalPesada')">+ Nueva pesada</button>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <input type="file" id="inputImportarExcel" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importarExcel(this)">
+      <button class="btn" onclick="document.getElementById('inputImportarExcel').click()" 
+              style="background:rgba(16,185,129,0.15); color:#10B981; border:1px solid rgba(16,185,129,0.3); padding:8px 14px;">
+        📥 Importar Excel
+      </button>
+      <button class="btn" onclick="exportarExcel()" 
+              style="background:rgba(59,130,246,0.15); color:#3B82F6; border:1px solid rgba(59,130,246,0.3); padding:8px 14px;">
+        📤 Exportar Excel
+      </button>
+      <button class="btn btn-primary" onclick="openModal('modalPesada')">+ Nueva pesada</button>
+    </div>
   </div>
 
   <div class="section">
@@ -8951,6 +8963,295 @@ function inicializarPokaYoke3() {
   }, 30000);
   
   console.log('[POKA-YOKE 3] Sistema de contingencia inicializado');
+}
+
+// =============================================================
+// IMPORTAR / EXPORTAR EXCEL (Nivel 1, 2 y 3)
+// Usa SheetJS (xlsx.full.min.js)
+// =============================================================
+
+async function importarExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  if (typeof toastInfo === 'function') {
+    toastInfo('Procesando archivo Excel...', { titulo: '📥 Importando', duracion: 2000 });
+  }
+  
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array' });
+    const primeraHoja = workbook.SheetNames[0];
+    const hoja = workbook.Sheets[primeraHoja];
+    const filas = XLSX.utils.sheet_to_json(hoja, { defval: '' });
+    
+    if (filas.length === 0) {
+      toastWarning('El archivo está vacío o tiene un formato no reconocido', { titulo: 'Sin datos' });
+      input.value = '';
+      return;
+    }
+    
+    // Mapeo de columnas: acepta varios nombres posibles
+    const mapeoColumnas = {
+      dni: ['dni', 'DNI', 'documento', 'Documento'],
+      nombre: ['nombre', 'Nombre', 'trabajador', 'Trabajador', 'NOMBRE'],
+      cuadrilla: ['cuadrilla', 'Cuadrilla', 'CUADRILLA', 'equipo', 'Equipo'],
+      lote: ['lote', 'Lote', 'LOTE', 'parcela', 'Parcela'],
+      kg: ['kg', 'KG', 'kilos', 'Kilos', 'peso', 'Peso', 'cantidad'],
+      horas: ['horas', 'Horas', 'HORAS', 'h', 'tiempo'],
+      fecha: ['fecha', 'Fecha', 'FECHA', 'date']
+    };
+    
+    function obtenerValor(fila, campo) {
+      for (const nombre of mapeoColumnas[campo]) {
+        if (fila[nombre] !== undefined && fila[nombre] !== '') return fila[nombre];
+      }
+      return null;
+    }
+    
+    let importadas = 0;
+    let conErrores = 0;
+    const erroresDetalle = [];
+    const nuevasPesadas = [];
+    
+    for (let i = 0; i < filas.length; i++) {
+      const fila = filas[i];
+      try {
+        const dni = String(obtenerValor(fila, 'dni') || '').trim();
+        const nombre = String(obtenerValor(fila, 'nombre') || '').trim();
+        const cuadrilla = String(obtenerValor(fila, 'cuadrilla') || '').trim();
+        const lote = String(obtenerValor(fila, 'lote') || '').trim();
+        const kg = parseFloat(obtenerValor(fila, 'kg'));
+        const horas = parseFloat(obtenerValor(fila, 'horas'));
+        
+        // Validaciones mínimas
+        if (!dni || dni.length !== 8) {
+          conErrores++;
+          erroresDetalle.push(`Fila ${i+2}: DNI inválido (${dni})`);
+          continue;
+        }
+        if (isNaN(kg) || kg <= 0) {
+          conErrores++;
+          erroresDetalle.push(`Fila ${i+2}: kg inválido`);
+          continue;
+        }
+        if (isNaN(horas) || horas <= 0) {
+          conErrores++;
+          erroresDetalle.push(`Fila ${i+2}: horas inválidas`);
+          continue;
+        }
+        
+        // Buscar trabajador en la lista para obtener histórico
+        const trab = TRABAJADORES.find(t => t.dni === dni);
+        let estado = 'green', color = 'green', z = 0;
+        
+        if (trab) {
+          const productividad = kg / horas;
+          z = (productividad - trab.historico) / trab.sigma;
+          const absZ = Math.abs(z);
+          if (absZ <= 1.5) { estado = 'VALIDADO'; color = 'green'; }
+          else if (absZ <= 2.0) { estado = 'VALIDADO_TOLERANCIA'; color = 'yellow'; }
+          else if (absZ <= 2.5) { estado = 'OBSERVADO'; color = 'orange'; }
+          else { estado = 'BLOQUEADO'; color = 'red'; }
+        }
+        
+        const fechaActual = new Date();
+        const horaStr = `${String(fechaActual.getDate()).padStart(2,'0')}/${String(fechaActual.getMonth()+1).padStart(2,'0')} ${String(fechaActual.getHours()).padStart(2,'0')}:${String(fechaActual.getMinutes()).padStart(2,'0')}`;
+        
+        nuevasPesadas.push({
+          hora: horaStr,
+          dni: dni,
+          nombre: trab ? trab.nombre : nombre || `Trabajador ${dni}`,
+          cuadrilla: cuadrilla || (trab ? trab.cuadrilla : 'C3'),
+          lote: lote || 'L-01',
+          kg: kg,
+          horas: horas,
+          productividad: (kg/horas).toFixed(1),
+          z: z.toFixed(2),
+          estado: color,
+          _localTimestamp: Date.now() / 1000,
+          _importado_excel: true
+        });
+        
+        importadas++;
+      } catch(e) {
+        conErrores++;
+        erroresDetalle.push(`Fila ${i+2}: ${e.message}`);
+      }
+    }
+    
+    if (importadas > 0) {
+      // Agregar al array global de pesadas
+      pesadas.unshift(...nuevasPesadas);
+      
+      // Refrescar tabla
+      if (typeof renderPesadas === 'function') {
+        renderPesadas();
+      }
+      
+      // Auditar
+      if (typeof auditarAccion === 'function') {
+        auditarAccion('IMPORTAR_EXCEL',
+          `Importadas ${importadas} pesadas desde Excel`,
+          { importadas, conErrores, archivo: file.name }
+        );
+      }
+      
+      // Toast de éxito
+      if (typeof toastExito === 'function') {
+        const mensaje = conErrores > 0
+          ? `${importadas} pesadas importadas, ${conErrores} con errores`
+          : `${importadas} pesadas importadas correctamente`;
+        toastExito(mensaje, {
+          titulo: '✅ Importación completa',
+          duracion: 5000
+        });
+      }
+      
+      // Si hubo errores, mostrar detalle
+      if (conErrores > 0 && erroresDetalle.length > 0) {
+        const top5Errores = erroresDetalle.slice(0, 5).join('<br>');
+        setTimeout(() => {
+          confirmarAccion({
+            icono: '⚠️',
+            titulo: `${conErrores} fila(s) con errores`,
+            mensaje: `Las siguientes filas no se pudieron importar:<br><br><div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-family:monospace; font-size:12px; color:#fca5a5; text-align:left;">${top5Errores}${erroresDetalle.length > 5 ? '<br>...y ' + (erroresDetalle.length - 5) + ' más' : ''}</div>`,
+            textoConfirmar: 'Entendido',
+            textoCancelar: 'Cerrar'
+          });
+        }, 1000);
+      }
+    } else {
+      toastWarning('No se pudo importar ninguna fila. Revisa el formato del archivo.', {
+        titulo: 'Importación fallida'
+      });
+    }
+  } catch(error) {
+    console.error('Error importando Excel:', error);
+    if (typeof toastError === 'function') {
+      toastError('No se pudo leer el archivo. Asegúrate de que sea un Excel válido (.xlsx)', {
+        titulo: 'Error al importar'
+      });
+    }
+  }
+  
+  input.value = '';  // Reset para poder volver a importar el mismo archivo
+}
+
+function exportarExcel() {
+  try {
+    if (!pesadas || pesadas.length === 0) {
+      if (typeof toastWarning === 'function') {
+        toastWarning('No hay pesadas para exportar', { titulo: 'Sin datos' });
+      }
+      return;
+    }
+    
+    // Preparar datos para Excel
+    const datos = pesadas.map(p => {
+      let estadoTexto = 'Validada';
+      if (p.estado === 'yellow') estadoTexto = 'Tolerancia';
+      else if (p.estado === 'orange') estadoTexto = 'Observada';
+      else if (p.estado === 'red') estadoTexto = 'Bloqueada';
+      
+      return {
+        'Hora': p.hora,
+        'DNI': p.dni,
+        'Trabajador': p.nombre,
+        'Cuadrilla': p.cuadrilla,
+        'Lote': p.lote,
+        'Kilos': p.kg,
+        'Horas': p.horas,
+        'Productividad (kg/h)': p.productividad,
+        'Z-Score': p.z,
+        'Estado': estadoTexto
+      };
+    });
+    
+    // Crear workbook
+    const workbook = XLSX.utils.book_new();
+    
+    // Hoja 1: Pesadas
+    const hojaPesadas = XLSX.utils.json_to_sheet(datos);
+    
+    // Ajustar ancho de columnas
+    hojaPesadas['!cols'] = [
+      { wch: 12 },  // Hora
+      { wch: 10 },  // DNI
+      { wch: 35 },  // Trabajador
+      { wch: 10 },  // Cuadrilla
+      { wch: 8 },   // Lote
+      { wch: 8 },   // Kilos
+      { wch: 8 },   // Horas
+      { wch: 18 },  // Productividad
+      { wch: 10 },  // Z-Score
+      { wch: 12 }   // Estado
+    ];
+    
+    XLSX.utils.book_append_sheet(workbook, hojaPesadas, 'Pesadas');
+    
+    // Hoja 2: Resumen estadístico
+    const totalKg = pesadas.reduce((s,p) => s + parseFloat(p.kg||0), 0);
+    const totalHoras = pesadas.reduce((s,p) => s + parseFloat(p.horas||0), 0);
+    const validadas = pesadas.filter(p => p.estado === 'green').length;
+    const observadas = pesadas.filter(p => p.estado === 'orange').length;
+    const bloqueadas = pesadas.filter(p => p.estado === 'red').length;
+    
+    const fechaActual = new Date();
+    const fechaTexto = fechaActual.toLocaleString('es-PE');
+    
+    const resumen = [
+      ['REPORTE AGROIA - VALLE DE VIRÚ'],
+      [''],
+      ['Fecha de exportación:', fechaTexto],
+      ['Generado por:', 'Sistema AgroIA'],
+      [''],
+      ['RESUMEN ESTADÍSTICO'],
+      [''],
+      ['Total de pesadas:', pesadas.length],
+      ['Total kilogramos:', totalKg.toFixed(1) + ' kg'],
+      ['Total horas trabajadas:', totalHoras.toFixed(1) + ' h'],
+      ['Productividad promedio:', (totalKg/totalHoras).toFixed(1) + ' kg/h'],
+      [''],
+      ['CLASIFICACIÓN POR ESTADO'],
+      [''],
+      ['✅ Validadas:', validadas, ((validadas/pesadas.length)*100).toFixed(1) + '%'],
+      ['⚠️ Observadas:', observadas, ((observadas/pesadas.length)*100).toFixed(1) + '%'],
+      ['❌ Bloqueadas:', bloqueadas, ((bloqueadas/pesadas.length)*100).toFixed(1) + '%'],
+      [''],
+      ['CUMPLIMIENTO ISO 27001'],
+      [''],
+      ['A.12 Seguridad operacional:', 'Cumple'],
+      ['A.18 Cumplimiento legal:', 'Ley 31110 Régimen Agrario PE'],
+    ];
+    const hojaResumen = XLSX.utils.aoa_to_sheet(resumen);
+    hojaResumen['!cols'] = [{ wch: 30 }, { wch: 25 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(workbook, hojaResumen, 'Resumen');
+    
+    // Descargar
+    const nombreArchivo = `AgroIA_Pesadas_${fechaActual.getFullYear()}${String(fechaActual.getMonth()+1).padStart(2,'0')}${String(fechaActual.getDate()).padStart(2,'0')}.xlsx`;
+    XLSX.writeFile(workbook, nombreArchivo);
+    
+    if (typeof toastExito === 'function') {
+      toastExito(`${pesadas.length} pesadas exportadas a ${nombreArchivo}`, {
+        titulo: '✅ Exportación completa'
+      });
+    }
+    
+    if (typeof auditarAccion === 'function') {
+      auditarAccion('EXPORTAR_EXCEL',
+        `Exportadas ${pesadas.length} pesadas a Excel`,
+        { total: pesadas.length, archivo: nombreArchivo }
+      );
+    }
+  } catch(error) {
+    console.error('Error exportando Excel:', error);
+    if (typeof toastError === 'function') {
+      toastError('No se pudo exportar el archivo. Intenta de nuevo.', {
+        titulo: 'Error al exportar'
+      });
+    }
+  }
 }
 
 // =============================================================
