@@ -1323,26 +1323,74 @@ def analizar_imagen():
             raise ValidacionError('Imagen inválida o vacía', 'imagen_base64')
         
         # Sanitizar contexto (XSS prevention)
-        contexto = limpiar_string(data.get('contexto', 'Imagen de cosecha de palta Hass'), max_largo=500)
+        contexto = limpiar_string(data.get('contexto', 'Imagen de cosecha de palta del Valle de Viru, Peru'), max_largo=500)
         
-        # Prompt especializado en agricultura/palta Hass
-        prompt = """Eres un agente IA experto en palta Hass de Peru. Analiza la imagen y devuelve SOLO este JSON:
+        # Prompt MEJORADO: distingue las 4 variedades comerciales de palta en Perú
+        # IMPORTANTE: NO asume que es Hass, identifica la variedad real
+        prompt = """Eres un agronomo experto en paltas (aguacates) de Peru. 
+
+PRIMERO identifica QUE ES en la imagen (no asumas que es palta Hass).
+DESPUES, si es palta, identifica la VARIEDAD comercial especifica.
+
+Las 4 variedades comerciales mas comunes en Peru son:
+
+1. HASS (la mas exportada, ~70% del mercado peruano)
+   - Cascara RUGOSA, gruesa, con pequenos puntos
+   - Color: verde oscuro cuando inmadura, MORADO/NEGRO cuando madura
+   - Tamano: mediano (180-300g)
+   - Forma: ovalada/aperada
+   - Pulpa: cremosa, alta en aceite
+
+2. FUERTE (segunda mas comun, mercado interno)
+   - Cascara LISA, brillante, sin rugosidad
+   - Color: VERDE BRILLANTE siempre (no cambia al madurar)
+   - Tamano: grande (250-400g)
+   - Forma: piriforme (de pera)
+   - Pulpa: menos aceitosa que Hass
+
+3. ZUTANO (variedad de transicion, mercado local)
+   - Cascara LISA, fina
+   - Color: amarillo-verdoso, mas claro que Fuerte
+   - Tamano: mediano-grande
+   - Forma: ALARGADA, cuello alargado
+   - Pulpa: acuosa, menos sabor
+
+4. NABAL (criolla peruana, mercados locales)
+   - Cascara lisa o ligeramente rugosa
+   - Color: verde claro
+   - Tamano: variable
+   - Forma: REDONDEADA, casi esferica
+   - Pulpa: muy acuosa, fibrosa
+
+Devuelve SOLO este JSON sin texto adicional ni markdown:
 
 {
-  "tipo_detectado": "palta_hass" | "otra_fruta" | "no_es_fruta",
+  "tipo_detectado": "palta_hass" | "palta_fuerte" | "palta_zutano" | "palta_nabal" | "palta_no_identificada" | "otra_fruta" | "no_es_fruta",
+  "variedad_nombre": "Hass" | "Fuerte" | "Zutano" | "Nabal" | "Otra" | "N/A",
+  "es_exportable": true | false,
+  "caracteristicas_observadas": ["cascara_rugosa" | "cascara_lisa" | "color_morado" | "color_verde" | "forma_pera" | "forma_redonda" | "etc"],
   "calidad_aparente": "excelente" | "buena" | "regular" | "deficiente",
   "color_madurez": "verde_inmadura" | "verde_madura" | "morada_lista" | "muy_madura",
-  "daños_visibles": ["array de daños o vacio"],
-  "posibles_plagas": ["array de plagas o vacio"],
+  "tamano_aproximado": "pequena" | "mediana" | "grande" | "muy_grande",
+  "danos_visibles": ["lista de danos o vacio"],
+  "posibles_plagas": ["lista de plagas o vacio"],
   "confianza": "alta" | "media" | "baja",
-  "resumen": "1-2 oraciones describiendo lo que ves",
-  "recomendacion": "1 oracion con accion sugerida",
-  "alerta": null
+  "resumen": "Describe que viste y POR QUE crees que es esa variedad (menciona 2-3 caracteristicas observadas)",
+  "recomendacion": "Si NO es Hass: indicar que no se acepta para exportacion. Si es Hass: indicar accion segun calidad.",
+  "alerta": null | "texto si hay algo critico"
 }
 
-Daños comunes: manchas_oscuras, pudricion, magulladuras, deshidratacion, daño_mecanico.
-Plagas comunes en palta: trips, chinche, arañita_roja, antracnosis, phytophthora.
-Si no es palta, marca tipo_detectado correctamente. Se honesto con la confianza."""
+REGLAS IMPORTANTES:
+- Si la cascara se ve LISA (no rugosa), NO es Hass. Es Fuerte, Zutano o Nabal.
+- Si el color es VERDE BRILLANTE constante, NO es Hass madura. Hass madura es morada/negra.
+- Si tiene forma REDONDA, probablemente sea Nabal.
+- Si tiene forma ALARGADA con cuello, es Zutano.
+- Si NO estas seguro 100% de la variedad, marca "palta_no_identificada" y confianza "baja".
+- Solo HASS es exportable a mercados internacionales (Europa, EE.UU., Asia).
+- Se HONESTO con la variedad: NO asumas Hass solo por contexto.
+
+Danos comunes: manchas_oscuras, pudricion, magulladuras, deshidratacion, dano_mecanico.
+Plagas comunes en palta: trips, chinche, aranita_roja, antracnosis, phytophthora."""
 
         if AI_PROVIDER == "gemini" and GEMINI_API_KEY:
             return _analizar_con_gemini(imagen_b64, prompt)
