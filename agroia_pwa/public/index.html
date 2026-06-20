@@ -10794,9 +10794,20 @@ function mostrarResultadoTrabajador(analisis, imagenBase64, verificacion) {
   const resumen = datos.resumen || datos.descripcion || '';
   const recomendacion = datos.recomendacion || '';
   
-  // Determinar si es una palta válida
+  // NUEVOS campos para variedades
+  const variedadNombre = datos.variedad_nombre || '';
+  const esExportable = datos.es_exportable === true;
+  const tamano = datos.tamano_aproximado || '';
+  const caracteristicas = datos.caracteristicas_observadas || [];
+  
+  // Determinar si es palta y de qué variedad
   const esPalta = tipo.toLowerCase().includes('palta') || tipo.toLowerCase().includes('aguacate') || tipo.toLowerCase().includes('avocado');
   const esNoFruta = tipo.toLowerCase().includes('no_es') || tipo.toLowerCase().includes('no es');
+  const esHass = tipo.toLowerCase() === 'palta_hass';
+  const esFuerte = tipo.toLowerCase() === 'palta_fuerte';
+  const esZutano = tipo.toLowerCase() === 'palta_zutano';
+  const esNabal = tipo.toLowerCase() === 'palta_nabal';
+  const noIdentificada = tipo.toLowerCase() === 'palta_no_identificada';
   
   // Determinar color, icono y texto del estado principal
   let colorPrincipal, iconoPrincipal, textoPrincipal;
@@ -10809,6 +10820,34 @@ function mostrarResultadoTrabajador(analisis, imagenBase64, verificacion) {
     colorPrincipal = '#F59E0B';
     iconoPrincipal = '⚠️';
     textoPrincipal = 'NO IDENTIFICADO';
+  } else if (noIdentificada) {
+    colorPrincipal = '#F59E0B';
+    iconoPrincipal = '❓';
+    textoPrincipal = 'PALTA NO IDENTIFICADA';
+  } else if (esHass) {
+    const calidadLow = calidad.toLowerCase();
+    if (calidadLow.includes('exc') || calidadLow.includes('buen') || calidadLow.includes('óptim') || calidadLow.includes('optim')) {
+      colorPrincipal = '#10B981';
+      iconoPrincipal = '✅';
+      textoPrincipal = 'HASS - APTA EXPORTACIÓN';
+    } else if (calidadLow.includes('reg') || calidadLow.includes('moder')) {
+      colorPrincipal = '#F59E0B';
+      iconoPrincipal = '⚠️';
+      textoPrincipal = 'HASS - CALIDAD REGULAR';
+    } else if (calidadLow.includes('def') || calidadLow.includes('mal')) {
+      colorPrincipal = '#DC2626';
+      iconoPrincipal = '❌';
+      textoPrincipal = 'HASS - CALIDAD DEFICIENTE';
+    } else {
+      colorPrincipal = '#3B82F6';
+      iconoPrincipal = '🥑';
+      textoPrincipal = 'PALTA HASS DETECTADA';
+    }
+  } else if (esFuerte || esZutano || esNabal) {
+    // NO ES HASS - no exportable
+    colorPrincipal = '#F97316';
+    iconoPrincipal = '⚠️';
+    textoPrincipal = `${variedadNombre.toUpperCase()} - NO EXPORTABLE`;
   } else {
     // Es palta: usar calidad
     const calidadLow = calidad.toLowerCase();
@@ -10857,7 +10896,12 @@ function mostrarResultadoTrabajador(analisis, imagenBase64, verificacion) {
   // Tipo detectado más legible
   let tipoLegible = tipo;
   if (tipo === 'no_es_fruta') tipoLegible = 'No es una fruta';
-  else if (tipo === 'palta_hass') tipoLegible = 'Palta Hass ✓';
+  else if (tipo === 'palta_hass') tipoLegible = '🥑 Palta Hass ✓';
+  else if (tipo === 'palta_fuerte') tipoLegible = '🥑 Palta Fuerte';
+  else if (tipo === 'palta_zutano') tipoLegible = '🥑 Palta Zutano';
+  else if (tipo === 'palta_nabal') tipoLegible = '🥑 Palta Nabal';
+  else if (tipo === 'palta_no_identificada') tipoLegible = '🥑 Palta (variedad no clara)';
+  else if (tipo === 'otra_fruta') tipoLegible = '🍎 Otra fruta';
   else if (tipo === 'desconocido') tipoLegible = 'No se pudo identificar';
   
   // Construir cards
@@ -10881,6 +10925,35 @@ function mostrarResultadoTrabajador(analisis, imagenBase64, verificacion) {
       <img src="${imagenBase64}" style="max-width:100%; max-height:200px; border-radius:10px;" />
     </div>
   `;
+  
+  // CARD DESTACADA: Variedad detectada + Exportabilidad
+  if (variedadNombre && esPalta && !noIdentificada) {
+    const colorBadge = esHass ? '#10B981' : '#F97316';
+    const textoExport = esExportable 
+      ? '<span style="color:#10B981;">✓ Apta para exportación</span>'
+      : '<span style="color:#F97316;">✗ No apta para exportación (solo mercado interno)</span>';
+    
+    html += `
+      <div style="background:rgba(255,255,255,0.05); border:2px solid ${colorBadge}55; border-radius:14px; padding:16px; margin-bottom:14px;">
+        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          <div style="font-size:42px;">🥑</div>
+          <div style="flex:1; min-width:180px;">
+            <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Variedad identificada</div>
+            <div style="color:${colorBadge}; font-size:24px; font-weight:bold; margin-top:2px;">Palta ${escaparHTML(variedadNombre)}</div>
+            <div style="font-size:12px; margin-top:6px;">${textoExport}</div>
+          </div>
+        </div>
+        ${caracteristicas.length > 0 ? `
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
+            <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Características observadas por la IA</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              ${caracteristicas.map(c => `<span style="background:rgba(0,0,0,0.3); color:#cbd5e1; padding:4px 10px; border-radius:12px; font-size:11px;">${escaparHTML(c.replace(/_/g, ' '))}</span>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
   
   // Resumen (siempre se muestra si existe)
   if (resumen) {
