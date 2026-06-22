@@ -8817,7 +8817,7 @@ function getEmpresaActivaId() {
 
 /**
  * Carga trabajadores filtrados por empresa desde el backend.
- * Actualiza la variable global TRABAJADORES con los nuevos datos.
+ * Reemplaza el contenido del array TRABAJADORES (mantiene la referencia).
  */
 async function cargarTrabajadoresDeEmpresa(empresaId) {
   if (!empresaId) {
@@ -8832,26 +8832,25 @@ async function cargarTrabajadoresDeEmpresa(empresaId) {
     
     const data = await resp.json();
     if (data.fuente === 'supabase' && Array.isArray(data.trabajadores)) {
-      // Reemplazar TRABAJADORES global con los de la empresa
-      // Limpiar primero los hardcoded
-      Object.keys(TRABAJADORES).forEach(k => delete TRABAJADORES[k]);
+      // Vaciar el array TRABAJADORES manteniendo la referencia
+      TRABAJADORES.length = 0;
       
       // Cargar los de la empresa
       data.trabajadores.forEach(t => {
-        TRABAJADORES[t.dni] = {
+        TRABAJADORES.push({
+          dni: t.dni,
           nombre: t.nombre,
-          cuadrilla: t.cuadrilla,
+          cuadrilla: t.cuadrilla || 'N/A',
           historico: t.historico,
           sigma: t.sigma
-        };
+        });
       });
       
       console.log(`[multi-tenant] Cargados ${data.total} trabajadores de empresa ${empresaId}`);
       
-      // Repoblar selectores si están abiertos
-      if (typeof poblarSelectoresTrabajadores === 'function') {
-        poblarSelectoresTrabajadores();
-      }
+      // Re-renderizar la UI
+      if (typeof renderTrabajadores === 'function') renderTrabajadores();
+      if (typeof llenarSelectTrabajadores === 'function') llenarSelectTrabajadores();
     }
   } catch(e) {
     console.warn('[multi-tenant] No se pudieron cargar trabajadores:', e);
@@ -8859,7 +8858,8 @@ async function cargarTrabajadoresDeEmpresa(empresaId) {
 }
 
 /**
- * Carga lotes filtrados por empresa
+ * Carga lotes filtrados por empresa.
+ * No tocamos variable LOTES porque no existe - solo guardamos en window.
  */
 async function cargarLotesDeEmpresa(empresaId) {
   if (!empresaId) return;
@@ -8871,16 +8871,17 @@ async function cargarLotesDeEmpresa(empresaId) {
     
     const data = await resp.json();
     if (data.fuente === 'supabase' && Array.isArray(data.lotes)) {
-      Object.keys(LOTES).forEach(k => delete LOTES[k]);
-      
-      data.lotes.forEach(l => {
-        LOTES[l.codigo] = {
-          hectareas: l.hectareas,
-          activo: true
-        };
-      });
+      // Guardar lotes en variable global accesible
+      window._lotesDeEmpresa = data.lotes.map(l => ({
+        codigo: l.codigo,
+        hectareas: l.hectareas
+      }));
       
       console.log(`[multi-tenant] Cargados ${data.total} lotes de empresa ${empresaId}`);
+      
+      // Re-renderizar
+      if (typeof renderLotes === 'function') renderLotes();
+      if (typeof poblarSelectoresLotes === 'function') poblarSelectoresLotes();
     }
   } catch(e) {
     console.warn('[multi-tenant] No se pudieron cargar lotes:', e);
@@ -8958,6 +8959,7 @@ async function cargarDatosDeEmpresaActiva() {
   console.log('[multi-tenant] Datos cargados');
   
   // Refrescar UI
+  if (typeof renderTrabajadores === 'function') renderTrabajadores();
   if (typeof renderPesadas === 'function') renderPesadas();
   if (typeof actualizarDashboard === 'function') actualizarDashboard();
 }
