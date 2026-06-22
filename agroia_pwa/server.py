@@ -86,19 +86,22 @@ else:
 # CONEXION A SUPABASE (base de datos en la nube)
 # ============================================================
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+# Prioridad: SERVICE_KEY (acceso total, ignora RLS) > KEY (anon, respeta RLS)
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "") or os.environ.get("SUPABASE_KEY", "")
 
 # Inicializar cliente de Supabase
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print(f"[Supabase] Conectado correctamente a {SUPABASE_URL}")
+        es_service = bool(os.environ.get("SUPABASE_SERVICE_KEY"))
+        modo = "SERVICE_KEY (acceso total)" if es_service else "ANON_KEY (limitado por RLS)"
+        print(f"[Supabase] Conectado correctamente a {SUPABASE_URL} en modo {modo}")
     except Exception as e:
         print(f"[Supabase] ERROR al conectar: {e}")
         supabase = None
 else:
-    print("[Supabase] Variables SUPABASE_URL y SUPABASE_KEY no configuradas")
+    print("[Supabase] Variables SUPABASE_URL y SUPABASE_(SERVICE_)KEY no configuradas")
     print("[Supabase] Funcionando en modo memoria local (datos se pierden al reiniciar)")
 
 # ============================================================
@@ -944,8 +947,51 @@ def recibir_pesada():
     # Sanitizar nombre (XSS prevention)
     nombre_input = limpiar_string(data.get('nombre', ''), max_largo=100)
     
-    # Validar que el trabajador existe en la base
-    trabajador_db = TRABAJADORES.get(dni)
+    # NUEVO: empresa_id opcional (multi-tenant)
+    empresa_id = data.get('empresa_id')
+    try:
+        empresa_id = int(empresa_id) if empresa_id else None
+    except (TypeError, ValueError):
+        empresa_id = None
+    
+    # Validar que el trabajador existe
+    # Prioridad 1: si hay empresa_id y Supabase, buscar en BD
+    # Prioridad 2: fallback a TRABAJADORES hardcoded
+    trabajador_db = None
+    if empresa_id and supabase:
+        try:
+            res = supabase.table('trabajadores')\
+                .select('dni,nombre,historico,sigma,cuadrilla_id')\
+                .eq('dni', dni)\
+                .eq('empresa_id', empresa_id)\
+                .eq('activo', True)\
+                .limit(1)\
+                .execute()
+            if res.data and len(res.data) > 0:
+                t = res.data[0]
+                # Obtener nombre de cuadrilla
+                cuad_codigo = 'N/A'
+                if t.get('cuadrilla_id'):
+                    cuad_res = supabase.table('cuadrillas')\
+                        .select('codigo')\
+                        .eq('id', t['cuadrilla_id'])\
+                        .single()\
+                        .execute()
+                    if cuad_res.data:
+                        cuad_codigo = cuad_res.data['codigo']
+                trabajador_db = {
+                    'nombre': t['nombre'],
+                    'cuadrilla': cuad_codigo,
+                    'historico': float(t.get('historico') or 15),
+                    'sigma': float(t.get('sigma') or 2)
+                }
+        except Exception as e:
+            print(f"[pesada] Error buscando trabajador en Supabase: {e}")
+    
+    # Fallback: TRABAJADORES hardcoded
+    if not trabajador_db:
+        trabajador_db = TRABAJADORES.get(dni)
+    
     if not trabajador_db:
         # Si no esta en la BD, usar los datos que mando la app
         nombre = nombre_input or 'Desconocido'
@@ -1069,7 +1115,7 @@ def recibir_pesada():
     # Esto hace que todos los usuarios vean la misma pesada en tiempo real
     if supabase:
         try:
-            supabase.table('pesadas').insert({
+            insert_data = {
                 "hora": hora_str,
                 "dni": dni,
                 "nombre": nombre,
@@ -1082,8 +1128,12 @@ def recibir_pesada():
                 "estado": color,
                 "motivo": motivo if color != "green" else None,
                 "origen": data.get("origen", "manual")
-            }).execute()
-            print(f"[Supabase] Pesada guardada: {nombre} - {kg}kg")
+            }
+            # Multi-tenant: incluir empresa_id si vino
+            if empresa_id:
+                insert_data["empresa_id"] = empresa_id
+            supabase.table('pesadas').insert(insert_data).execute()
+            print(f"[Supabase] Pesada guardada: {nombre} - {kg}kg (empresa: {empresa_id or 'sin asignar'})")
         except Exception as e:
             print(f"[Supabase] Error guardando pesada: {e}")
     
@@ -1169,6 +1219,7 @@ def pesadas_recientes():
     
     Si no, usa memoria local (solo para desarrollo)."""
     desde = float(request.args.get('desde', 0))
+    empresa_id = request.args.get('empresa_id', type=int)
     
     # Si Supabase esta disponible, leer desde la base de datos
     if supabase:
@@ -1178,12 +1229,17 @@ def pesadas_recientes():
             desde_dt = datetime.fromtimestamp(desde, tz=timezone.utc).isoformat()
             
             # Consultar pesadas creadas despues del timestamp
-            result = supabase.table('pesadas')\
+            query = supabase.table('pesadas')\
                 .select("*")\
                 .gt('timestamp_creacion', desde_dt)\
                 .order('timestamp_creacion', desc=False)\
-                .limit(100)\
-                .execute()
+                .limit(100)
+            
+            # Multi-tenant: filtrar por empresa si se especifica
+            if empresa_id:
+                query = query.eq('empresa_id', empresa_id)
+            
+            result = query.execute()
             
             # Transformar al formato esperado por la app
             nuevas = []
@@ -1230,16 +1286,22 @@ def pesadas_recientes():
 @rate_limit('default')
 def pesadas_todas():
     """Devuelve las 500 pesadas mas recientes de Supabase.
-    Usado cuando la app se abre para cargar el historico."""
+    Usado cuando la app se abre para cargar el historico.
+    Multi-tenant: filtra por empresa_id si se especifica."""
+    empresa_id = request.args.get('empresa_id', type=int)
+    
     if supabase:
         try:
-            # Sin filtro de fecha - traer las pesadas mas recientes
-            # (evita problemas de zona horaria)
-            result = supabase.table('pesadas')\
+            query = supabase.table('pesadas')\
                 .select("*")\
                 .order('timestamp_creacion', desc=True)\
-                .limit(500)\
-                .execute()
+                .limit(500)
+            
+            # Multi-tenant: filtrar por empresa si se especifica
+            if empresa_id:
+                query = query.eq('empresa_id', empresa_id)
+            
+            result = query.execute()
             
             pesadas_lista = []
             # result.data viene en orden descendente (mas reciente primero)
@@ -1277,8 +1339,52 @@ def pesadas_todas():
 @app.route('/api/trabajadores', methods=['GET'])
 @rate_limit('default')
 def listar_trabajadores():
-    """Devuelve la lista de trabajadores"""
+    """Devuelve trabajadores filtrados por empresa.
+    Query params:
+        empresa_id (int, opcional): si se provee, filtra por esa empresa.
+        Si NO se provee, usa datos hardcodeados (compatibilidad).
+    """
+    empresa_id = request.args.get('empresa_id', type=int)
+    
+    # Multi-tenant: si hay empresa_id y Supabase, cargar de BD
+    if empresa_id and supabase:
+        try:
+            res = supabase.table('trabajadores')\
+                .select('dni,nombre,cuadrilla_id,empresa_id,historico,sigma,activo')\
+                .eq('empresa_id', empresa_id)\
+                .eq('activo', True)\
+                .execute()
+            
+            # Cargar cuadrillas para mapear cuadrilla_id -> nombre
+            cuad_res = supabase.table('cuadrillas')\
+                .select('id,nombre,codigo')\
+                .eq('empresa_id', empresa_id)\
+                .execute()
+            cuadrillas_map = {c['id']: c['codigo'] for c in (cuad_res.data or [])}
+            
+            trabajadores = []
+            for t in (res.data or []):
+                trabajadores.append({
+                    "dni": t['dni'],
+                    "nombre": t['nombre'],
+                    "cuadrilla": cuadrillas_map.get(t.get('cuadrilla_id'), 'Sin cuadrilla'),
+                    "cuadrilla_id": t.get('cuadrilla_id'),
+                    "historico": float(t.get('historico') or 15),
+                    "sigma": float(t.get('sigma') or 2)
+                })
+            return jsonify({
+                "fuente": "supabase",
+                "empresa_id": empresa_id,
+                "total": len(trabajadores),
+                "trabajadores": trabajadores
+            })
+        except Exception as e:
+            print(f"[trabajadores] Error Supabase: {e}")
+            return jsonify({"error": "Error al cargar trabajadores", "detalle": str(e)}), 500
+    
+    # Fallback: trabajadores hardcoded (compatibilidad con versión anterior)
     return jsonify({
+        "fuente": "hardcoded",
         "total": len(TRABAJADORES),
         "trabajadores": [
             {"dni": dni, **datos} for dni, datos in TRABAJADORES.items()
@@ -1288,13 +1394,143 @@ def listar_trabajadores():
 @app.route('/api/lotes', methods=['GET'])
 @rate_limit('default')
 def listar_lotes():
-    """Devuelve la lista de lotes"""
+    """Devuelve lotes filtrados por empresa.
+    Query params:
+        empresa_id (int, opcional): si se provee, filtra por esa empresa.
+    """
+    empresa_id = request.args.get('empresa_id', type=int)
+    
+    if empresa_id and supabase:
+        try:
+            res = supabase.table('lotes')\
+                .select('id,codigo,hectareas,empresa_id')\
+                .eq('empresa_id', empresa_id)\
+                .execute()
+            
+            lotes = []
+            for l in (res.data or []):
+                lotes.append({
+                    "id": l['id'],
+                    "codigo": l['codigo'],
+                    "hectareas": float(l.get('hectareas') or 0)
+                })
+            return jsonify({
+                "fuente": "supabase",
+                "empresa_id": empresa_id,
+                "total": len(lotes),
+                "lotes": lotes
+            })
+        except Exception as e:
+            print(f"[lotes] Error Supabase: {e}")
+            return jsonify({"error": "Error al cargar lotes", "detalle": str(e)}), 500
+    
+    # Fallback
     return jsonify({
+        "fuente": "hardcoded",
         "total": len(LOTES),
         "lotes": [
             {"codigo": cod, **datos} for cod, datos in LOTES.items()
         ]
     })
+
+@app.route('/api/cuadrillas', methods=['GET'])
+@rate_limit('default')
+def listar_cuadrillas():
+    """Devuelve cuadrillas filtradas por empresa."""
+    empresa_id = request.args.get('empresa_id', type=int)
+    
+    if not empresa_id:
+        return jsonify({"error": "Se requiere parametro empresa_id"}), 400
+    
+    if not supabase:
+        return jsonify({"error": "Supabase no disponible"}), 503
+    
+    try:
+        res = supabase.table('cuadrillas')\
+            .select('id,nombre,codigo,empresa_id')\
+            .eq('empresa_id', empresa_id)\
+            .execute()
+        
+        cuadrillas = [
+            {"id": c['id'], "nombre": c['nombre'], "codigo": c['codigo']}
+            for c in (res.data or [])
+        ]
+        return jsonify({
+            "fuente": "supabase",
+            "empresa_id": empresa_id,
+            "total": len(cuadrillas),
+            "cuadrillas": cuadrillas
+        })
+    except Exception as e:
+        print(f"[cuadrillas] Error Supabase: {e}")
+        return jsonify({"error": "Error al cargar cuadrillas", "detalle": str(e)}), 500
+
+@app.route('/api/empresas', methods=['GET'])
+@rate_limit('default')
+def listar_empresas():
+    """Devuelve la lista de empresas. SOLO para rol demo.
+    Para clientes admin, devuelve solo su empresa."""
+    if not supabase:
+        return jsonify({"error": "Supabase no disponible"}), 503
+    
+    try:
+        res = supabase.table('empresas')\
+            .select('id,nombre,ruc,region,hectareas,nivel_tecnologico,activo')\
+            .eq('activo', True)\
+            .order('id')\
+            .execute()
+        
+        empresas = res.data or []
+        return jsonify({
+            "fuente": "supabase",
+            "total": len(empresas),
+            "empresas": empresas
+        })
+    except Exception as e:
+        print(f"[empresas] Error Supabase: {e}")
+        return jsonify({"error": "Error al cargar empresas", "detalle": str(e)}), 500
+
+@app.route('/api/perfil-usuario', methods=['GET'])
+@rate_limit('default')
+def obtener_perfil_usuario():
+    """Devuelve el perfil de un usuario por DNI, incluyendo su empresa.
+    Query params:
+        dni (str): DNI del usuario
+    """
+    dni = request.args.get('dni', '').strip()
+    if not dni or len(dni) != 8:
+        return jsonify({"error": "DNI invalido"}), 400
+    
+    if not supabase:
+        return jsonify({"error": "Supabase no disponible"}), 503
+    
+    try:
+        # Buscar perfil con join a empresas
+        res = supabase.table('perfiles_usuario')\
+            .select('id,dni,nombre,rol,empresa_id,activo')\
+            .eq('dni', dni)\
+            .single()\
+            .execute()
+        
+        perfil = res.data
+        if not perfil:
+            return jsonify({"error": "Perfil no encontrado"}), 404
+        
+        # Si tiene empresa_id, cargar datos de la empresa
+        empresa = None
+        if perfil.get('empresa_id'):
+            emp_res = supabase.table('empresas')\
+                .select('id,nombre,ruc,region,hectareas,nivel_tecnologico')\
+                .eq('id', perfil['empresa_id'])\
+                .single()\
+                .execute()
+            empresa = emp_res.data
+        
+        perfil['empresa'] = empresa
+        return jsonify({"fuente": "supabase", "perfil": perfil})
+    except Exception as e:
+        print(f"[perfil-usuario] Error: {e}")
+        return jsonify({"error": "Error al cargar perfil", "detalle": str(e)}), 500
 
 # ============================================================
 # ENDPOINT: ANALISIS DE IMAGEN CON IA (VISION)
