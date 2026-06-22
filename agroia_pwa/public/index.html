@@ -5584,38 +5584,105 @@ function renderPDFRRHH(doc, y) {
 // RENDERIZADO
 // ============================================================
 function renderTrabajadores() {
-  // Filtrar cuadrillas según rol del usuario
   const perfil = window._perfilUsuario;
-  let cuadrillasVisibles = ['C3', 'C5', 'C7'];
   
+  // Obtener cuadrillas únicas de los trabajadores actuales
+  const cuadrillasActuales = [...new Set(TRABAJADORES.map(t => t.cuadrilla))].filter(c => c && c !== 'N/A');
+  
+  let cuadrillasVisibles = cuadrillasActuales;
   if (perfil && perfil.rol === 'supervisor' && perfil.cuadrilla) {
     cuadrillasVisibles = [perfil.cuadrilla];
   }
   
-  ['C3', 'C5', 'C7'].forEach(cuad => {
-    const grid = document.getElementById('grid' + cuad);
-    if (!grid) return;
+  // Buscar contenedor principal de trabajadores
+  let container = document.getElementById('trabajadoresDinamico');
+  
+  // Si no existe el contenedor dinámico, intentar usar los antiguos (compatibilidad)
+  if (!container) {
+    // Intentar con las cuadrillas tradicionales (C3, C5, C7) si existen
+    const tieneTradicional = ['C3', 'C5', 'C7'].some(c => document.getElementById('grid' + c));
     
-    // Buscar el contenedor padre de la sección
-    const seccion = grid.closest('.card, .panel, section') || grid.parentElement;
-    
-    if (cuadrillasVisibles.includes(cuad)) {
-      if (seccion) seccion.style.display = '';
-      grid.innerHTML = TRABAJADORES.filter(t => t.cuadrilla === cuad).map(t => `
-        <div class="worker-card">
-          <div class="worker-name">${t.nombre}</div>
-          <div class="worker-dni">DNI ${t.dni}</div>
-          <div class="worker-stats">
-            <span class="cuadrilla-tag">${t.cuadrilla}</span>
-            <span class="text-muted mono">${t.historico} kg/h ± ${t.sigma}</span>
-          </div>
-        </div>
-      `).join('');
-    } else {
-      if (seccion) seccion.style.display = 'none';
-      grid.innerHTML = '';
+    if (tieneTradicional && cuadrillasActuales.every(c => ['C3', 'C5', 'C7'].includes(c))) {
+      // Render tradicional (compatibilidad)
+      ['C3', 'C5', 'C7'].forEach(cuad => {
+        const grid = document.getElementById('grid' + cuad);
+        if (!grid) return;
+        const seccion = grid.closest('.card, .panel, section') || grid.parentElement;
+        if (cuadrillasVisibles.includes(cuad)) {
+          if (seccion) seccion.style.display = '';
+          grid.innerHTML = TRABAJADORES.filter(t => t.cuadrilla === cuad).map(t => `
+            <div class="worker-card">
+              <div class="worker-name">${t.nombre}</div>
+              <div class="worker-dni">DNI ${t.dni}</div>
+              <div class="worker-stats">
+                <span class="cuadrilla-tag">${t.cuadrilla}</span>
+                <span class="text-muted mono">${t.historico} kg/h ± ${t.sigma}</span>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          if (seccion) seccion.style.display = 'none';
+          grid.innerHTML = '';
+        }
+      });
+      return;
     }
+    
+    // Crear contenedor dinámico (para cuadrillas multi-tenant)
+    const pageTrab = document.getElementById('page-trabajadores');
+    if (!pageTrab) return;
+    
+    container = document.createElement('div');
+    container.id = 'trabajadoresDinamico';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '20px';
+    
+    // Esconder secciones antiguas
+    ['C3', 'C5', 'C7'].forEach(cuad => {
+      const grid = document.getElementById('grid' + cuad);
+      if (grid) {
+        const seccion = grid.closest('.card, .panel, section') || grid.parentElement;
+        if (seccion) seccion.style.display = 'none';
+      }
+    });
+    
+    pageTrab.appendChild(container);
+  }
+  
+  // Render dinámico: una sección por cuadrilla
+  let html = '';
+  cuadrillasVisibles.forEach(cuad => {
+    const trabsCuad = TRABAJADORES.filter(t => t.cuadrilla === cuad);
+    if (trabsCuad.length === 0) return;
+    
+    html += `
+      <div class="card" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+          <h3 style="color:#fff; margin:0; font-size:16px;">👥 Cuadrilla ${escaparHTML(cuad)}</h3>
+          <span style="color:#94a3b8; font-size:12px;">${trabsCuad.length} trabajador(es)</span>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px;">
+          ${trabsCuad.map(t => `
+            <div class="worker-card">
+              <div class="worker-name">${escaparHTML(t.nombre)}</div>
+              <div class="worker-dni">DNI ${escaparHTML(t.dni)}</div>
+              <div class="worker-stats">
+                <span class="cuadrilla-tag">${escaparHTML(t.cuadrilla)}</span>
+                <span class="text-muted mono">${t.historico} kg/h ± ${t.sigma}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
   });
+  
+  if (cuadrillasVisibles.length === 0 || html === '') {
+    html = '<div style="text-align:center; padding:40px; color:#94a3b8;">No hay trabajadores para mostrar</div>';
+  }
+  
+  container.innerHTML = html;
 }
 
 // Cache del último HTML renderizado para detectar cambios reales
@@ -6975,19 +7042,29 @@ function llenarSelectTrabajadores() {
   // Limpiar y agregar primera opción
   select.innerHTML = '<option value="">Selecciona un trabajador</option>';
   
+  // Obtener cuadrillas únicas DINÁMICAMENTE de los trabajadores actuales
+  const cuadrillasActuales = [...new Set(TRABAJADORES.map(t => t.cuadrilla))].filter(c => c && c !== 'N/A');
+  
   // Filtrar cuadrillas según rol del usuario
   const perfil = window._perfilUsuario;
-  let cuadrillasVisibles = ['C3', 'C5', 'C7'];
+  let cuadrillasVisibles = cuadrillasActuales;
   
   if (perfil && perfil.rol === 'supervisor' && perfil.cuadrilla) {
     cuadrillasVisibles = [perfil.cuadrilla];
   }
   
   cuadrillasVisibles.forEach(cuad => {
-    const grupo = document.createElement('optgroup');
-    grupo.label = `Cuadrilla ${cuad} — Lote ${CUADRILLA_LOTE[cuad]}`;
+    const trabsCuad = TRABAJADORES.filter(t => t.cuadrilla === cuad);
+    if (trabsCuad.length === 0) return;
     
-    TRABAJADORES.filter(t => t.cuadrilla === cuad).forEach(t => {
+    const grupo = document.createElement('optgroup');
+    // Lote habitual: si está en CUADRILLA_LOTE legacy, lo usa; sino busca primer lote de la empresa
+    const loteHabitual = (typeof CUADRILLA_LOTE !== 'undefined' && CUADRILLA_LOTE[cuad]) 
+      || (window._lotesDeEmpresa && window._lotesDeEmpresa[0]?.codigo) 
+      || '—';
+    grupo.label = `Cuadrilla ${cuad}${loteHabitual !== '—' ? ' — Lote ' + loteHabitual : ''}`;
+    
+    trabsCuad.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.dni;
       opt.dataset.cuadrilla = t.cuadrilla;
@@ -7014,7 +7091,10 @@ function actualizarInfoTrabajador() {
   const cuadrilla = opt.dataset.cuadrilla;
   const historico = opt.dataset.historico;
   const sigma = opt.dataset.sigma;
-  const loteHabitual = CUADRILLA_LOTE[cuadrilla] || '—';
+  // Lote habitual: si CUADRILLA_LOTE existe, úsalo; sino primer lote disponible
+  const loteHabitual = (typeof CUADRILLA_LOTE !== 'undefined' && CUADRILLA_LOTE[cuadrilla])
+    || (window._lotesDeEmpresa && window._lotesDeEmpresa[0]?.codigo)
+    || '—';
   
   document.getElementById('infoCuadrilla').textContent = cuadrilla;
   document.getElementById('infoLoteHabitual').textContent = loteHabitual;
@@ -7032,10 +7112,24 @@ function openModal(id) {
   document.getElementById(id).classList.add('active');
   if (id === 'modalPesada') {
     llenarSelectTrabajadores();
+    llenarSelectLotes();
     document.getElementById('zscoreContainer').innerHTML = '';
     document.getElementById('inputKg').value = '';
     document.getElementById('infoTrabajador').style.display = 'none';
   }
+}
+
+function llenarSelectLotes() {
+  const select = document.getElementById('inputLote');
+  if (!select) return;
+  
+  // Si hay lotes multi-tenant cargados, usarlos
+  if (window._lotesDeEmpresa && window._lotesDeEmpresa.length > 0) {
+    select.innerHTML = window._lotesDeEmpresa.map(l => 
+      `<option value="${escaparHTML(l.codigo)}">${escaparHTML(l.codigo)} (${l.hectareas} ha)</option>`
+    ).join('');
+  }
+  // Si no, mantener los hardcoded del HTML (no tocar)
 }
 
 function closeModal(id) {
