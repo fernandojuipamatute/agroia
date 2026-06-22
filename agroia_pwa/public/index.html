@@ -3893,6 +3893,14 @@ function actualizarIndicadorServidor() {
 }
 
 async function enviarADatadog(endpoint, payload) {
+  // MULTI-TENANT: inyectar empresa_id si es una pesada y hay empresa activa
+  if (endpoint === '/api/pesada' && typeof getEmpresaActivaId === 'function') {
+    const empId = getEmpresaActivaId();
+    if (empId && payload && !payload.empresa_id) {
+      payload.empresa_id = empId;
+    }
+  }
+  
   // POKA-YOKE 3: Si offline o servidor caído, encolar para reintento posterior
   if (!navigator.onLine) {
     // Solo guardar pesadas en cola offline (endpoint /api/pesada)
@@ -8595,6 +8603,17 @@ function mostrarUsuarioEnSidebar(perfil) {
   // Aplicar permisos según el rol
   aplicarPermisos(perfil);
   
+  // MULTI-TENANT: Si tiene empresa, cargar sus datos desde el backend
+  if (perfil.empresa_id && typeof cargarDatosDeEmpresaActiva === 'function') {
+    window._empresaActiva = perfil.empresa_id;
+    setTimeout(() => cargarDatosDeEmpresaActiva(), 500);
+  }
+  
+  // MULTI-TENANT: Si es rol demo, cargar lista de empresas para selector
+  if (perfil.rol === 'demo' && typeof cargarEmpresasParaDemo === 'function') {
+    setTimeout(() => cargarEmpresasParaDemo(), 800);
+  }
+  
   // Si es rol trabajador, activar modo trabajador (UI simplificada)
   if (perfil.rol === 'trabajador') {
     activarModoTrabajador(perfil);
@@ -8770,6 +8789,364 @@ const NIVELES_TECNOLOGICOS = {
     }
   }
 };
+
+// =============================================================
+// MULTI-TENANT: Carga de datos por empresa
+// =============================================================
+window._empresaActiva = null;       // ID de empresa actualmente vista
+window._empresasDisponibles = [];   // Lista de empresas (para selector demo)
+
+/**
+ * Determina la empresa actual a usar:
+ * - Si rol=demo y se seleccionó una empresa → usa esa
+ * - Si rol=admin → usa su empresa_id del perfil
+ * - Si demo y "Ver todas" → null (sin filtro)
+ */
+function getEmpresaActivaId() {
+  const perfil = window._perfilUsuario;
+  if (!perfil) return null;
+  
+  // Admin normal: siempre su empresa
+  if (perfil.rol !== 'demo') {
+    return perfil.empresa_id || null;
+  }
+  
+  // Demo: usa la que está seleccionada
+  return window._empresaActiva;
+}
+
+/**
+ * Carga trabajadores filtrados por empresa desde el backend.
+ * Actualiza la variable global TRABAJADORES con los nuevos datos.
+ */
+async function cargarTrabajadoresDeEmpresa(empresaId) {
+  if (!empresaId) {
+    console.log('[multi-tenant] Sin empresa_id, usando trabajadores hardcoded');
+    return;
+  }
+  
+  try {
+    const url = `${SERVIDOR_URL}/api/trabajadores?empresa_id=${empresaId}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    
+    const data = await resp.json();
+    if (data.fuente === 'supabase' && Array.isArray(data.trabajadores)) {
+      // Reemplazar TRABAJADORES global con los de la empresa
+      // Limpiar primero los hardcoded
+      Object.keys(TRABAJADORES).forEach(k => delete TRABAJADORES[k]);
+      
+      // Cargar los de la empresa
+      data.trabajadores.forEach(t => {
+        TRABAJADORES[t.dni] = {
+          nombre: t.nombre,
+          cuadrilla: t.cuadrilla,
+          historico: t.historico,
+          sigma: t.sigma
+        };
+      });
+      
+      console.log(`[multi-tenant] Cargados ${data.total} trabajadores de empresa ${empresaId}`);
+      
+      // Repoblar selectores si están abiertos
+      if (typeof poblarSelectoresTrabajadores === 'function') {
+        poblarSelectoresTrabajadores();
+      }
+    }
+  } catch(e) {
+    console.warn('[multi-tenant] No se pudieron cargar trabajadores:', e);
+  }
+}
+
+/**
+ * Carga lotes filtrados por empresa
+ */
+async function cargarLotesDeEmpresa(empresaId) {
+  if (!empresaId) return;
+  
+  try {
+    const url = `${SERVIDOR_URL}/api/lotes?empresa_id=${empresaId}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    
+    const data = await resp.json();
+    if (data.fuente === 'supabase' && Array.isArray(data.lotes)) {
+      Object.keys(LOTES).forEach(k => delete LOTES[k]);
+      
+      data.lotes.forEach(l => {
+        LOTES[l.codigo] = {
+          hectareas: l.hectareas,
+          activo: true
+        };
+      });
+      
+      console.log(`[multi-tenant] Cargados ${data.total} lotes de empresa ${empresaId}`);
+    }
+  } catch(e) {
+    console.warn('[multi-tenant] No se pudieron cargar lotes:', e);
+  }
+}
+
+/**
+ * Carga pesadas filtradas por empresa
+ */
+async function cargarPesadasDeEmpresa(empresaId) {
+  try {
+    let url = `${SERVIDOR_URL}/api/pesadas-todas`;
+    if (empresaId) url += `?empresa_id=${empresaId}`;
+    
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    
+    const data = await resp.json();
+    if (Array.isArray(data.pesadas)) {
+      // Limpiar pesadas locales
+      pesadas.length = 0;
+      
+      // Cargar pesadas de la empresa
+      data.pesadas.forEach(p => {
+        const ahora = new Date(p.timestamp || Date.now() / 1000 * 1000);
+        const dia = ahora.getDate().toString().padStart(2, '0');
+        const mes = (ahora.getMonth() + 1).toString().padStart(2, '0');
+        const hh = ahora.getHours().toString().padStart(2, '0');
+        const mm = ahora.getMinutes().toString().padStart(2, '0');
+        
+        pesadas.unshift({
+          hora: p.hora || `${dia}/${mes} ${hh}:${mm}`,
+          dni: p.dni,
+          nombre: p.nombre,
+          cuadrilla: p.cuadrilla,
+          lote: p.lote,
+          kg: p.kg,
+          horas: p.horas,
+          productividad: p.productividad,
+          z: p.z_score,
+          estado: p.estado,
+          _localTimestamp: p.timestamp
+        });
+      });
+      
+      console.log(`[multi-tenant] Cargadas ${data.pesadas.length} pesadas`);
+      
+      if (typeof renderPesadas === 'function') renderPesadas();
+      if (typeof actualizarDashboard === 'function') actualizarDashboard();
+    }
+  } catch(e) {
+    console.warn('[multi-tenant] No se pudieron cargar pesadas:', e);
+  }
+}
+
+/**
+ * Carga todos los datos de la empresa activa (trabajadores + lotes + pesadas)
+ */
+async function cargarDatosDeEmpresaActiva() {
+  const empresaId = getEmpresaActivaId();
+  if (!empresaId) {
+    console.log('[multi-tenant] Sin empresa activa, no se cargan datos');
+    return;
+  }
+  
+  console.log(`[multi-tenant] Cargando datos de empresa ${empresaId}...`);
+  
+  // Cargar en paralelo
+  await Promise.all([
+    cargarTrabajadoresDeEmpresa(empresaId),
+    cargarLotesDeEmpresa(empresaId),
+    cargarPesadasDeEmpresa(empresaId)
+  ]);
+  
+  console.log('[multi-tenant] Datos cargados');
+  
+  // Refrescar UI
+  if (typeof renderPesadas === 'function') renderPesadas();
+  if (typeof actualizarDashboard === 'function') actualizarDashboard();
+}
+
+
+// =============================================================
+// MULTI-TENANT: Selector de empresa (solo rol demo)
+// =============================================================
+async function cargarEmpresasParaDemo() {
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/empresas`);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    
+    const data = await resp.json();
+    window._empresasDisponibles = data.empresas || [];
+    
+    if (window._empresasDisponibles.length === 0) {
+      console.warn('[multi-tenant] No hay empresas disponibles');
+      return;
+    }
+    
+    // Si demo no tiene empresa activa, seleccionar la primera
+    if (!window._empresaActiva) {
+      window._empresaActiva = window._empresasDisponibles[0].id;
+      const empresaConfig = window._empresasDisponibles[0];
+      if (typeof setNivelTecnologico === 'function') {
+        setNivelTecnologico(empresaConfig.nivel_tecnologico);
+      }
+    }
+    
+    // Renderizar el selector
+    renderSelectorEmpresa();
+    
+    // Cargar datos de la empresa activa
+    cargarDatosDeEmpresaActiva();
+  } catch(e) {
+    console.warn('[multi-tenant] No se pudo cargar empresas:', e);
+  }
+}
+
+function renderSelectorEmpresa() {
+  let selector = document.getElementById('selectorEmpresaDemo');
+  if (!selector) {
+    selector = document.createElement('div');
+    selector.id = 'selectorEmpresaDemo';
+    selector.style.cssText = `
+      position: fixed; top: 50px; right: 16px; z-index: 8500;
+      background: rgba(15,23,42,0.95); border: 1px solid rgba(168,85,247,0.5);
+      border-radius: 12px; padding: 6px 14px; cursor: pointer;
+      backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: all 0.2s; font-size: 12px; color: #fff;
+      display: flex; align-items: center; gap: 8px; min-width: 200px;
+    `;
+    document.body.appendChild(selector);
+  }
+  
+  const activa = window._empresaActiva 
+    ? window._empresasDisponibles.find(e => e.id === window._empresaActiva)
+    : null;
+  
+  const nombre = activa ? activa.nombre : 'Ver todas las empresas';
+  const icono = activa 
+    ? (activa.nivel_tecnologico === 1 ? '📊' : activa.nivel_tecnologico === 2 ? '💻' : '🚀')
+    : '🌐';
+  
+  selector.innerHTML = `
+    <span style="font-size:18px;">${icono}</span>
+    <div style="flex:1;">
+      <div style="font-size:9px; color:#A855F7; text-transform:uppercase; letter-spacing:0.5px;">Viendo empresa</div>
+      <div style="font-size:12px; font-weight:600;">${escaparHTML(nombre)}</div>
+    </div>
+    <span style="font-size:10px; color:#94a3b8;">▼</span>
+  `;
+  
+  selector.onclick = mostrarMenuEmpresas;
+}
+
+function mostrarMenuEmpresas() {
+  // Quitar menú existente si está
+  const existente = document.getElementById('menuEmpresasDemo');
+  if (existente) {
+    existente.remove();
+    return;
+  }
+  
+  const menu = document.createElement('div');
+  menu.id = 'menuEmpresasDemo';
+  menu.style.cssText = `
+    position: fixed; top: 95px; right: 16px; z-index: 8501;
+    background: rgba(15,23,42,0.98); border: 1px solid rgba(168,85,247,0.5);
+    border-radius: 12px; padding: 6px; min-width: 250px;
+    backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  `;
+  
+  let html = '';
+  
+  // Opción "Ver todas"
+  const esTodas = !window._empresaActiva;
+  html += `
+    <div onclick="seleccionarEmpresa(null)" 
+         style="padding:10px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:10px;
+                background:${esTodas ? 'rgba(168,85,247,0.2)' : 'transparent'};
+                transition:background 0.15s;"
+         onmouseover="this.style.background='rgba(168,85,247,0.15)'"
+         onmouseout="this.style.background='${esTodas ? 'rgba(168,85,247,0.2)' : 'transparent'}'">
+      <span style="font-size:20px;">🌐</span>
+      <div style="flex:1;">
+        <div style="color:#fff; font-size:13px; font-weight:600;">Ver todas las empresas</div>
+        <div style="color:#94a3b8; font-size:10px;">Vista consolidada</div>
+      </div>
+      ${esTodas ? '<span style="color:#A855F7;">✓</span>' : ''}
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,0.08); margin:4px 0;"></div>
+  `;
+  
+  // Cada empresa
+  (window._empresasDisponibles || []).forEach(e => {
+    const activa = window._empresaActiva === e.id;
+    const icono = e.nivel_tecnologico === 1 ? '📊' : e.nivel_tecnologico === 2 ? '💻' : '🚀';
+    html += `
+      <div onclick="seleccionarEmpresa(${e.id})" 
+           style="padding:10px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:10px;
+                  background:${activa ? 'rgba(168,85,247,0.2)' : 'transparent'};
+                  transition:background 0.15s;"
+           onmouseover="this.style.background='rgba(168,85,247,0.15)'"
+           onmouseout="this.style.background='${activa ? 'rgba(168,85,247,0.2)' : 'transparent'}'">
+        <span style="font-size:20px;">${icono}</span>
+        <div style="flex:1;">
+          <div style="color:#fff; font-size:13px; font-weight:600;">${escaparHTML(e.nombre)}</div>
+          <div style="color:#94a3b8; font-size:10px;">Nivel ${e.nivel_tecnologico} · ${e.hectareas} ha · ${escaparHTML(e.region || '')}</div>
+        </div>
+        ${activa ? '<span style="color:#A855F7;">✓</span>' : ''}
+      </div>
+    `;
+  });
+  
+  menu.innerHTML = html;
+  document.body.appendChild(menu);
+  
+  // Click fuera cierra el menú
+  setTimeout(() => {
+    const cerrar = (evt) => {
+      if (!menu.contains(evt.target) && evt.target.id !== 'selectorEmpresaDemo') {
+        menu.remove();
+        document.removeEventListener('click', cerrar);
+      }
+    };
+    document.addEventListener('click', cerrar);
+  }, 100);
+}
+
+async function seleccionarEmpresa(empresaId) {
+  const menu = document.getElementById('menuEmpresasDemo');
+  if (menu) menu.remove();
+  
+  window._empresaActiva = empresaId;
+  
+  // Actualizar nivel tecnológico al de la empresa elegida
+  if (empresaId) {
+    const empresa = window._empresasDisponibles.find(e => e.id === empresaId);
+    if (empresa && typeof setNivelTecnologico === 'function') {
+      setNivelTecnologico(empresa.nivel_tecnologico);
+    }
+  }
+  
+  // Refrescar selector
+  renderSelectorEmpresa();
+  
+  // Toast
+  if (typeof toastInfo === 'function') {
+    const nombre = empresaId 
+      ? window._empresasDisponibles.find(e => e.id === empresaId)?.nombre 
+      : 'Todas las empresas';
+    toastInfo(`Cargando datos de: ${nombre}...`, { titulo: '🏢 Cambio de empresa' });
+  }
+  
+  // Recargar datos
+  if (empresaId) {
+    await cargarDatosDeEmpresaActiva();
+  } else {
+    // "Ver todas" → cargar pesadas sin filtro
+    await cargarPesadasDeEmpresa(null);
+  }
+  
+  if (typeof toastExito === 'function') {
+    toastExito('Datos cargados correctamente', { titulo: '✅ Listo' });
+  }
+}
+
 
 // Helper: leer nivel tecnológico actual del cliente
 function getNivelTecnologico() {
@@ -12492,10 +12869,10 @@ async function iniciarSesion() {
       return;
     }
     
-    // Login exitoso, obtener perfil
+    // Login exitoso, obtener perfil (ahora con empresa_id)
     const { data: perfil, error: errorPerfil } = await supabaseAuth
       .from('perfiles_usuario')
-      .select('dni, nombre, rol, cuadrilla, activo')
+      .select('dni, nombre, rol, cuadrilla, activo, empresa_id')
       .eq('id', data.user.id)
       .single();
     
@@ -12514,6 +12891,26 @@ async function iniciarSesion() {
       btn.disabled = false;
       btn.innerHTML = '🔓 Iniciar Sesión';
       return;
+    }
+    
+    // Si tiene empresa_id, cargar datos de la empresa desde el backend
+    if (perfil.empresa_id) {
+      try {
+        const respEmpresa = await fetch(`${SERVIDOR_URL}/api/empresas`);
+        if (respEmpresa.ok) {
+          const dataEmpresas = await respEmpresa.json();
+          const empresaActual = (dataEmpresas.empresas || []).find(e => e.id === perfil.empresa_id);
+          if (empresaActual) {
+            perfil.empresa = empresaActual;
+            // Setear el nivel tecnológico del usuario según su empresa
+            if (typeof setNivelTecnologico === 'function') {
+              setNivelTecnologico(empresaActual.nivel_tecnologico);
+            }
+          }
+        }
+      } catch(e) {
+        console.warn('No se pudo cargar empresa del usuario:', e);
+      }
     }
     
     // ¡Bienvenido!
