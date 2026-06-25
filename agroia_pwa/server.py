@@ -1533,6 +1533,250 @@ def obtener_perfil_usuario():
         return jsonify({"error": "Error al cargar perfil", "detalle": str(e)}), 500
 
 # ============================================================
+# SIMULADOR B2B - "EMPRESA EXTERNA SAC"
+# Simula una empresa externa enviando pesadas a AgroIA en tiempo real
+# ============================================================
+import threading
+import random as rnd
+
+# Estado global del simulador (en memoria, no persiste en restart)
+SIMULADOR_ESTADO = {
+    "activo": False,
+    "empresa_id": None,
+    "velocidad_seg": 5,  # cada X segundos genera una pesada
+    "porcentaje_anomalias": 15,  # % de pesadas que serán anomalías
+    "total_generadas": 0,
+    "anomalias_detectadas": 0,
+    "duplicados_detectados": 0,
+    "jornada_excesiva": 0,
+    "iniciado_en": None,
+    "thread": None,
+    "ultimo_log": []  # Últimos 50 eventos
+}
+
+def _generar_pesada_simulada():
+    """Genera una pesada simulada realista (con probabilidad de anomalía)."""
+    if not SIMULADOR_ESTADO["activo"] or not supabase:
+        return
+    
+    empresa_id = SIMULADOR_ESTADO["empresa_id"]
+    if not empresa_id:
+        return
+    
+    try:
+        # Obtener trabajadores de la empresa
+        trab_res = supabase.table('trabajadores')\
+            .select('dni,nombre,cuadrilla_id,historico,sigma')\
+            .eq('empresa_id', empresa_id)\
+            .eq('activo', True)\
+            .execute()
+        
+        trabajadores = trab_res.data or []
+        if not trabajadores:
+            return
+        
+        # Obtener lotes de la empresa
+        lotes_res = supabase.table('lotes')\
+            .select('codigo')\
+            .eq('empresa_id', empresa_id)\
+            .execute()
+        lotes = lotes_res.data or []
+        if not lotes:
+            return
+        
+        # Obtener cuadrillas
+        cuad_res = supabase.table('cuadrillas')\
+            .select('id,codigo')\
+            .eq('empresa_id', empresa_id)\
+            .execute()
+        cuadrillas_map = {c['id']: c['codigo'] for c in (cuad_res.data or [])}
+        
+        # Elegir trabajador aleatorio
+        trab = rnd.choice(trabajadores)
+        lote = rnd.choice(lotes)
+        cuadrilla = cuadrillas_map.get(trab.get('cuadrilla_id'), 'N/A')
+        
+        # Decidir si será anomalía
+        es_anomalia = rnd.random() < (SIMULADOR_ESTADO["porcentaje_anomalias"] / 100.0)
+        
+        # Generar kg y horas
+        historico = float(trab.get('historico') or 18)
+        sigma = float(trab.get('sigma') or 1.5)
+        horas = round(rnd.uniform(3, 8), 1)
+        
+        if es_anomalia:
+            # Generar valor fuera del rango (z-score > 2)
+            tipo_anomalia = rnd.choice(['alta', 'baja', 'jornada_excesiva'])
+            if tipo_anomalia == 'alta':
+                productividad = historico + (sigma * rnd.uniform(2.5, 4))
+            elif tipo_anomalia == 'baja':
+                productividad = max(2, historico - (sigma * rnd.uniform(2.5, 4)))
+            else:  # jornada excesiva
+                horas = round(rnd.uniform(13, 15), 1)
+                productividad = historico + rnd.uniform(-1, 1)
+        else:
+            # Pesada normal
+            productividad = historico + (sigma * rnd.uniform(-1.5, 1.5))
+        
+        kg = round(productividad * horas, 1)
+        z_score = round((productividad - historico) / sigma, 2)
+        abs_z = abs(z_score)
+        
+        # Clasificar
+        if abs_z <= 1.5:
+            estado = "green"
+        elif abs_z <= 2.0:
+            estado = "yellow"
+        elif abs_z <= 2.5:
+            estado = "orange"
+        else:
+            estado = "red"
+        
+        # Construir registro
+        ahora = datetime.now()
+        hora_str = ahora.strftime("%d/%m %H:%M")
+        
+        registro = {
+            "hora": hora_str,
+            "dni": trab['dni'],
+            "nombre": trab['nombre'],
+            "cuadrilla": cuadrilla,
+            "lote": lote['codigo'],
+            "kg": kg,
+            "horas": horas,
+            "productividad": round(productividad, 2),
+            "z_score": z_score,
+            "estado": estado,
+            "motivo": "Anomalía simulada" if es_anomalia else None,
+            "origen": "simulador_b2b",
+            "empresa_id": empresa_id
+        }
+        
+        # Guardar en Supabase
+        supabase.table('pesadas').insert(registro).execute()
+        
+        # Actualizar estado del simulador
+        SIMULADOR_ESTADO["total_generadas"] += 1
+        if estado in ['orange', 'red']:
+            SIMULADOR_ESTADO["anomalias_detectadas"] += 1
+        if horas > 12:
+            SIMULADOR_ESTADO["jornada_excesiva"] += 1
+        
+        # Agregar al log
+        log_entry = {
+            "timestamp": ahora.isoformat(),
+            "trabajador": trab['nombre'],
+            "kg": kg,
+            "horas": horas,
+            "z": z_score,
+            "estado": estado,
+            "lote": lote['codigo']
+        }
+        SIMULADOR_ESTADO["ultimo_log"].append(log_entry)
+        # Limitar a últimas 50 entradas
+        if len(SIMULADOR_ESTADO["ultimo_log"]) > 50:
+            SIMULADOR_ESTADO["ultimo_log"] = SIMULADOR_ESTADO["ultimo_log"][-50:]
+        
+        print(f"[Simulador B2B] Generada: {trab['nombre'][:20]} - {kg}kg/{horas}h - {estado.upper()}")
+    
+    except Exception as e:
+        print(f"[Simulador B2B] Error generando pesada: {e}")
+
+def _loop_simulador():
+    """Loop que corre en thread separado y genera pesadas."""
+    import time
+    while SIMULADOR_ESTADO["activo"]:
+        _generar_pesada_simulada()
+        time.sleep(SIMULADOR_ESTADO["velocidad_seg"])
+
+@app.route('/api/simulador/iniciar', methods=['POST'])
+@rate_limit('default')
+def simulador_iniciar():
+    """Inicia el simulador B2B para una empresa específica."""
+    data = request.json or {}
+    empresa_id = data.get('empresa_id')
+    velocidad = data.get('velocidad_seg', 5)
+    porcentaje_anomalias = data.get('porcentaje_anomalias', 15)
+    
+    try:
+        empresa_id = int(empresa_id) if empresa_id else None
+        velocidad = max(2, min(30, int(velocidad)))  # entre 2 y 30 seg
+        porcentaje_anomalias = max(0, min(100, int(porcentaje_anomalias)))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Parámetros inválidos"}), 400
+    
+    if not empresa_id:
+        return jsonify({"error": "Se requiere empresa_id"}), 400
+    
+    if SIMULADOR_ESTADO["activo"]:
+        return jsonify({"error": "El simulador ya está activo. Deténgalo primero."}), 400
+    
+    # Reset estado
+    SIMULADOR_ESTADO["activo"] = True
+    SIMULADOR_ESTADO["empresa_id"] = empresa_id
+    SIMULADOR_ESTADO["velocidad_seg"] = velocidad
+    SIMULADOR_ESTADO["porcentaje_anomalias"] = porcentaje_anomalias
+    SIMULADOR_ESTADO["total_generadas"] = 0
+    SIMULADOR_ESTADO["anomalias_detectadas"] = 0
+    SIMULADOR_ESTADO["jornada_excesiva"] = 0
+    SIMULADOR_ESTADO["duplicados_detectados"] = 0
+    SIMULADOR_ESTADO["iniciado_en"] = datetime.now().isoformat()
+    SIMULADOR_ESTADO["ultimo_log"] = []
+    
+    # Iniciar thread
+    thread = threading.Thread(target=_loop_simulador, daemon=True)
+    SIMULADOR_ESTADO["thread"] = thread
+    thread.start()
+    
+    return jsonify({
+        "exito": True,
+        "mensaje": f"Simulador iniciado para empresa {empresa_id}",
+        "config": {
+            "empresa_id": empresa_id,
+            "velocidad_seg": velocidad,
+            "porcentaje_anomalias": porcentaje_anomalias
+        }
+    })
+
+@app.route('/api/simulador/detener', methods=['POST'])
+@rate_limit('default')
+def simulador_detener():
+    """Detiene el simulador B2B."""
+    SIMULADOR_ESTADO["activo"] = False
+    SIMULADOR_ESTADO["thread"] = None
+    
+    return jsonify({
+        "exito": True,
+        "mensaje": "Simulador detenido",
+        "resumen": {
+            "total_generadas": SIMULADOR_ESTADO["total_generadas"],
+            "anomalias_detectadas": SIMULADOR_ESTADO["anomalias_detectadas"],
+            "jornada_excesiva": SIMULADOR_ESTADO["jornada_excesiva"]
+        }
+    })
+
+@app.route('/api/simulador/estado', methods=['GET'])
+@rate_limit('default')
+def simulador_estado():
+    """Devuelve el estado actual del simulador (para polling)."""
+    return jsonify({
+        "activo": SIMULADOR_ESTADO["activo"],
+        "empresa_id": SIMULADOR_ESTADO["empresa_id"],
+        "config": {
+            "velocidad_seg": SIMULADOR_ESTADO["velocidad_seg"],
+            "porcentaje_anomalias": SIMULADOR_ESTADO["porcentaje_anomalias"]
+        },
+        "stats": {
+            "total_generadas": SIMULADOR_ESTADO["total_generadas"],
+            "anomalias_detectadas": SIMULADOR_ESTADO["anomalias_detectadas"],
+            "jornada_excesiva": SIMULADOR_ESTADO["jornada_excesiva"],
+            "duplicados_detectados": SIMULADOR_ESTADO["duplicados_detectados"]
+        },
+        "iniciado_en": SIMULADOR_ESTADO["iniciado_en"],
+        "ultimo_log": SIMULADOR_ESTADO["ultimo_log"][-20:]  # últimos 20
+    })
+
+# ============================================================
 # ENDPOINT: ANALISIS DE IMAGEN CON IA (VISION)
 # ============================================================
 @app.route('/api/analizar-imagen', methods=['POST'])
