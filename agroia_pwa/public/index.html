@@ -3853,7 +3853,12 @@ async function consultarPesadasNuevas() {
   if (!servidorConectado) return;
   
   try {
-    const r = await fetch(SERVIDOR_URL + '/api/pesadas-recientes?desde=' + ultimoTimestamp, {
+    // Multi-tenant: filtrar por empresa activa
+    let url = SERVIDOR_URL + '/api/pesadas-recientes?desde=' + ultimoTimestamp;
+    const empresaId = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+    if (empresaId) url += '&empresa_id=' + empresaId;
+    
+    const r = await fetch(url, {
       method: 'GET',
       signal: AbortSignal.timeout(5000)
     });
@@ -7675,7 +7680,12 @@ async function cargarHistorial() {
   try {
     console.log(`[Supabase] Intentando cargar historial (intento ${intentosHistorial + 1})...`);
     
-    const r = await fetch(SERVIDOR_URL + '/api/pesadas-todas', {
+    // Multi-tenant: filtrar por empresa activa
+    let url = SERVIDOR_URL + '/api/pesadas-todas';
+    const empresaId = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+    if (empresaId) url += '?empresa_id=' + empresaId;
+    
+    const r = await fetch(url, {
       method: 'GET',
       signal: AbortSignal.timeout(30000)  // 30 segundos por si el servidor esta dormido
     });
@@ -9049,6 +9059,11 @@ async function cargarPesadasDeEmpresa(empresaId) {
     if (Array.isArray(data.pesadas)) {
       // Limpiar pesadas locales
       pesadas.length = 0;
+      
+      // Resetear ultimoTimestamp para que el polling no traiga viejas de otra empresa
+      if (typeof ultimoTimestamp !== 'undefined') {
+        ultimoTimestamp = Date.now() / 1000;
+      }
       
       // Cargar pesadas de la empresa
       data.pesadas.forEach(p => {
