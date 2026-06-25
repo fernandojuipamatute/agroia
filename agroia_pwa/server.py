@@ -1776,6 +1776,46 @@ def simulador_estado():
         "ultimo_log": SIMULADOR_ESTADO["ultimo_log"][-20:]  # últimos 20
     })
 
+@app.route('/api/simulador/limpiar', methods=['POST'])
+@rate_limit('default')
+def simulador_limpiar():
+    """Borra todas las pesadas con origen='simulador_b2b'.
+    Opcionalmente filtra por empresa_id."""
+    if not supabase:
+        return jsonify({"error": "Supabase no disponible"}), 503
+    
+    data = request.json or {}
+    empresa_id = data.get('empresa_id')
+    
+    try:
+        # Construir query
+        query = supabase.table('pesadas').delete().eq('origen', 'simulador_b2b')
+        
+        # Filtrar por empresa si se especifica
+        if empresa_id:
+            try:
+                empresa_id = int(empresa_id)
+                query = query.eq('empresa_id', empresa_id)
+            except (TypeError, ValueError):
+                pass
+        
+        result = query.execute()
+        
+        # Limpiar también el log en memoria del simulador
+        SIMULADOR_ESTADO["ultimo_log"] = []
+        SIMULADOR_ESTADO["total_generadas"] = 0
+        SIMULADOR_ESTADO["anomalias_detectadas"] = 0
+        SIMULADOR_ESTADO["jornada_excesiva"] = 0
+        
+        return jsonify({
+            "exito": True,
+            "mensaje": f"Pesadas simuladas eliminadas{'(empresa ' + str(empresa_id) + ')' if empresa_id else ''}",
+            "borradas": len(result.data or [])
+        })
+    except Exception as e:
+        print(f"[simulador-limpiar] Error: {e}")
+        return jsonify({"error": "No se pudo limpiar", "detalle": str(e)}), 500
+
 # ============================================================
 # ENDPOINT: ANALISIS DE IMAGEN CON IA (VISION)
 # ============================================================
