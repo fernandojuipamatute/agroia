@@ -1237,6 +1237,9 @@ tr:hover td {
     <div class="nav-item" onclick="switchPage('plan_negocio')" data-permiso="plan_negocio" style="background:linear-gradient(135deg, rgba(239,159,39,0.15), rgba(99,153,34,0.15)); border:1px solid rgba(239,159,39,0.3); margin-top:4px;">
       <span class="nav-icon">📊</span> Plan de Negocio
     </div>
+    <div class="nav-item" onclick="switchPage('simulador_b2b')" data-permiso="simulador_b2b" style="background:linear-gradient(135deg, rgba(220,38,38,0.15), rgba(239,159,39,0.15)); border:1px solid rgba(220,38,38,0.3); margin-top:4px;">
+      <span class="nav-icon">🔴</span> Simulador B2B
+    </div>
   </div>
 
   <!-- BOTÓN CERRAR SESIÓN -->
@@ -2916,6 +2919,129 @@ tr:hover td {
     </details>
   </div>
 
+</div>
+
+<!-- ============= SIMULADOR B2B EMPRESA EXTERNA (DEMO ONLY) ============= -->
+<div class="page-section" id="page-simulador_b2b">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">🔴 Simulador B2B: Empresa Externa</h1>
+      <div class="page-subtitle">Una empresa externa se conecta a AgroIA y envía pesadas en tiempo real</div>
+    </div>
+  </div>
+
+  <!-- Banner explicativo -->
+  <div style="background:linear-gradient(135deg, rgba(220,38,38,0.08), rgba(239,159,39,0.08)); border:1px solid rgba(220,38,38,0.3); border-radius:14px; padding:16px 20px; margin-bottom:20px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="font-size:32px;">⚡</div>
+      <div style="flex:1;">
+        <h3 style="color:#EF9F27; margin:0 0 4px 0; font-size:16px;">Integración B2B en tiempo real</h3>
+        <p style="color:#cbd5e1; font-size:13px; margin:0; line-height:1.5;">
+          Esta sección simula una empresa externa conectándose a AgroIA por API y enviando pesadas continuamente. 
+          Sirve para detectar problemas operativos, analizar tendencias, y generar el diagrama de Ishikawa.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel de control -->
+  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:20px; margin-bottom:20px;">
+    <h3 style="color:#fff; margin:0 0 14px 0; font-size:15px;">⚙ Configuración de la simulación</h3>
+    
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:16px;">
+      <div>
+        <label style="color:#94a3b8; font-size:12px; display:block; margin-bottom:6px;">🏢 Empresa destino</label>
+        <select id="simB2BEmpresa" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:10px; color:#fff; font-size:13px;">
+          <option value="">Cargando...</option>
+        </select>
+      </div>
+      <div>
+        <label style="color:#94a3b8; font-size:12px; display:block; margin-bottom:6px;">⏱ Velocidad (segundos entre pesadas)</label>
+        <select id="simB2BVelocidad" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:10px; color:#fff; font-size:13px;">
+          <option value="3">Rápida (cada 3 segundos)</option>
+          <option value="5" selected>Normal (cada 5 segundos)</option>
+          <option value="10">Lenta (cada 10 segundos)</option>
+          <option value="20">Muy lenta (cada 20 segundos)</option>
+        </select>
+      </div>
+      <div>
+        <label style="color:#94a3b8; font-size:12px; display:block; margin-bottom:6px;">⚠️ % anomalías</label>
+        <select id="simB2BAnomalias" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:10px; color:#fff; font-size:13px;">
+          <option value="5">5% (operación normal)</option>
+          <option value="15" selected>15% (operación con problemas)</option>
+          <option value="30">30% (operación crítica)</option>
+        </select>
+      </div>
+    </div>
+    
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button id="btnSimB2BIniciar" onclick="iniciarSimulacionB2B()" 
+              style="background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:12px 24px; font-size:14px; font-weight:600; cursor:pointer;">
+        ▶ Iniciar simulación
+      </button>
+      <button id="btnSimB2BDetener" onclick="detenerSimulacionB2B()" disabled
+              style="background:linear-gradient(135deg, #DC2626, #B91C1C); color:white; border:none; border-radius:8px; padding:12px 24px; font-size:14px; font-weight:600; cursor:pointer; opacity:0.5;">
+        ⏹ Detener
+      </button>
+      <div id="simB2BEstadoLabel" style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+        <div id="simB2BIndicador" style="width:12px; height:12px; border-radius:50%; background:#64748B;"></div>
+        <span style="color:#94a3b8; font-size:13px;">Detenido</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard en vivo -->
+  <h3 style="color:#fff; font-size:16px; margin:20px 0 12px 0;">📊 Métricas en vivo</h3>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:20px;">
+    <div style="background:rgba(255,255,255,0.03); border-left:4px solid #10B981; border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Total generadas</div>
+      <div id="simB2BTotal" style="color:#fff; font-size:32px; font-weight:bold; margin-top:4px;">0</div>
+      <div style="color:#94a3b8; font-size:11px;">pesadas</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03); border-left:4px solid #F59E0B; border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Anomalías</div>
+      <div id="simB2BAnomaliasCount" style="color:#F59E0B; font-size:32px; font-weight:bold; margin-top:4px;">0</div>
+      <div style="color:#94a3b8; font-size:11px;">detectadas</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03); border-left:4px solid #DC2626; border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Jornada excesiva</div>
+      <div id="simB2BJornada" style="color:#DC2626; font-size:32px; font-weight:bold; margin-top:4px;">0</div>
+      <div style="color:#94a3b8; font-size:11px;">>12h Ley 31110</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03); border-left:4px solid #3B82F6; border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Tasa anomalía</div>
+      <div id="simB2BTasa" style="color:#3B82F6; font-size:32px; font-weight:bold; margin-top:4px;">0%</div>
+      <div style="color:#94a3b8; font-size:11px;">de total</div>
+    </div>
+  </div>
+
+  <!-- Log en vivo -->
+  <h3 style="color:#fff; font-size:16px; margin:20px 0 12px 0;">📝 Log en vivo (últimas 20 pesadas)</h3>
+  <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; max-height:400px; overflow-y:auto;">
+    <div id="simB2BLog" style="font-family:monospace; font-size:12px;">
+      <div style="color:#64748B; text-align:center; padding:30px;">
+        El simulador no está activo. Inicia la simulación para ver pesadas en tiempo real.
+      </div>
+    </div>
+  </div>
+
+  <!-- Explicación técnica -->
+  <details style="margin-top:18px;">
+    <summary style="color:#94a3b8; font-size:12px; cursor:pointer; padding:8px;">🔧 Cómo funciona técnicamente</summary>
+    <div style="background:rgba(168,85,247,0.05); border:1px solid rgba(168,85,247,0.2); border-radius:8px; padding:14px; margin-top:8px; color:#cbd5e1; font-size:12px; line-height:1.7;">
+      <strong style="color:#A855F7;">Arquitectura del simulador B2B:</strong><br><br>
+      
+      1. <strong>Trigger inicial:</strong> POST /api/simulador/iniciar con config<br>
+      2. <strong>Worker en backend:</strong> thread separado en Python que genera 1 pesada cada N segundos<br>
+      3. <strong>Generación de datos:</strong> usa trabajadores y lotes reales de la empresa<br>
+      4. <strong>Distribución estadística:</strong> z-score real, ~15% son anomalías<br>
+      5. <strong>Persistencia:</strong> cada pesada se guarda en Supabase con empresa_id<br>
+      6. <strong>Polling frontend:</strong> consulta /api/simulador/estado cada 2 segundos<br>
+      7. <strong>UI live:</strong> dashboard se actualiza sin recargar página<br><br>
+      
+      <em>Esto demuestra integración B2B real, no simulada en frontend.</em>
+    </div>
+  </details>
 </div>
 
 <!-- ============= CONFIGURACIÓN DEL SISTEMA ============= -->
@@ -5949,6 +6075,16 @@ function switchPage(page) {
   if (page === 'plan_negocio' && typeof entrarAPlanNegocio === 'function') {
     entrarAPlanNegocio();
   }
+  
+  // Si entra al Simulador B2B
+  if (page === 'simulador_b2b' && typeof entrarASimuladorB2B === 'function') {
+    entrarASimuladorB2B();
+  } else {
+    // Detener polling si sale de simulador
+    if (typeof detenerPollingSimulacionB2B === 'function') {
+      detenerPollingSimulacionB2B();
+    }
+  }
 }
 
 // ============================================================
@@ -8648,7 +8784,7 @@ const PERMISOS_POR_ROL = {
   // ROL DEMO/DESARROLLADOR (solo para Jhonny)
   // Ve TODAS las funciones sin restricción. Es la vista interna completa.
   'demo': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes', 'plan_negocio'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes', 'plan_negocio', 'simulador_b2b'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
@@ -9223,6 +9359,231 @@ async function cambiarNivelCliente(nivel) {
 }
 
 // Renderizar panel de clientes al entrar
+// =============================================================
+// SIMULADOR B2B - Empresa Externa
+// =============================================================
+window._simB2BPolling = null;
+
+async function entrarASimuladorB2B() {
+  // Llenar dropdown de empresas
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/empresas`);
+    const data = await resp.json();
+    const sel = document.getElementById('simB2BEmpresa');
+    if (sel && data.empresas) {
+      sel.innerHTML = data.empresas.map(e => 
+        `<option value="${e.id}">${escaparHTML(e.nombre)} (Nivel ${e.nivel_tecnologico})</option>`
+      ).join('');
+    }
+  } catch(e) {
+    console.warn('No se pudieron cargar empresas:', e);
+  }
+  
+  // Empezar polling de estado
+  iniciarPollingSimulacionB2B();
+}
+
+async function iniciarSimulacionB2B() {
+  const empresaId = parseInt(document.getElementById('simB2BEmpresa').value);
+  const velocidad = parseInt(document.getElementById('simB2BVelocidad').value);
+  const anomalias = parseInt(document.getElementById('simB2BAnomalias').value);
+  
+  if (!empresaId) {
+    if (typeof toastWarning === 'function') {
+      toastWarning('Selecciona una empresa destino primero', { titulo: 'Falta config' });
+    }
+    return;
+  }
+  
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/simulador/iniciar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        empresa_id: empresaId,
+        velocidad_seg: velocidad,
+        porcentaje_anomalias: anomalias
+      })
+    });
+    
+    const data = await resp.json();
+    
+    if (resp.ok && data.exito) {
+      if (typeof toastExito === 'function') {
+        toastExito('Empresa externa enviando pesadas en tiempo real', {
+          titulo: '🔴 Simulador iniciado'
+        });
+      }
+      // Cambiar UI
+      document.getElementById('btnSimB2BIniciar').disabled = true;
+      document.getElementById('btnSimB2BIniciar').style.opacity = '0.5';
+      document.getElementById('btnSimB2BDetener').disabled = false;
+      document.getElementById('btnSimB2BDetener').style.opacity = '1';
+    } else {
+      if (typeof toastWarning === 'function') {
+        toastWarning(data.error || 'No se pudo iniciar', { titulo: 'Error' });
+      }
+    }
+  } catch(e) {
+    console.error('Error iniciando simulador:', e);
+    if (typeof toastWarning === 'function') {
+      toastWarning('No se pudo conectar al servidor', { titulo: 'Error de red' });
+    }
+  }
+}
+
+async function detenerSimulacionB2B() {
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/simulador/detener`, {
+      method: 'POST'
+    });
+    
+    const data = await resp.json();
+    
+    if (resp.ok && data.exito) {
+      if (typeof toastInfo === 'function') {
+        toastInfo(`Simulación detenida. ${data.resumen?.total_generadas || 0} pesadas generadas`, {
+          titulo: '⏹ Detenido'
+        });
+      }
+      // Cambiar UI
+      document.getElementById('btnSimB2BIniciar').disabled = false;
+      document.getElementById('btnSimB2BIniciar').style.opacity = '1';
+      document.getElementById('btnSimB2BDetener').disabled = true;
+      document.getElementById('btnSimB2BDetener').style.opacity = '0.5';
+    }
+  } catch(e) {
+    console.error('Error deteniendo simulador:', e);
+  }
+}
+
+function iniciarPollingSimulacionB2B() {
+  // Limpiar polling previo
+  if (window._simB2BPolling) clearInterval(window._simB2BPolling);
+  
+  // Poll cada 2 segundos
+  const consultar = async () => {
+    try {
+      const resp = await fetch(`${SERVIDOR_URL}/api/simulador/estado`);
+      if (!resp.ok) return;
+      
+      const data = await resp.json();
+      actualizarUISimuladorB2B(data);
+    } catch(e) {
+      // silencio
+    }
+  };
+  
+  // Primera llamada inmediata
+  consultar();
+  // Luego cada 2 segundos
+  window._simB2BPolling = setInterval(consultar, 2000);
+}
+
+function detenerPollingSimulacionB2B() {
+  if (window._simB2BPolling) {
+    clearInterval(window._simB2BPolling);
+    window._simB2BPolling = null;
+  }
+}
+
+function actualizarUISimuladorB2B(data) {
+  // Indicador de estado
+  const indicador = document.getElementById('simB2BIndicador');
+  const label = document.getElementById('simB2BEstadoLabel');
+  
+  if (indicador && label) {
+    const span = label.querySelector('span');
+    if (data.activo) {
+      indicador.style.background = '#10B981';
+      indicador.style.boxShadow = '0 0 8px #10B981';
+      indicador.style.animation = 'pulse 1.5s infinite';
+      if (span) span.textContent = 'En vivo';
+      if (span) span.style.color = '#10B981';
+      
+      // Botones
+      document.getElementById('btnSimB2BIniciar').disabled = true;
+      document.getElementById('btnSimB2BIniciar').style.opacity = '0.5';
+      document.getElementById('btnSimB2BDetener').disabled = false;
+      document.getElementById('btnSimB2BDetener').style.opacity = '1';
+    } else {
+      indicador.style.background = '#64748B';
+      indicador.style.boxShadow = 'none';
+      indicador.style.animation = 'none';
+      if (span) span.textContent = 'Detenido';
+      if (span) span.style.color = '#94a3b8';
+      
+      document.getElementById('btnSimB2BIniciar').disabled = false;
+      document.getElementById('btnSimB2BIniciar').style.opacity = '1';
+      document.getElementById('btnSimB2BDetener').disabled = true;
+      document.getElementById('btnSimB2BDetener').style.opacity = '0.5';
+    }
+  }
+  
+  // Stats
+  const stats = data.stats || {};
+  const total = stats.total_generadas || 0;
+  const anom = stats.anomalias_detectadas || 0;
+  const jornada = stats.jornada_excesiva || 0;
+  const tasa = total > 0 ? Math.round((anom / total) * 100) : 0;
+  
+  const elTotal = document.getElementById('simB2BTotal');
+  const elAnom = document.getElementById('simB2BAnomaliasCount');
+  const elJornada = document.getElementById('simB2BJornada');
+  const elTasa = document.getElementById('simB2BTasa');
+  
+  if (elTotal) elTotal.textContent = total;
+  if (elAnom) elAnom.textContent = anom;
+  if (elJornada) elJornada.textContent = jornada;
+  if (elTasa) elTasa.textContent = tasa + '%';
+  
+  // Log en vivo
+  const log = document.getElementById('simB2BLog');
+  if (log) {
+    if (!data.ultimo_log || data.ultimo_log.length === 0) {
+      if (!data.activo) {
+        log.innerHTML = `
+          <div style="color:#64748B; text-align:center; padding:30px;">
+            El simulador no está activo. Inicia la simulación para ver pesadas en tiempo real.
+          </div>
+        `;
+      } else {
+        log.innerHTML = `
+          <div style="color:#10B981; text-align:center; padding:30px;">
+            ⏳ Esperando primera pesada...
+          </div>
+        `;
+      }
+    } else {
+      // Mostrar últimas 20 en orden inverso (más reciente arriba)
+      const entries = data.ultimo_log.slice().reverse();
+      log.innerHTML = entries.map(e => {
+        const colorMap = {
+          green: { bg: 'rgba(16,185,129,0.1)', txt: '#10B981', icon: '✅' },
+          yellow: { bg: 'rgba(245,158,11,0.1)', txt: '#F59E0B', icon: '⚠️' },
+          orange: { bg: 'rgba(249,115,22,0.1)', txt: '#F97316', icon: '🟠' },
+          red: { bg: 'rgba(220,38,38,0.1)', txt: '#DC2626', icon: '🚨' }
+        };
+        const c = colorMap[e.estado] || colorMap.green;
+        const hora = new Date(e.timestamp).toLocaleTimeString('es-PE');
+        return `
+          <div style="background:${c.bg}; border-left:3px solid ${c.txt}; padding:8px 12px; margin-bottom:4px; border-radius:4px;">
+            <span style="color:${c.txt};">${c.icon}</span>
+            <span style="color:#cbd5e1;">[${hora}]</span>
+            <span style="color:#fff;">${escaparHTML(e.trabajador)}</span>
+            <span style="color:#94a3b8;">·</span>
+            <span style="color:#fff;"><strong>${e.kg}kg</strong>/${e.horas}h</span>
+            <span style="color:#94a3b8;">· Lote ${escaparHTML(e.lote)}</span>
+            <span style="color:${c.txt}; float:right;">z=${e.z}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+}
+
+
+
 // =============================================================
 // PLAN DE NEGOCIO (Tabs + Simulador ROI)
 // =============================================================
