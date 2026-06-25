@@ -2983,6 +2983,10 @@ tr:hover td {
               style="background:linear-gradient(135deg, #DC2626, #B91C1C); color:white; border:none; border-radius:8px; padding:12px 24px; font-size:14px; font-weight:600; cursor:pointer; opacity:0.5;">
         ⏹ Detener
       </button>
+      <button id="btnSimB2BLimpiar" onclick="limpiarPesadasSimuladas()"
+              style="background:linear-gradient(135deg, #6B7280, #4B5563); color:white; border:none; border-radius:8px; padding:12px 20px; font-size:13px; font-weight:600; cursor:pointer;">
+        🗑 Limpiar pesadas simuladas
+      </button>
       <div id="simB2BEstadoLabel" style="display:flex; align-items:center; gap:8px; margin-left:auto;">
         <div id="simB2BIndicador" style="width:12px; height:12px; border-radius:50%; background:#64748B;"></div>
         <span style="color:#94a3b8; font-size:13px;">Detenido</span>
@@ -9270,6 +9274,12 @@ async function seleccionarEmpresa(empresaId) {
   // Refrescar selector
   renderSelectorEmpresa();
   
+  // SINCRONIZAR con dropdown del simulador B2B si está abierto
+  const simSel = document.getElementById('simB2BEmpresa');
+  if (simSel && empresaId) {
+    simSel.value = empresaId;
+  }
+  
   // Toast
   if (typeof toastInfo === 'function') {
     const nombre = empresaId 
@@ -9374,6 +9384,21 @@ async function entrarASimuladorB2B() {
       sel.innerHTML = data.empresas.map(e => 
         `<option value="${e.id}">${escaparHTML(e.nombre)} (Nivel ${e.nivel_tecnologico})</option>`
       ).join('');
+      
+      // SINCRONIZAR con la empresa activa global (selector arriba derecha)
+      const empresaGlobal = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+      if (empresaGlobal) {
+        sel.value = empresaGlobal;
+      }
+      
+      // Cuando cambia el dropdown del simulador, actualizar el global también
+      sel.onchange = function() {
+        const nuevaEmpresaId = parseInt(this.value);
+        if (nuevaEmpresaId && typeof seleccionarEmpresa === 'function') {
+          // Cambiar empresa global (esto recarga datos en otras vistas)
+          seleccionarEmpresa(nuevaEmpresaId);
+        }
+      };
     }
   } catch(e) {
     console.warn('No se pudieron cargar empresas:', e);
@@ -9381,6 +9406,65 @@ async function entrarASimuladorB2B() {
   
   // Empezar polling de estado
   iniciarPollingSimulacionB2B();
+}
+
+async function limpiarPesadasSimuladas() {
+  // Confirmación
+  if (!confirm('¿Borrar todas las pesadas de simulación de esta empresa?\n\nEsto solo afecta a pesadas con origen "simulador_b2b", no a las pesadas reales.')) {
+    return;
+  }
+  
+  const empresaId = parseInt(document.getElementById('simB2BEmpresa').value);
+  
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/simulador/limpiar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ empresa_id: empresaId })
+    });
+    
+    const data = await resp.json();
+    
+    if (resp.ok && data.exito) {
+      if (typeof toastExito === 'function') {
+        toastExito(`Pesadas simuladas borradas`, { titulo: '🗑 Limpieza completa' });
+      }
+      
+      // Reset UI local
+      const elTotal = document.getElementById('simB2BTotal');
+      const elAnom = document.getElementById('simB2BAnomaliasCount');
+      const elJornada = document.getElementById('simB2BJornada');
+      const elTasa = document.getElementById('simB2BTasa');
+      if (elTotal) elTotal.textContent = '0';
+      if (elAnom) elAnom.textContent = '0';
+      if (elJornada) elJornada.textContent = '0';
+      if (elTasa) elTasa.textContent = '0%';
+      
+      // Reset log
+      const log = document.getElementById('simB2BLog');
+      if (log) {
+        log.innerHTML = `
+          <div style="color:#64748B; text-align:center; padding:30px;">
+            Log limpiado. Inicia la simulación para ver nuevas pesadas.
+          </div>
+        `;
+      }
+      
+      // Recargar las vistas de pesadas si están abiertas
+      if (typeof cargarDatosDeEmpresaActiva === 'function') {
+        cargarDatosDeEmpresaActiva();
+      }
+    } else {
+      if (typeof toastWarning === 'function') {
+        toastWarning(data.error || 'No se pudo limpiar', { titulo: 'Error' });
+      }
+    }
+  } catch(e) {
+    console.error('Error limpiando pesadas:', e);
+    if (typeof toastWarning === 'function') {
+      toastWarning('Error de red al limpiar', { titulo: 'Error' });
+    }
+  }
 }
 
 async function iniciarSimulacionB2B() {
