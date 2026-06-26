@@ -2031,6 +2031,388 @@ PLAN_MEJORA_GUARDADO = []
 def obtener_plan_mejora():
     return jsonify({"plan_mejora": PLAN_MEJORA_GUARDADO})
 
+@app.route('/api/reporte-calidad-pdf', methods=['GET'])
+@rate_limit('default')
+def generar_reporte_calidad_pdf():
+    """Genera PDF profesional con el análisis de calidad completo.
+    Incluye: Ishikawa, hallazgos, plan de mejora."""
+    
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.colors import HexColor, white, black
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, 
+                                     TableStyle, PageBreak, KeepTogether)
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.platypus.flowables import Flowable
+    from io import BytesIO
+    from datetime import datetime as dt
+    
+    if not supabase:
+        return jsonify({"error": "Supabase no disponible"}), 503
+    
+    empresa_id = request.args.get('empresa_id', type=int)
+    
+    try:
+        # Obtener datos del análisis (reusar lógica)
+        query = supabase.table('pesadas').select("*").order('timestamp_creacion', desc=True).limit(500)
+        if empresa_id:
+            query = query.eq('empresa_id', empresa_id)
+        query = query.eq('origen', 'simulador_b2b')
+        
+        result = query.execute()
+        pesadas_data = result.data or []
+        total = len(pesadas_data)
+        
+        # Calcular stats
+        anomalias = sum(1 for p in pesadas_data if p.get('estado') in ['orange', 'red'])
+        jornada_excesiva = sum(1 for p in pesadas_data if float(p.get('horas') or 0) > 12)
+        productividad_alta = sum(1 for p in pesadas_data if float(p.get('z_score') or 0) > 2.5)
+        productividad_baja = sum(1 for p in pesadas_data if float(p.get('z_score') or 0) < -2.5)
+        tasa_anomalia = round((anomalias / total) * 100, 1) if total > 0 else 0
+        
+        # Datos empresa
+        empresa_nombre = "AgroIA"
+        if empresa_id:
+            emp_res = supabase.table('empresas').select('nombre').eq('id', empresa_id).single().execute()
+            if emp_res.data:
+                empresa_nombre = emp_res.data['nombre']
+        
+        # Crear PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=A4,
+            leftMargin=1.5*cm, rightMargin=1.5*cm,
+            topMargin=1.5*cm, bottomMargin=1.5*cm,
+            title=f"Reporte Calidad - {empresa_nombre}",
+            author="AgroIA"
+        )
+        
+        # Estilos
+        styles = getSampleStyleSheet()
+        h1_style = ParagraphStyle('h1', parent=styles['Heading1'], fontSize=20,
+                                   textColor=HexColor('#A855F7'), spaceAfter=12,
+                                   alignment=TA_LEFT, fontName='Helvetica-Bold')
+        h2_style = ParagraphStyle('h2', parent=styles['Heading2'], fontSize=14,
+                                   textColor=HexColor('#3B82F6'), spaceAfter=8,
+                                   spaceBefore=12, fontName='Helvetica-Bold')
+        h3_style = ParagraphStyle('h3', parent=styles['Heading3'], fontSize=12,
+                                   textColor=HexColor('#0F172A'), spaceAfter=6,
+                                   spaceBefore=8, fontName='Helvetica-Bold')
+        normal_style = ParagraphStyle('normal', parent=styles['Normal'], fontSize=10,
+                                       textColor=HexColor('#1F2937'), spaceAfter=6,
+                                       leading=14)
+        gris_style = ParagraphStyle('gris', parent=normal_style, fontSize=9,
+                                     textColor=HexColor('#64748B'))
+        
+        # Contenido del PDF
+        story = []
+        
+        # ===== PORTADA =====
+        story.append(Spacer(1, 3*cm))
+        portada_title = ParagraphStyle('portada_title', fontSize=36, textColor=HexColor('#A855F7'),
+                                        alignment=TA_CENTER, fontName='Helvetica-Bold')
+        story.append(Paragraph("📊 Reporte de Calidad", portada_title))
+        story.append(Spacer(1, 0.5*cm))
+        
+        subtitulo = ParagraphStyle('subtitulo', fontSize=18, textColor=HexColor('#1F2937'),
+                                    alignment=TA_CENTER, fontName='Helvetica')
+        story.append(Paragraph("Análisis Ishikawa y Plan de Mejora", subtitulo))
+        story.append(Spacer(1, 1*cm))
+        
+        # Datos de portada
+        info_style = ParagraphStyle('info', fontSize=14, textColor=HexColor('#475569'),
+                                     alignment=TA_CENTER)
+        story.append(Paragraph(f"<b>Empresa:</b> {empresa_nombre}", info_style))
+        story.append(Spacer(1, 0.3*cm))
+        story.append(Paragraph(f"<b>Fecha:</b> {dt.now().strftime('%d/%m/%Y %H:%M')}", info_style))
+        story.append(Spacer(1, 0.3*cm))
+        story.append(Paragraph(f"<b>Pesadas analizadas:</b> {total}", info_style))
+        
+        story.append(Spacer(1, 4*cm))
+        
+        footer_style = ParagraphStyle('footer', fontSize=10, textColor=HexColor('#94a3b8'),
+                                       alignment=TA_CENTER)
+        story.append(Paragraph("Generado por AgroIA - Sistema Multi-tenant", footer_style))
+        story.append(Paragraph("Universidad César Vallejo · Trujillo", footer_style))
+        
+        story.append(PageBreak())
+        
+        # ===== RESUMEN EJECUTIVO =====
+        story.append(Paragraph("1. Resumen Ejecutivo", h1_style))
+        story.append(Paragraph(
+            f"El presente reporte analiza <b>{total} pesadas</b> de la empresa "
+            f"<b>{empresa_nombre}</b> registradas mediante el simulador B2B en tiempo real. "
+            f"El sistema detectó <b>{anomalias} anomalías</b> "
+            f"(tasa: <b>{tasa_anomalia}%</b>), incluyendo <b>{jornada_excesiva} casos</b> de "
+            f"jornada laboral excesiva (>12h) que constituyen violaciones a la Ley 31110.",
+            normal_style))
+        
+        story.append(Spacer(1, 0.3*cm))
+        
+        # Tabla de KPIs
+        kpi_data = [
+            ["INDICADOR", "VALOR", "ESTADO"],
+            ["Total pesadas analizadas", str(total), "📊"],
+            ["Anomalías detectadas", str(anomalias), "🔴" if tasa_anomalia > 15 else "🟡"],
+            ["Tasa de anomalías", f"{tasa_anomalia}%", "🔴" if tasa_anomalia > 15 else "🟡"],
+            ["Jornadas excesivas (>12h)", str(jornada_excesiva), "🔴" if jornada_excesiva > 0 else "✅"],
+            ["Productividad sospechosa", str(productividad_alta), "🔴" if productividad_alta > 5 else "🟡"],
+            ["Productividad muy baja", str(productividad_baja), "🟡" if productividad_baja > 0 else "✅"],
+        ]
+        
+        kpi_table = Table(kpi_data, colWidths=[7*cm, 4*cm, 3*cm])
+        kpi_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), HexColor('#A855F7')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, 1), (-1, -1), HexColor('#F8FAFC')),
+            ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(kpi_table)
+        story.append(Spacer(1, 0.5*cm))
+        
+        # ===== ANÁLISIS ISHIKAWA =====
+        story.append(PageBreak())
+        story.append(Paragraph("2. Diagrama Ishikawa - Análisis 6M", h1_style))
+        story.append(Paragraph(
+            "El análisis Ishikawa identifica las causas raíz de los problemas detectados, "
+            "agrupándolas en las 6 categorías: Mano de Obra, Método, Materia Prima, "
+            "Medio Ambiente, Maquinaria y Money.",
+            normal_style))
+        story.append(Spacer(1, 0.5*cm))
+        
+        # Conteo por M
+        trab_anomalias = {}
+        lotes_anomalias = {}
+        for p in pesadas_data:
+            estado = p.get('estado', 'green')
+            nombre = p.get('nombre', 'Desconocido')
+            lote = p.get('lote', 'N/A')
+            if estado in ['orange', 'red']:
+                trab_anomalias[nombre] = trab_anomalias.get(nombre, 0) + 1
+                lotes_anomalias[lote] = lotes_anomalias.get(lote, 0) + 1
+        
+        # Cada M con su análisis
+        M_INFO = {
+            "Mano de Obra": {
+                "icono": "👷",
+                "color": "#DC2626",
+                "problemas": [
+                    f"Jornada excesiva: {jornada_excesiva} casos (Ley 31110)" if jornada_excesiva > 0 else None,
+                    f"Top trabajador: {sorted(trab_anomalias.items(), key=lambda x: x[1], reverse=True)[0][0]} ({sorted(trab_anomalias.items(), key=lambda x: x[1], reverse=True)[0][1]} anomalías)" if trab_anomalias else None,
+                ],
+                "causas": [
+                    "Falta de capacitación en técnicas de cosecha",
+                    "Supervisión insuficiente en campo",
+                    "Incumplimiento de jornada laboral (Ley 31110)",
+                    "Trabajadores sin experiencia en variedad Hass"
+                ]
+            },
+            "Método": {
+                "icono": "📋",
+                "color": "#F59E0B",
+                "problemas": [
+                    f"Alta tasa de anomalías: {tasa_anomalia}%" if tasa_anomalia > 10 else None,
+                ],
+                "causas": [
+                    "Protocolo de validación no actualizado",
+                    "Falta de checklist por cosecha",
+                    "Sin sistema de doble verificación"
+                ]
+            },
+            "Materia Prima": {
+                "icono": "🥑",
+                "color": "#10B981",
+                "problemas": [
+                    f"Productividad muy baja: {productividad_baja} casos" if productividad_baja > 0 else None,
+                ],
+                "causas": [
+                    "Variabilidad en calidad de fruta",
+                    "Cosecha en momento inadecuado de madurez",
+                    "Manejo deficiente post-cosecha"
+                ]
+            },
+            "Medio Ambiente": {
+                "icono": "🌿",
+                "color": "#3B82F6",
+                "problemas": [
+                    f"Lote con más problemas: {sorted(lotes_anomalias.items(), key=lambda x: x[1], reverse=True)[0][0]} ({sorted(lotes_anomalias.items(), key=lambda x: x[1], reverse=True)[0][1]} anomalías)" if lotes_anomalias else None,
+                ],
+                "causas": [
+                    "Variaciones climáticas no monitoreadas",
+                    "Riego inadecuado en lotes específicos",
+                    "Suelo con problemas de drenaje"
+                ]
+            },
+            "Maquinaria": {
+                "icono": "⚙️",
+                "color": "#8B5CF6",
+                "problemas": [
+                    f"Productividad sospechosa: {productividad_alta} casos" if productividad_alta > 0 else None,
+                ],
+                "causas": [
+                    "Balanzas sin calibración reciente",
+                    "Sensores de pesaje con drift",
+                    "Sin sistema anti-fraude en balanzas"
+                ]
+            },
+            "Money": {
+                "icono": "💰",
+                "color": "#EF9F27",
+                "problemas": [
+                    f"Pérdida estimada: S/ {anomalias * 70 * 4.20:,.0f}" if anomalias > 0 else None,
+                ],
+                "causas": [
+                    "Pérdidas por fraude en pesadas",
+                    "Costo de horas extra excesivas",
+                    "Penalidades por incumplimiento Ley 31110"
+                ]
+            }
+        }
+        
+        for m_name, m_info in M_INFO.items():
+            story.append(Paragraph(f"{m_info['icono']} {m_name}", h2_style))
+            
+            problemas_validos = [p for p in m_info['problemas'] if p]
+            if problemas_validos:
+                story.append(Paragraph("<b>Problemas detectados:</b>", h3_style))
+                for prob in problemas_validos:
+                    story.append(Paragraph(f"• {prob}", normal_style))
+            else:
+                story.append(Paragraph("✓ Sin problemas detectados en esta categoría", normal_style))
+            
+            story.append(Spacer(1, 0.2*cm))
+            story.append(Paragraph("<b>Causas raíz probables:</b>", h3_style))
+            for i, causa in enumerate(m_info['causas'], 1):
+                story.append(Paragraph(f"{i}. {causa}", normal_style))
+            
+            story.append(Spacer(1, 0.4*cm))
+        
+        # ===== HALLAZGOS DETALLADOS =====
+        story.append(PageBreak())
+        story.append(Paragraph("3. Hallazgos Detallados", h1_style))
+        
+        if trab_anomalias:
+            story.append(Paragraph("Top Trabajadores con Anomalías", h2_style))
+            trab_data = [["TRABAJADOR", "ANOMALÍAS"]]
+            for nombre, count in sorted(trab_anomalias.items(), key=lambda x: x[1], reverse=True)[:5]:
+                trab_data.append([nombre[:40], str(count)])
+            
+            trab_table = Table(trab_data, colWidths=[11*cm, 3*cm])
+            trab_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), HexColor('#DC2626')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+                ('BACKGROUND', (0, 1), (-1, -1), HexColor('#FEF2F2')),
+                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            story.append(trab_table)
+            story.append(Spacer(1, 0.5*cm))
+        
+        if lotes_anomalias:
+            story.append(Paragraph("Top Lotes con Anomalías", h2_style))
+            lote_data = [["LOTE", "ANOMALÍAS"]]
+            for lote, count in sorted(lotes_anomalias.items(), key=lambda x: x[1], reverse=True)[:5]:
+                lote_data.append([lote, str(count)])
+            
+            lote_table = Table(lote_data, colWidths=[11*cm, 3*cm])
+            lote_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), HexColor('#3B82F6')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+                ('BACKGROUND', (0, 1), (-1, -1), HexColor('#EFF6FF')),
+                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            story.append(lote_table)
+            story.append(Spacer(1, 0.5*cm))
+        
+        # ===== PLAN DE MEJORA =====
+        story.append(PageBreak())
+        story.append(Paragraph("4. Plan de Mejora", h1_style))
+        
+        if PLAN_MEJORA_GUARDADO:
+            story.append(Paragraph(
+                f"El plan de mejora propone <b>{len(PLAN_MEJORA_GUARDADO)} acciones específicas</b> "
+                "con responsables y plazos medibles, alineadas con las causas raíz identificadas.",
+                normal_style))
+            story.append(Spacer(1, 0.3*cm))
+            
+            for i, item in enumerate(PLAN_MEJORA_GUARDADO, 1):
+                prioridad = item.get('prioridad', 'media')
+                color_pri = '#DC2626' if prioridad == 'alta' else '#F59E0B' if prioridad == 'media' else '#3B82F6'
+                icon_pri = '🔴' if prioridad == 'alta' else '🟡' if prioridad == 'media' else '🔵'
+                
+                story.append(Paragraph(f"<b>Acción {i}: {item.get('accion', '')}</b>", h3_style))
+                
+                action_data = [
+                    [Paragraph(f"<b>Responsable:</b>", normal_style), Paragraph(item.get('responsable', '-'), normal_style)],
+                    [Paragraph(f"<b>Plazo:</b>", normal_style), Paragraph(item.get('plazo', '-'), normal_style)],
+                    [Paragraph(f"<b>KPI:</b>", normal_style), Paragraph(item.get('kpi', '-'), normal_style)],
+                    [Paragraph(f"<b>Prioridad:</b>", normal_style), Paragraph(f"{icon_pri} {prioridad.upper()}", normal_style)],
+                ]
+                
+                action_table = Table(action_data, colWidths=[3.5*cm, 11*cm])
+                action_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, -1), HexColor('#F8FAFC')),
+                    ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#E2E8F0')),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('LINEAFTER', (-1, 0), (-1, -1), 3, HexColor(color_pri)),
+                ]))
+                story.append(action_table)
+                story.append(Spacer(1, 0.4*cm))
+        else:
+            story.append(Paragraph(
+                "No hay acciones de mejora registradas aún. "
+                "Configure el plan desde la sección 'Análisis de Calidad' de la aplicación.",
+                normal_style))
+        
+        # ===== FOOTER FINAL =====
+        story.append(Spacer(1, 1*cm))
+        story.append(Paragraph("─" * 70, gris_style))
+        story.append(Paragraph(
+            f"Reporte generado por AgroIA · {dt.now().strftime('%d/%m/%Y %H:%M:%S')}",
+            gris_style))
+        story.append(Paragraph(
+            "Sistema multi-tenant para validación de cosecha de palta Hass · Universidad César Vallejo",
+            gris_style))
+        
+        # Generar PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        from flask import send_file
+        nombre_archivo = f"Reporte_Calidad_{empresa_nombre.replace(' ', '_')}_{dt.now().strftime('%Y%m%d_%H%M')}.pdf"
+        return send_file(
+            buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=nombre_archivo
+        )
+    
+    except Exception as e:
+        print(f"[reporte-calidad-pdf] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "No se pudo generar el PDF", "detalle": str(e)}), 500
+
 
 
 # ============================================================
