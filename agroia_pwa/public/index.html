@@ -3058,9 +3058,12 @@ tr:hover td {
       <h1 class="page-title">📊 Análisis de Calidad</h1>
       <div class="page-subtitle">Diagnóstico Ishikawa, hallazgos y plan de mejora basado en datos del simulador</div>
     </div>
-    <div>
+    <div style="display:flex; gap:8px;">
+      <button onclick="descargarReporteCalidadPDF()" style="background:linear-gradient(135deg, #DC2626, #EF4444); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer;">
+        📄 Descargar PDF
+      </button>
       <button onclick="recargarAnalisisCalidad()" style="background:linear-gradient(135deg, #A855F7, #6366F1); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer;">
-        🔄 Actualizar análisis
+        🔄 Actualizar
       </button>
     </div>
   </div>
@@ -10376,6 +10379,62 @@ async function guardarPlanMejora() {
   } catch(e) {
     if (typeof toastWarning === 'function') {
       toastWarning('Error al guardar', { titulo: 'Error' });
+    }
+  }
+}
+
+async function descargarReporteCalidadPDF() {
+  if (typeof toastInfo === 'function') {
+    toastInfo('Esto puede tardar 5-10 segundos...', { titulo: '📄 Generando PDF' });
+  }
+  
+  try {
+    // Primero guardar el plan actual
+    if (window._planMejoraEditable && window._planMejoraEditable.length > 0) {
+      await fetch(`${SERVIDOR_URL}/api/analisis-calidad`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_mejora: window._planMejoraEditable })
+      });
+    }
+    
+    // Luego solicitar PDF
+    const empresaId = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+    let url = `${SERVIDOR_URL}/api/reporte-calidad-pdf`;
+    if (empresaId) url += `?empresa_id=${empresaId}`;
+    
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      throw new Error('HTTP ' + resp.status);
+    }
+    
+    // Descargar el blob
+    const blob = await resp.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    
+    // Obtener nombre del header o usar default
+    const contentDisposition = resp.headers.get('Content-Disposition');
+    let filename = 'Reporte_Calidad_AgroIA.pdf';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?(.+?)"?$/);
+      if (match) filename = match[1];
+    }
+    a.download = filename;
+    
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(downloadUrl);
+    
+    if (typeof toastExito === 'function') {
+      toastExito('PDF descargado correctamente', { titulo: '✅ Listo' });
+    }
+  } catch(e) {
+    console.error('Error generando PDF:', e);
+    if (typeof toastWarning === 'function') {
+      toastWarning('No se pudo generar el PDF. Asegúrate de tener datos en el simulador.', { titulo: 'Error' });
     }
   }
 }
