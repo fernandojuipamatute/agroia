@@ -1816,6 +1816,223 @@ def simulador_limpiar():
         print(f"[simulador-limpiar] Error: {e}")
         return jsonify({"error": "No se pudo limpiar", "detalle": str(e)}), 500
 
+@app.route('/api/analisis-calidad', methods=['GET'])
+@rate_limit('default')
+def analisis_calidad():
+    """Devuelve estadísticas y problemas detectados en pesadas simuladas.
+    Para análisis Ishikawa y plan de mejora.
+    
+    Query params:
+        empresa_id (int, opcional): filtrar por empresa
+        solo_simuladas (bool, default True): solo origen='simulador_b2b'
+    """
+    if not supabase:
+        return jsonify({"error": "Supabase no disponible"}), 503
+    
+    empresa_id = request.args.get('empresa_id', type=int)
+    solo_simuladas = request.args.get('solo_simuladas', 'true').lower() == 'true'
+    
+    try:
+        # Construir query
+        query = supabase.table('pesadas').select("*").order('timestamp_creacion', desc=True).limit(500)
+        if empresa_id:
+            query = query.eq('empresa_id', empresa_id)
+        if solo_simuladas:
+            query = query.eq('origen', 'simulador_b2b')
+        
+        result = query.execute()
+        pesadas_data = result.data or []
+        total = len(pesadas_data)
+        
+        # Análisis Ishikawa 6M
+        problemas_por_M = {
+            "mano_obra": {"problemas": [], "conteo": 0},
+            "metodo": {"problemas": [], "conteo": 0},
+            "materia_prima": {"problemas": [], "conteo": 0},
+            "medio_ambiente": {"problemas": [], "conteo": 0},
+            "maquinaria": {"problemas": [], "conteo": 0},
+            "money": {"problemas": [], "conteo": 0}
+        }
+        
+        # Stats globales
+        anomalias = 0
+        jornada_excesiva = 0
+        productividad_baja = 0
+        productividad_alta = 0
+        trabajadores_con_anomalia = {}
+        lotes_con_anomalia = {}
+        cuadrillas_con_anomalia = {}
+        timeline = []  # Para gráfico de tendencia
+        
+        for p in pesadas_data:
+            estado = p.get('estado', 'green')
+            horas = float(p.get('horas') or 0)
+            z = float(p.get('z_score') or 0)
+            nombre = p.get('nombre', 'Desconocido')
+            lote = p.get('lote', 'N/A')
+            cuadrilla = p.get('cuadrilla', 'N/A')
+            
+            if estado in ['orange', 'red']:
+                anomalias += 1
+                trabajadores_con_anomalia[nombre] = trabajadores_con_anomalia.get(nombre, 0) + 1
+                lotes_con_anomalia[lote] = lotes_con_anomalia.get(lote, 0) + 1
+                cuadrillas_con_anomalia[cuadrilla] = cuadrillas_con_anomalia.get(cuadrilla, 0) + 1
+            
+            if horas > 12:
+                jornada_excesiva += 1
+            
+            if z > 2.5:
+                productividad_alta += 1
+            elif z < -2.5:
+                productividad_baja += 1
+            
+            # Timeline (últimas 50)
+            if len(timeline) < 50:
+                timeline.append({
+                    "hora": p.get('hora'),
+                    "estado": estado,
+                    "kg": p.get('kg'),
+                    "z": z
+                })
+        
+        # Calcular problemas por M (Ishikawa)
+        if total > 0:
+            tasa_anomalia = (anomalias / total) * 100
+            tasa_jornada = (jornada_excesiva / total) * 100
+            
+            # MANO DE OBRA: trabajadores con muchas anomalías
+            top_trab_anomalias = sorted(trabajadores_con_anomalia.items(), key=lambda x: x[1], reverse=True)[:3]
+            for nombre, count in top_trab_anomalias:
+                if count >= 2:
+                    problemas_por_M["mano_obra"]["problemas"].append({
+                        "titulo": f"Trabajador {nombre[:30]}",
+                        "descripcion": f"{count} anomalías detectadas en sus pesadas",
+                        "severidad": "alta" if count >= 4 else "media"
+                    })
+                    problemas_por_M["mano_obra"]["conteo"] += count
+            
+            if jornada_excesiva > 0:
+                problemas_por_M["mano_obra"]["problemas"].append({
+                    "titulo": "Jornada excesiva (>12h)",
+                    "descripcion": f"{jornada_excesiva} casos detectados ({tasa_jornada:.1f}%) - viola Ley 31110",
+                    "severidad": "alta"
+                })
+                problemas_por_M["mano_obra"]["conteo"] += jornada_excesiva
+            
+            # MÉTODO: tasa de anomalías indica problema de proceso
+            if tasa_anomalia > 20:
+                problemas_por_M["metodo"]["problemas"].append({
+                    "titulo": "Alta tasa de anomalías",
+                    "descripcion": f"{tasa_anomalia:.1f}% de pesadas con problemas - revisar protocolo de validación",
+                    "severidad": "alta"
+                })
+                problemas_por_M["metodo"]["conteo"] += anomalias
+            elif tasa_anomalia > 10:
+                problemas_por_M["metodo"]["problemas"].append({
+                    "titulo": "Tasa moderada de anomalías",
+                    "descripcion": f"{tasa_anomalia:.1f}% de pesadas con problemas",
+                    "severidad": "media"
+                })
+                problemas_por_M["metodo"]["conteo"] += anomalias
+            
+            # MATERIA PRIMA: productividad muy baja indica fruta mala
+            if productividad_baja > 0:
+                problemas_por_M["materia_prima"]["problemas"].append({
+                    "titulo": "Productividad muy baja",
+                    "descripcion": f"{productividad_baja} pesadas con z < -2.5 - posible problema en calidad de fruta",
+                    "severidad": "media"
+                })
+                problemas_por_M["materia_prima"]["conteo"] += productividad_baja
+            
+            # MEDIO AMBIENTE: lotes específicos con anomalías
+            top_lotes = sorted(lotes_con_anomalia.items(), key=lambda x: x[1], reverse=True)[:2]
+            for lote, count in top_lotes:
+                if count >= 3:
+                    problemas_por_M["medio_ambiente"]["problemas"].append({
+                        "titulo": f"Lote {lote} con problemas",
+                        "descripcion": f"{count} anomalías - revisar condiciones del lote (suelo, riego, clima)",
+                        "severidad": "alta" if count >= 5 else "media"
+                    })
+                    problemas_por_M["medio_ambiente"]["conteo"] += count
+            
+            # MAQUINARIA: productividad muy alta = posible fraude en balanza
+            if productividad_alta > 0:
+                problemas_por_M["maquinaria"]["problemas"].append({
+                    "titulo": "Productividad anormalmente alta",
+                    "descripcion": f"{productividad_alta} pesadas con z > 2.5 - revisar calibración de balanzas",
+                    "severidad": "alta"
+                })
+                problemas_por_M["maquinaria"]["conteo"] += productividad_alta
+            
+            # MONEY: impacto económico
+            costo_kg = 4.20  # Precio palta Hass
+            kg_anomalia_estimado = anomalias * 70  # Promedio
+            costo_anomalias = kg_anomalia_estimado * costo_kg
+            if anomalias > 0:
+                problemas_por_M["money"]["problemas"].append({
+                    "titulo": "Pérdida económica estimada",
+                    "descripcion": f"S/ {costo_anomalias:,.0f} en anomalías ({anomalias} casos)",
+                    "severidad": "alta" if costo_anomalias > 5000 else "media"
+                })
+                problemas_por_M["money"]["conteo"] += anomalias
+        
+        # Top problemas frecuentes
+        top_problemas = []
+        if jornada_excesiva > 0:
+            top_problemas.append({"problema": "Jornada >12h", "casos": jornada_excesiva, "proceso": "Mano de obra"})
+        if productividad_alta > 0:
+            top_problemas.append({"problema": "Productividad sospechosamente alta", "casos": productividad_alta, "proceso": "Maquinaria/Fraude"})
+        if productividad_baja > 0:
+            top_problemas.append({"problema": "Productividad muy baja", "casos": productividad_baja, "proceso": "Materia prima"})
+        
+        top_problemas.sort(key=lambda x: x['casos'], reverse=True)
+        
+        return jsonify({
+            "exito": True,
+            "total_analizadas": total,
+            "stats": {
+                "total": total,
+                "anomalias": anomalias,
+                "jornada_excesiva": jornada_excesiva,
+                "productividad_alta": productividad_alta,
+                "productividad_baja": productividad_baja,
+                "tasa_anomalia": round((anomalias / total) * 100, 1) if total > 0 else 0
+            },
+            "ishikawa": problemas_por_M,
+            "top_problemas": top_problemas[:5],
+            "timeline": timeline,
+            "hallazgos_detallados": {
+                "trabajadores": dict(sorted(trabajadores_con_anomalia.items(), key=lambda x: x[1], reverse=True)[:5]),
+                "lotes": dict(sorted(lotes_con_anomalia.items(), key=lambda x: x[1], reverse=True)[:5]),
+                "cuadrillas": dict(sorted(cuadrillas_con_anomalia.items(), key=lambda x: x[1], reverse=True)[:5])
+            }
+        })
+    except Exception as e:
+        print(f"[analisis-calidad] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Error en análisis", "detalle": str(e)}), 500
+
+@app.route('/api/analisis-calidad', methods=['POST'])
+@rate_limit('default')
+def guardar_plan_mejora():
+    """Guarda el plan de mejora editado por el usuario.
+    Por simplicidad lo guardamos en memoria (en producción iría a BD)."""
+    global PLAN_MEJORA_GUARDADO
+    data = request.json or {}
+    PLAN_MEJORA_GUARDADO = data.get('plan_mejora', [])
+    return jsonify({"exito": True, "items": len(PLAN_MEJORA_GUARDADO)})
+
+# Plan de mejora en memoria (por simplicidad)
+PLAN_MEJORA_GUARDADO = []
+
+@app.route('/api/plan-mejora', methods=['GET'])
+@rate_limit('default')
+def obtener_plan_mejora():
+    return jsonify({"plan_mejora": PLAN_MEJORA_GUARDADO})
+
+
+
 # ============================================================
 # ENDPOINT: ANALISIS DE IMAGEN CON IA (VISION)
 # ============================================================
