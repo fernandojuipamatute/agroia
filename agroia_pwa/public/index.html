@@ -9594,6 +9594,9 @@ function renderIshikawa(data) {
   const cont = document.getElementById('ishikawaContenido');
   if (!cont) return;
   
+  // Si estamos en modo "drill-down", no re-renderizar (para no interrumpir)
+  if (window._ishikawaModoDrillDown) return;
+  
   if (data.total_analizadas === 0) {
     cont.innerHTML = `
       <div style="text-align:center; color:#94a3b8; padding:40px;">
@@ -9615,8 +9618,493 @@ function renderIshikawa(data) {
     medio_ambiente: { label: "Medio Ambiente",   icono: "🌿", color: "#3B82F6", posicion: "bottom", x: 2 }
   };
   
-  // Stats globales en card arriba
+  // Guardar datos globalmente para drill-down
+  window._ishikawaDataActual = data;
+  window._ishikawaConfigM = M_CONFIG;
+  
   const stats = data.stats;
+  
+  // Detectar si los números cambiaron (para animación)
+  const prevTotal = window._ishikawaPrevTotal || 0;
+  const huboCambio = prevTotal !== data.total_analizadas;
+  window._ishikawaPrevTotal = data.total_analizadas;
+  
+  let html = `
+    <!-- Estilos para animaciones -->
+    <style>
+      @keyframes ishikawaFlash {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; transform: scale(1.05); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+      .espina-m-grupo { cursor: pointer; transition: all 0.3s ease; }
+      .espina-m-grupo:hover { filter: brightness(1.3) drop-shadow(0 0 10px currentColor); }
+      .espina-m-grupo.activa { animation: ishikawaFlash 0.6s ease; }
+      .ishikawa-tooltip {
+        position: fixed; pointer-events: none; z-index: 9999;
+        background: rgba(15,23,42,0.98); border: 1px solid rgba(168,85,247,0.5);
+        border-radius: 8px; padding: 10px 14px; max-width: 320px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6); backdrop-filter: blur(10px);
+        color: #fff; font-size: 12px; line-height: 1.5;
+        opacity: 0; transition: opacity 0.2s; display: none;
+      }
+      .ishikawa-tooltip.visible { opacity: 1; }
+    </style>
+    
+    <!-- Stats arriba con indicador EN VIVO -->
+    <div style="margin-bottom:16px; padding:14px; background:linear-gradient(135deg, rgba(168,85,247,0.08), rgba(59,130,246,0.08)); border:1px solid rgba(168,85,247,0.3); border-radius:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <div style="width:10px; height:10px; border-radius:50%; background:#10B981; box-shadow:0 0 8px #10B981; animation:pulse 1.5s infinite;"></div>
+            <span style="color:#10B981; font-size:11px; font-weight:600; text-transform:uppercase;">🔴 EN VIVO · Actualiza cada 10s · Click en cada M para profundizar</span>
+          </div>
+          <div style="color:#cbd5e1; font-size:13px;">
+            <strong class="${huboCambio ? 'numero-cambiado' : ''}" style="${huboCambio ? 'color:#10B981; transition:color 0.5s;' : ''}">${data.total_analizadas}</strong> pesadas analizadas · 
+            <strong style="color:#F59E0B;">${stats.anomalias}</strong> anomalías · 
+            Tasa: <strong>${stats.tasa_anomalia}%</strong>
+          </div>
+        </div>
+        <div style="color:#94a3b8; font-size:11px;">Última: <span id="ishikawaLastUpdate">${new Date().toLocaleTimeString('es-PE')}</span></div>
+      </div>
+    </div>
+    
+    <!-- DIAGRAMA ISHIKAWA SVG (Espina de Pescado) INTERACTIVO -->
+    <div style="background:rgba(0,0,0,0.3); border-radius:12px; padding:14px; overflow-x:auto; margin-bottom:16px; position:relative;">
+      <svg id="svgIshikawa" viewBox="0 0 1100 600" style="width:100%; height:auto; min-height:480px; max-width:1100px; display:block; margin:0 auto;" xmlns="http://www.w3.org/2000/svg">
+        
+        <defs>
+          <linearGradient id="espinaGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#475569"/>
+            <stop offset="100%" stop-color="#94a3b8"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        
+        <!-- Espina principal -->
+        <line x1="80" y1="300" x2="900" y2="300" stroke="url(#espinaGrad)" stroke-width="4"/>
+        
+        <!-- Cola del pescado -->
+        <polygon points="40,300 80,275 80,325" fill="#475569" opacity="0.8"/>
+        
+        <!-- Cabeza del pescado (problema central) -->
+        <polygon points="900,300 980,260 980,340" fill="#DC2626" opacity="0.9"/>
+        <rect x="900" y="245" width="180" height="110" rx="10" fill="#0F172A" stroke="#DC2626" stroke-width="2" filter="url(#glow)"/>
+        <text x="990" y="285" text-anchor="middle" fill="#DC2626" font-size="13" font-weight="bold">⚠️ PROBLEMA</text>
+        <text x="990" y="307" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">Anomalías en</text>
+        <text x="990" y="325" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">cosecha</text>
+        <text x="990" y="345" text-anchor="middle" fill="#F59E0B" font-size="11">${stats.tasa_anomalia}%</text>
+  `;
+  
+  const ESPINAS_TOP = [
+    { x_inicio: 160, x_fin: 280, y_top: 100 },
+    { x_inicio: 380, x_fin: 500, y_top: 100 },
+    { x_inicio: 600, x_fin: 720, y_top: 100 }
+  ];
+  const ESPINAS_BOTTOM = [
+    { x_inicio: 160, x_fin: 280, y_bottom: 500 },
+    { x_inicio: 380, x_fin: 500, y_bottom: 500 },
+    { x_inicio: 600, x_fin: 720, y_bottom: 500 }
+  ];
+  
+  // Dibujar cada espina de las 6M
+  Object.entries(M_CONFIG).forEach(([key, info]) => {
+    const M_DATA = data.ishikawa[key] || { problemas: [], conteo: 0 };
+    const esTop = info.posicion === "top";
+    const espina = esTop ? ESPINAS_TOP[info.x] : ESPINAS_BOTTOM[info.x];
+    const yInicio = 300;
+    const yFin = esTop ? espina.y_top : espina.y_bottom;
+    const tieneProblemas = M_DATA.problemas.length > 0;
+    
+    // Detectar cambio para animar
+    const prevConteo = window._ishikawaPrevConteo?.[key] || 0;
+    const huboCambioM = prevConteo !== M_DATA.conteo;
+    if (!window._ishikawaPrevConteo) window._ishikawaPrevConteo = {};
+    window._ishikawaPrevConteo[key] = M_DATA.conteo;
+    
+    // Grupo SVG con eventos (hover y click)
+    html += `
+      <g class="espina-m-grupo ${huboCambioM ? 'activa' : ''}" 
+         style="color:${tieneProblemas ? info.color : '#64748B'};"
+         onmouseenter="mostrarTooltipIshikawa(event, '${key}')"
+         onmouseleave="ocultarTooltipIshikawa()"
+         onmousemove="moverTooltipIshikawa(event)"
+         onclick="abrirDrillDownM('${key}')">
+        
+        <!-- Línea diagonal (espina) -->
+        <line x1="${espina.x_inicio}" y1="${yInicio}" x2="${espina.x_fin}" y2="${yFin}" 
+              stroke="${tieneProblemas ? info.color : '#64748B'}" 
+              stroke-width="${tieneProblemas ? 3 : 2}" 
+              opacity="${tieneProblemas ? 1 : 0.4}"
+              stroke-dasharray="${tieneProblemas ? '0' : '4,4'}"/>
+    `;
+    
+    // Caja al final
+    const boxW = 140;
+    const boxH = 60;
+    const boxX = espina.x_fin - boxW/2;
+    const boxY = esTop ? yFin - boxH - 5 : yFin + 5;
+    
+    html += `
+        <rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="8" 
+              fill="${tieneProblemas ? info.color + '30' : 'rgba(100,116,139,0.1)'}" 
+              stroke="${tieneProblemas ? info.color : '#64748B'}" 
+              stroke-width="2"
+              opacity="${tieneProblemas ? 1 : 0.5}"/>
+        <text x="${boxX + boxW/2}" y="${boxY + 22}" text-anchor="middle" 
+              fill="${tieneProblemas ? info.color : '#94a3b8'}" 
+              font-size="14" font-weight="bold">
+          ${info.icono} ${info.label}
+        </text>
+        <text x="${boxX + boxW/2}" y="${boxY + 42}" text-anchor="middle" 
+              fill="#fff" 
+              font-size="13" font-weight="bold">
+          ${M_DATA.conteo} casos
+        </text>
+        ${tieneProblemas ? `<text x="${boxX + boxW - 12}" y="${boxY + 14}" text-anchor="end" fill="#fff" font-size="10" opacity="0.7">👆 click</text>` : ''}
+    `;
+    
+    // Sub-ramas
+    const problemas = M_DATA.problemas.slice(0, 3);
+    problemas.forEach((prob, idx) => {
+      const factor = 0.3 + (idx * 0.25);
+      const xSub = espina.x_inicio + (espina.x_fin - espina.x_inicio) * factor;
+      const ySub = yInicio + (yFin - yInicio) * factor;
+      const xSubFin = xSub - 40;
+      const textWidth = 220;
+      const textHeight = 32;
+      const textX = xSubFin - textWidth - 5;
+      const textY = ySub - textHeight/2;
+      const sevColor = prob.severidad === 'alta' ? '#DC2626' : '#F59E0B';
+      const titulo = prob.titulo.length > 30 ? prob.titulo.substring(0, 28) + '...' : prob.titulo;
+      
+      html += `
+        <line x1="${xSub}" y1="${ySub}" x2="${xSubFin}" y2="${ySub}" 
+              stroke="${info.color}" stroke-width="1.5" opacity="0.7"/>
+        <circle cx="${xSub}" cy="${ySub}" r="3" fill="${info.color}"/>
+        <rect x="${textX}" y="${textY}" width="${textWidth}" height="${textHeight}" rx="4" 
+              fill="rgba(15,23,42,0.95)" stroke="${sevColor}" stroke-width="1"/>
+        <text x="${textX + 8}" y="${textY + 13}" fill="#fff" font-size="10" font-weight="600">
+          ${escaparXML(titulo)}
+        </text>
+        <text x="${textX + 8}" y="${textY + 26}" fill="${sevColor}" font-size="9">
+          ${prob.severidad === 'alta' ? '🔴' : '🟡'} ${prob.severidad}
+        </text>
+      `;
+    });
+    
+    html += `</g>`;  // Cerrar grupo M
+  });
+  
+  // Cerrar SVG
+  html += `
+      </svg>
+      
+      <!-- Tooltip flotante -->
+      <div id="ishikawaTooltip" class="ishikawa-tooltip"></div>
+    </div>
+  `;
+  
+  cont.innerHTML = html;
+}
+
+// ===== TOOLTIPS =====
+function mostrarTooltipIshikawa(event, key) {
+  const data = window._ishikawaDataActual;
+  const M_CONFIG = window._ishikawaConfigM;
+  if (!data || !M_CONFIG) return;
+  
+  const info = M_CONFIG[key];
+  const M_DATA = data.ishikawa[key] || { problemas: [], conteo: 0 };
+  
+  const tooltip = document.getElementById('ishikawaTooltip');
+  if (!tooltip) return;
+  
+  let html = `
+    <div style="border-bottom:1px solid ${info.color}; padding-bottom:6px; margin-bottom:6px;">
+      <div style="color:${info.color}; font-weight:bold; font-size:14px;">${info.icono} ${info.label}</div>
+      <div style="color:#94a3b8; font-size:11px;">${M_DATA.conteo} casos detectados</div>
+    </div>
+  `;
+  
+  if (M_DATA.problemas.length === 0) {
+    html += '<div style="color:#10B981;">✓ Sin problemas en esta categoría</div>';
+  } else {
+    html += '<div style="font-weight:600; margin-bottom:4px; color:#cbd5e1;">Problemas detectados:</div>';
+    M_DATA.problemas.forEach(p => {
+      const sevColor = p.severidad === 'alta' ? '#DC2626' : '#F59E0B';
+      const sevIcon = p.severidad === 'alta' ? '🔴' : '🟡';
+      html += `
+        <div style="border-left:2px solid ${sevColor}; padding-left:8px; margin-bottom:6px;">
+          <div style="color:#fff; font-weight:600; font-size:11px;">${sevIcon} ${escaparHTML(p.titulo)}</div>
+          <div style="color:#cbd5e1; font-size:10px; margin-top:2px;">${escaparHTML(p.descripcion)}</div>
+        </div>
+      `;
+    });
+    html += '<div style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.1); color:#A855F7; font-size:10px;">👆 Click para profundizar</div>';
+  }
+  
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+  setTimeout(() => tooltip.classList.add('visible'), 10);
+  moverTooltipIshikawa(event);
+}
+
+function moverTooltipIshikawa(event) {
+  const tooltip = document.getElementById('ishikawaTooltip');
+  if (!tooltip || tooltip.style.display === 'none') return;
+  
+  const offsetX = 15;
+  const offsetY = 10;
+  let x = event.clientX + offsetX;
+  let y = event.clientY + offsetY;
+  
+  // Ajustar si se sale de pantalla
+  const rect = tooltip.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth) x = event.clientX - rect.width - offsetX;
+  if (y + rect.height > window.innerHeight) y = event.clientY - rect.height - offsetY;
+  
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+
+function ocultarTooltipIshikawa() {
+  const tooltip = document.getElementById('ishikawaTooltip');
+  if (!tooltip) return;
+  tooltip.classList.remove('visible');
+  setTimeout(() => { tooltip.style.display = 'none'; }, 200);
+}
+
+// ===== DRILL DOWN =====
+function abrirDrillDownM(key) {
+  const data = window._ishikawaDataActual;
+  const M_CONFIG = window._ishikawaConfigM;
+  if (!data || !M_CONFIG) return;
+  
+  ocultarTooltipIshikawa();
+  window._ishikawaModoDrillDown = true;
+  
+  const info = M_CONFIG[key];
+  const M_DATA = data.ishikawa[key] || { problemas: [], conteo: 0 };
+  const stats = data.stats;
+  const h = data.hallazgos_detallados || {};
+  
+  const cont = document.getElementById('ishikawaContenido');
+  
+  // Causas raíces probables según la M
+  const CAUSAS_RAIZ = {
+    mano_obra: [
+      "Falta de capacitación en técnicas de cosecha",
+      "Supervisión insuficiente en campo",
+      "Incumplimiento de jornada laboral (Ley 31110)",
+      "Trabajadores sin experiencia en variedad Hass",
+      "Falta de incentivos por productividad"
+    ],
+    metodo: [
+      "Protocolo de validación no actualizado",
+      "Falta de checklist por cosecha",
+      "Procedimiento de pesada inconsistente",
+      "Sin sistema de doble verificación",
+      "Documentación incompleta del proceso"
+    ],
+    materia_prima: [
+      "Variabilidad en calidad de fruta",
+      "Lotes sin certificación SENASA",
+      "Cosecha en momento inadecuado de madurez",
+      "Manejo deficiente post-cosecha",
+      "Sin clasificación previa por calibre"
+    ],
+    medio_ambiente: [
+      "Variaciones climáticas no monitoreadas",
+      "Riego inadecuado en lotes específicos",
+      "Suelo con problemas de drenaje",
+      "Plagas o enfermedades no detectadas",
+      "Condiciones de almacenamiento insuficientes"
+    ],
+    maquinaria: [
+      "Balanzas sin calibración reciente",
+      "Equipos desactualizados",
+      "Falta de mantenimiento preventivo",
+      "Sensores de pesaje con drift",
+      "Sin sistema anti-fraude en balanzas"
+    ],
+    money: [
+      "Pérdidas por fraude en pesadas",
+      "Costo de horas extra excesivas",
+      "Sobrecostos por anomalías en proceso",
+      "Penalidades por incumplimiento Ley 31110",
+      "Pérdida de certificación de exportación"
+    ]
+  };
+  
+  let html = `
+    <div style="margin-bottom:14px;">
+      <button onclick="cerrarDrillDownM()" style="background:rgba(168,85,247,0.2); border:1px solid rgba(168,85,247,0.5); color:#A855F7; border-radius:8px; padding:8px 16px; cursor:pointer; font-size:13px; font-weight:600;">
+        ← Volver al diagrama
+      </button>
+    </div>
+    
+    <!-- Header de la M -->
+    <div style="background:linear-gradient(135deg, ${info.color}20, ${info.color}05); border:2px solid ${info.color}80; border-radius:14px; padding:20px; margin-bottom:16px;">
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <div style="font-size:48px;">${info.icono}</div>
+        <div style="flex:1; min-width:200px;">
+          <div style="color:${info.color}; font-size:22px; font-weight:bold;">${info.label}</div>
+          <div style="color:#cbd5e1; font-size:13px; margin-top:4px;">Análisis detallado de problemas en esta categoría</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="color:${info.color}; font-size:36px; font-weight:bold;">${M_DATA.conteo}</div>
+          <div style="color:#94a3b8; font-size:11px;">casos detectados</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Problemas específicos detectados -->
+    <h3 style="color:#fff; font-size:14px; margin:16px 0 10px 0;">🔴 Problemas específicos detectados</h3>
+    <div style="background:rgba(255,255,255,0.03); border-radius:10px; padding:14px; margin-bottom:16px;">
+  `;
+  
+  if (M_DATA.problemas.length === 0) {
+    html += '<div style="color:#10B981; text-align:center; padding:20px;">✓ Sin problemas específicos en esta categoría</div>';
+  } else {
+    M_DATA.problemas.forEach(p => {
+      const sevColor = p.severidad === 'alta' ? '#DC2626' : '#F59E0B';
+      html += `
+        <div style="background:rgba(0,0,0,0.3); border-left:4px solid ${sevColor}; border-radius:6px; padding:12px; margin-bottom:8px;">
+          <div style="color:#fff; font-size:14px; font-weight:600; margin-bottom:4px;">
+            ${p.severidad === 'alta' ? '🔴' : '🟡'} ${escaparHTML(p.titulo)}
+          </div>
+          <div style="color:#cbd5e1; font-size:12px;">${escaparHTML(p.descripcion)}</div>
+          <div style="color:${sevColor}; font-size:10px; margin-top:4px; font-weight:600; text-transform:uppercase;">Severidad: ${p.severidad}</div>
+        </div>
+      `;
+    });
+  }
+  
+  html += '</div>';
+  
+  // Causas raíz probables
+  html += `
+    <h3 style="color:#fff; font-size:14px; margin:16px 0 10px 0;">🌱 Causas raíz probables</h3>
+    <div style="background:rgba(255,255,255,0.03); border-radius:10px; padding:14px; margin-bottom:16px;">
+  `;
+  (CAUSAS_RAIZ[key] || []).forEach((causa, i) => {
+    html += `
+      <div style="display:flex; align-items:start; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+        <div style="background:${info.color}; color:white; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; flex-shrink:0;">${i+1}</div>
+        <div style="color:#cbd5e1; font-size:13px; line-height:1.5;">${escaparHTML(causa)}</div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  
+  // Datos específicos (solo si M tiene relación con hallazgos)
+  let hallazgosHtml = '';
+  if (key === 'mano_obra' && Object.keys(h.trabajadores || {}).length > 0) {
+    hallazgosHtml += `
+      <h3 style="color:#fff; font-size:14px; margin:16px 0 10px 0;">👷 Trabajadores con más anomalías</h3>
+      <div style="background:rgba(255,255,255,0.03); border-radius:10px; padding:14px; margin-bottom:16px;">
+    `;
+    Object.entries(h.trabajadores).forEach(([nombre, count]) => {
+      hallazgosHtml += `
+        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span style="color:#fff;">${escaparHTML(nombre.substring(0, 40))}</span>
+          <span style="color:${info.color}; font-weight:bold;">${count} anomalías</span>
+        </div>
+      `;
+    });
+    hallazgosHtml += '</div>';
+  }
+  if (key === 'medio_ambiente' && Object.keys(h.lotes || {}).length > 0) {
+    hallazgosHtml += `
+      <h3 style="color:#fff; font-size:14px; margin:16px 0 10px 0;">📍 Lotes con más problemas</h3>
+      <div style="background:rgba(255,255,255,0.03); border-radius:10px; padding:14px; margin-bottom:16px;">
+    `;
+    Object.entries(h.lotes).forEach(([lote, count]) => {
+      hallazgosHtml += `
+        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span style="color:#fff;">Lote ${escaparHTML(lote)}</span>
+          <span style="color:${info.color}; font-weight:bold;">${count} anomalías</span>
+        </div>
+      `;
+    });
+    hallazgosHtml += '</div>';
+  }
+  html += hallazgosHtml;
+  
+  // Acciones recomendadas
+  const ACCIONES = {
+    mano_obra: [
+      "Capacitación urgente en técnicas Hass",
+      "Implementar control biométrico de jornada",
+      "Sistema de incentivos por meta cumplida",
+      "Auditoría de cumplimiento Ley 31110"
+    ],
+    metodo: [
+      "Revisar y actualizar protocolo de cosecha",
+      "Implementar checklist digital",
+      "Sistema de doble validación de pesadas",
+      "Documentar todo proceso ISO 9001"
+    ],
+    materia_prima: [
+      "Auditoría de calidad por lote",
+      "Certificación SENASA actualizada",
+      "Sistema de clasificación pre-cosecha",
+      "Mejorar manejo post-cosecha"
+    ],
+    medio_ambiente: [
+      "Estación meteorológica por lote",
+      "Análisis de suelo y drenaje",
+      "Monitoreo de plagas con IA",
+      "Mejorar logística de almacenamiento"
+    ],
+    maquinaria: [
+      "Calibración mensual de balanzas",
+      "Sistema anti-fraude en sensores",
+      "Mantenimiento preventivo programado",
+      "Actualización de equipos críticos"
+    ],
+    money: [
+      "Auditoría financiera trimestral",
+      "Sistema de detección de fraudes",
+      "Optimización de costos operativos",
+      "ROI de cada acción de mejora"
+    ]
+  };
+  
+  html += `
+    <h3 style="color:#fff; font-size:14px; margin:16px 0 10px 0;">🎯 Acciones recomendadas</h3>
+    <div style="background:linear-gradient(135deg, ${info.color}10, transparent); border:1px solid ${info.color}40; border-radius:10px; padding:14px;">
+  `;
+  (ACCIONES[key] || []).forEach(acc => {
+    html += `
+      <div style="display:flex; align-items:start; gap:10px; padding:8px 0;">
+        <div style="color:${info.color}; font-size:16px;">→</div>
+        <div style="color:#cbd5e1; font-size:13px;">${escaparHTML(acc)}</div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  
+  cont.innerHTML = html;
+  
+  // Scroll arriba
+  cont.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cerrarDrillDownM() {
+  window._ishikawaModoDrillDown = false;
+  // Re-renderizar con los datos actuales
+  if (window._ishikawaDataActual) {
+    renderIshikawa(window._ishikawaDataActual);
+  }
+}
   
   let html = `
     <!-- Stats arriba con indicador EN VIVO -->
