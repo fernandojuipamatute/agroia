@@ -1240,6 +1240,9 @@ tr:hover td {
     <div class="nav-item" onclick="switchPage('simulador_b2b')" data-permiso="simulador_b2b" style="background:linear-gradient(135deg, rgba(220,38,38,0.15), rgba(239,159,39,0.15)); border:1px solid rgba(220,38,38,0.3); margin-top:4px;">
       <span class="nav-icon">🔴</span> Simulador B2B
     </div>
+    <div class="nav-item" onclick="switchPage('analisis_calidad')" data-permiso="analisis_calidad" style="background:linear-gradient(135deg, rgba(168,85,247,0.15), rgba(59,130,246,0.15)); border:1px solid rgba(168,85,247,0.3); margin-top:4px;">
+      <span class="nav-icon">📊</span> Análisis Calidad
+    </div>
   </div>
 
   <!-- BOTÓN CERRAR SESIÓN -->
@@ -3046,6 +3049,96 @@ tr:hover td {
       <em>Esto demuestra integración B2B real, no simulada en frontend.</em>
     </div>
   </details>
+</div>
+
+<!-- ============= ANÁLISIS DE CALIDAD (DEMO ONLY) ============= -->
+<div class="page-section" id="page-analisis_calidad">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">📊 Análisis de Calidad</h1>
+      <div class="page-subtitle">Diagnóstico Ishikawa, hallazgos y plan de mejora basado en datos del simulador</div>
+    </div>
+    <div>
+      <button onclick="recargarAnalisisCalidad()" style="background:linear-gradient(135deg, #A855F7, #6366F1); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer;">
+        🔄 Actualizar análisis
+      </button>
+    </div>
+  </div>
+
+  <!-- Banner explicativo -->
+  <div style="background:linear-gradient(135deg, rgba(168,85,247,0.08), rgba(59,130,246,0.08)); border:1px solid rgba(168,85,247,0.3); border-radius:14px; padding:14px 18px; margin-bottom:18px;">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div style="font-size:28px;">💡</div>
+      <div style="color:#cbd5e1; font-size:13px; line-height:1.5;">
+        Este análisis se basa en las pesadas <strong style="color:#A855F7;">simuladas</strong> de la empresa activa. 
+        Mientras más datos genera el simulador B2B, más preciso es el análisis Ishikawa.
+      </div>
+    </div>
+  </div>
+
+  <!-- TABS NAVIGATION -->
+  <div style="display:flex; gap:4px; margin-bottom:18px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0;">
+    <button onclick="cambiarTabCalidad('ishikawa')" id="tabBtnIshikawa" class="tab-calidad-btn active" style="background:rgba(168,85,247,0.2); border:none; color:#A855F7; padding:10px 16px; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:600; border-bottom:2px solid #A855F7;">
+      🐟 Diagrama Ishikawa
+    </button>
+    <button onclick="cambiarTabCalidad('tendencia')" id="tabBtnTendencia" class="tab-calidad-btn" style="background:transparent; border:none; color:#94a3b8; padding:10px 16px; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:500;">
+      📈 Tendencia
+    </button>
+    <button onclick="cambiarTabCalidad('hallazgos')" id="tabBtnHallazgos" class="tab-calidad-btn" style="background:transparent; border:none; color:#94a3b8; padding:10px 16px; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:500;">
+      🔍 Hallazgos
+    </button>
+    <button onclick="cambiarTabCalidad('plan')" id="tabBtnPlan" class="tab-calidad-btn" style="background:transparent; border:none; color:#94a3b8; padding:10px 16px; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:500;">
+      🎯 Plan de Mejora
+    </button>
+  </div>
+
+  <!-- TAB 1: ISHIKAWA -->
+  <div id="tabCalidadIshikawa" class="tab-calidad-content">
+    <h3 style="color:#fff; font-size:15px; margin:0 0 12px 0;">Diagrama Ishikawa - 6M</h3>
+    <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:18px;">
+      <div id="ishikawaContenido">
+        <div style="text-align:center; color:#64748B; padding:40px;">⏳ Cargando análisis...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: TENDENCIA -->
+  <div id="tabCalidadTendencia" class="tab-calidad-content" style="display:none;">
+    <h3 style="color:#fff; font-size:15px; margin:0 0 12px 0;">📈 Tendencia y top problemas</h3>
+    <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:18px;">
+      <div id="tendenciaContenido">
+        <div style="text-align:center; color:#64748B; padding:40px;">⏳ Cargando tendencia...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: HALLAZGOS -->
+  <div id="tabCalidadHallazgos" class="tab-calidad-content" style="display:none;">
+    <h3 style="color:#fff; font-size:15px; margin:0 0 12px 0;">🔍 Hallazgos detallados por proceso</h3>
+    <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:18px;">
+      <div id="hallazgosContenido">
+        <div style="text-align:center; color:#64748B; padding:40px;">⏳ Cargando hallazgos...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: PLAN DE MEJORA -->
+  <div id="tabCalidadPlan" class="tab-calidad-content" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="color:#fff; font-size:15px; margin:0;">🎯 Plan de mejora editable</h3>
+      <button onclick="agregarItemPlanMejora()" style="background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:6px; padding:8px 16px; font-size:12px; font-weight:600; cursor:pointer;">
+        + Agregar acción
+      </button>
+    </div>
+    <div id="planMejoraContenido" style="background:rgba(255,255,255,0.03); border-radius:12px; padding:18px;">
+      <div style="text-align:center; color:#64748B; padding:40px;">⏳ Cargando plan...</div>
+    </div>
+    <div style="margin-top:14px; text-align:right;">
+      <button onclick="guardarPlanMejora()" style="background:linear-gradient(135deg, #3B82F6, #1D4ED8); color:white; border:none; border-radius:8px; padding:10px 24px; font-size:13px; font-weight:600; cursor:pointer;">
+        💾 Guardar plan
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- ============= CONFIGURACIÓN DEL SISTEMA ============= -->
@@ -6094,6 +6187,11 @@ function switchPage(page) {
       detenerPollingSimulacionB2B();
     }
   }
+  
+  // Si entra al Análisis de Calidad
+  if (page === 'analisis_calidad' && typeof entrarAAnalisisCalidad === 'function') {
+    entrarAAnalisisCalidad();
+  }
 }
 
 // ============================================================
@@ -8798,7 +8896,7 @@ const PERMISOS_POR_ROL = {
   // ROL DEMO/DESARROLLADOR (solo para Jhonny)
   // Ve TODAS las funciones sin restricción. Es la vista interna completa.
   'demo': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes', 'plan_negocio', 'simulador_b2b'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes', 'plan_negocio', 'simulador_b2b', 'analisis_calidad'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
@@ -9384,6 +9482,399 @@ async function cambiarNivelCliente(nivel) {
 }
 
 // Renderizar panel de clientes al entrar
+// =============================================================
+// ANÁLISIS DE CALIDAD - 4 TABS
+// =============================================================
+window._datosAnalisisCalidad = null;
+window._planMejoraEditable = [];
+
+function cambiarTabCalidad(tab) {
+  // Esconder todos
+  document.querySelectorAll('.tab-calidad-content').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.tab-calidad-btn').forEach(b => {
+    b.style.background = 'transparent';
+    b.style.color = '#94a3b8';
+    b.style.borderBottom = 'none';
+  });
+  
+  // Mostrar tab seleccionado
+  const cont = document.getElementById('tabCalidad' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (cont) cont.style.display = 'block';
+  
+  const btn = document.getElementById('tabBtn' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (btn) {
+    btn.style.background = 'rgba(168,85,247,0.2)';
+    btn.style.color = '#A855F7';
+    btn.style.borderBottom = '2px solid #A855F7';
+  }
+}
+
+async function entrarAAnalisisCalidad() {
+  await recargarAnalisisCalidad();
+  await cargarPlanMejora();
+}
+
+async function recargarAnalisisCalidad() {
+  try {
+    const empresaId = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+    let url = `${SERVIDOR_URL}/api/analisis-calidad?solo_simuladas=true`;
+    if (empresaId) url += `&empresa_id=${empresaId}`;
+    
+    const resp = await fetch(url);
+    const data = await resp.json();
+    
+    if (!resp.ok || !data.exito) {
+      throw new Error(data.error || 'Error');
+    }
+    
+    window._datosAnalisisCalidad = data;
+    
+    renderIshikawa(data);
+    renderTendencia(data);
+    renderHallazgos(data);
+    
+    if (typeof toastExito === 'function') {
+      toastExito(`Análisis basado en ${data.total_analizadas} pesadas simuladas`, { titulo: '📊 Análisis actualizado' });
+    }
+  } catch(e) {
+    console.error('Error análisis calidad:', e);
+    document.getElementById('ishikawaContenido').innerHTML = `
+      <div style="text-align:center; color:#DC2626; padding:30px;">
+        ⚠ Error cargando análisis. Genera primero pesadas con el Simulador B2B.
+      </div>
+    `;
+  }
+}
+
+function renderIshikawa(data) {
+  const cont = document.getElementById('ishikawaContenido');
+  if (!cont) return;
+  
+  if (data.total_analizadas === 0) {
+    cont.innerHTML = `
+      <div style="text-align:center; color:#94a3b8; padding:40px;">
+        <div style="font-size:48px; margin-bottom:12px;">🐟</div>
+        <div style="font-size:14px;">No hay datos suficientes para el análisis.</div>
+        <div style="font-size:12px; margin-top:8px;">Inicia el Simulador B2B para generar pesadas.</div>
+      </div>
+    `;
+    return;
+  }
+  
+  const M_INFO = {
+    mano_obra: { label: "Mano de Obra", icono: "👷", color: "#DC2626" },
+    metodo: { label: "Método de Trabajo", icono: "📋", color: "#F59E0B" },
+    materia_prima: { label: "Materia Prima", icono: "🥑", color: "#10B981" },
+    medio_ambiente: { label: "Medio Ambiente", icono: "🌿", color: "#3B82F6" },
+    maquinaria: { label: "Maquinaria/Equipo", icono: "⚙️", color: "#8B5CF6" },
+    money: { label: "Money (Económico)", icono: "💰", color: "#EF9F27" }
+  };
+  
+  let html = `
+    <div style="margin-bottom:16px; padding:14px; background:rgba(255,255,255,0.03); border-radius:10px;">
+      <div style="color:#94a3b8; font-size:12px; margin-bottom:4px;">📊 Resumen del análisis:</div>
+      <div style="color:#fff; font-size:13px;">
+        <strong>${data.total_analizadas}</strong> pesadas analizadas · 
+        <strong style="color:#F59E0B;">${data.stats.anomalias}</strong> anomalías · 
+        <strong style="color:#DC2626;">${data.stats.jornada_excesiva}</strong> jornadas excesivas · 
+        Tasa: <strong>${data.stats.tasa_anomalia}%</strong>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+  `;
+  
+  Object.entries(M_INFO).forEach(([key, info]) => {
+    const M = data.ishikawa[key];
+    const tieneProblemas = M && M.problemas.length > 0;
+    
+    html += `
+      <div style="background:${tieneProblemas ? info.color + '15' : 'rgba(255,255,255,0.02)'}; border:2px solid ${tieneProblemas ? info.color + '50' : 'rgba(255,255,255,0.05)'}; border-radius:12px; padding:14px;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+          <span style="font-size:24px;">${info.icono}</span>
+          <div style="flex:1;">
+            <div style="color:${info.color}; font-weight:bold; font-size:14px;">${info.label}</div>
+            <div style="color:#94a3b8; font-size:11px;">${M.conteo} casos detectados</div>
+          </div>
+        </div>
+        ${tieneProblemas ? M.problemas.map(p => `
+          <div style="background:rgba(0,0,0,0.3); border-left:3px solid ${p.severidad === 'alta' ? '#DC2626' : '#F59E0B'}; padding:8px 10px; margin-bottom:6px; border-radius:4px;">
+            <div style="color:#fff; font-size:12px; font-weight:600;">${escaparHTML(p.titulo)}</div>
+            <div style="color:#cbd5e1; font-size:11px; margin-top:2px;">${escaparHTML(p.descripcion)}</div>
+          </div>
+        `).join('') : '<div style="color:#64748B; font-size:11px; text-align:center; padding:14px;">✓ Sin problemas detectados</div>'}
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+function renderTendencia(data) {
+  const cont = document.getElementById('tendenciaContenido');
+  if (!cont) return;
+  
+  if (data.total_analizadas === 0) {
+    cont.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:40px;">Sin datos suficientes</div>';
+    return;
+  }
+  
+  // Stats principales
+  const stats = data.stats;
+  const tasaColor = stats.tasa_anomalia > 20 ? '#DC2626' : stats.tasa_anomalia > 10 ? '#F59E0B' : '#10B981';
+  
+  let html = `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:18px;">
+      <div style="background:rgba(255,255,255,0.03); border-radius:8px; padding:12px;">
+        <div style="color:#94a3b8; font-size:10px; text-transform:uppercase;">Total</div>
+        <div style="color:#fff; font-size:24px; font-weight:bold;">${stats.total}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03); border-left:3px solid ${tasaColor}; border-radius:8px; padding:12px;">
+        <div style="color:#94a3b8; font-size:10px; text-transform:uppercase;">Tasa anomalía</div>
+        <div style="color:${tasaColor}; font-size:24px; font-weight:bold;">${stats.tasa_anomalia}%</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03); border-left:3px solid #DC2626; border-radius:8px; padding:12px;">
+        <div style="color:#94a3b8; font-size:10px; text-transform:uppercase;">Jornada excesiva</div>
+        <div style="color:#DC2626; font-size:24px; font-weight:bold;">${stats.jornada_excesiva}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03); border-left:3px solid #F59E0B; border-radius:8px; padding:12px;">
+        <div style="color:#94a3b8; font-size:10px; text-transform:uppercase;">Prod. sospechosa</div>
+        <div style="color:#F59E0B; font-size:24px; font-weight:bold;">${stats.productividad_alta}</div>
+      </div>
+    </div>
+    
+    <h4 style="color:#fff; font-size:14px; margin:18px 0 10px 0;">🏆 Top 5 problemas detectados</h4>
+  `;
+  
+  if (data.top_problemas && data.top_problemas.length > 0) {
+    const max = data.top_problemas[0].casos || 1;
+    html += '<div style="display:flex; flex-direction:column; gap:8px;">';
+    data.top_problemas.forEach((p, i) => {
+      const ancho = Math.max(15, (p.casos / max) * 100);
+      const colorBar = i === 0 ? '#DC2626' : i === 1 ? '#F59E0B' : '#3B82F6';
+      html += `
+        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:10px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+            <span style="color:#fff;">${i+1}. ${escaparHTML(p.problema)}</span>
+            <span style="color:${colorBar}; font-weight:bold;">${p.casos} casos · ${escaparHTML(p.proceso)}</span>
+          </div>
+          <div style="background:rgba(0,0,0,0.4); height:8px; border-radius:4px; overflow:hidden;">
+            <div style="background:${colorBar}; height:100%; width:${ancho}%; transition:width 0.4s;"></div>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="color:#10B981; text-align:center; padding:20px;">✓ No se detectaron problemas recurrentes</div>';
+  }
+  
+  cont.innerHTML = html;
+}
+
+function renderHallazgos(data) {
+  const cont = document.getElementById('hallazgosContenido');
+  if (!cont) return;
+  
+  if (data.total_analizadas === 0) {
+    cont.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:40px;">Sin datos suficientes</div>';
+    return;
+  }
+  
+  const h = data.hallazgos_detallados || {};
+  
+  let html = `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px;">
+  `;
+  
+  // Trabajadores
+  html += `
+    <div style="background:rgba(220,38,38,0.05); border:1px solid rgba(220,38,38,0.2); border-radius:10px; padding:14px;">
+      <h4 style="color:#DC2626; font-size:13px; margin:0 0 10px 0;">👷 Top trabajadores con anomalías</h4>
+      ${Object.keys(h.trabajadores || {}).length > 0 
+        ? Object.entries(h.trabajadores).map(([nombre, count]) => `
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+            <span style="color:#fff; font-size:12px;">${escaparHTML(nombre.substring(0, 30))}</span>
+            <span style="color:#DC2626; font-weight:bold; font-size:12px;">${count} anomalías</span>
+          </div>
+        `).join('')
+        : '<div style="color:#10B981; font-size:11px; padding:10px;">✓ Sin trabajadores con anomalías</div>'
+      }
+    </div>
+  `;
+  
+  // Lotes
+  html += `
+    <div style="background:rgba(59,130,246,0.05); border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:14px;">
+      <h4 style="color:#3B82F6; font-size:13px; margin:0 0 10px 0;">📍 Top lotes con anomalías</h4>
+      ${Object.keys(h.lotes || {}).length > 0 
+        ? Object.entries(h.lotes).map(([lote, count]) => `
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+            <span style="color:#fff; font-size:12px;">Lote ${escaparHTML(lote)}</span>
+            <span style="color:#3B82F6; font-weight:bold; font-size:12px;">${count} anomalías</span>
+          </div>
+        `).join('')
+        : '<div style="color:#10B981; font-size:11px; padding:10px;">✓ Sin lotes con anomalías</div>'
+      }
+    </div>
+  `;
+  
+  // Cuadrillas
+  html += `
+    <div style="background:rgba(168,85,247,0.05); border:1px solid rgba(168,85,247,0.2); border-radius:10px; padding:14px;">
+      <h4 style="color:#A855F7; font-size:13px; margin:0 0 10px 0;">👥 Cuadrillas con anomalías</h4>
+      ${Object.keys(h.cuadrillas || {}).length > 0 
+        ? Object.entries(h.cuadrillas).map(([cuad, count]) => `
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+            <span style="color:#fff; font-size:12px;">${escaparHTML(cuad)}</span>
+            <span style="color:#A855F7; font-weight:bold; font-size:12px;">${count} anomalías</span>
+          </div>
+        `).join('')
+        : '<div style="color:#10B981; font-size:11px; padding:10px;">✓ Sin cuadrillas con anomalías</div>'
+      }
+    </div>
+  `;
+  
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+async function cargarPlanMejora() {
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/plan-mejora`);
+    const data = await resp.json();
+    
+    if (data.plan_mejora && data.plan_mejora.length > 0) {
+      window._planMejoraEditable = data.plan_mejora;
+    } else {
+      // Plan por defecto basado en problemas comunes
+      window._planMejoraEditable = [
+        {
+          accion: "Capacitación a supervisores en detección de fraude",
+          responsable: "Gerente RRHH",
+          plazo: "1 semana",
+          kpi: "100% supervisores capacitados",
+          prioridad: "alta"
+        },
+        {
+          accion: "Calibración de balanzas en lotes con anomalías",
+          responsable: "Jefe Mantenimiento",
+          plazo: "3 días",
+          kpi: "0 desviaciones >2% en próxima auditoría",
+          prioridad: "alta"
+        },
+        {
+          accion: "Implementar control de jornada (Ley 31110)",
+          responsable: "Jefe Operaciones",
+          plazo: "2 semanas",
+          kpi: "0 casos de jornada >12h",
+          prioridad: "alta"
+        }
+      ];
+    }
+    
+    renderPlanMejora();
+  } catch(e) {
+    console.warn('Error cargando plan:', e);
+    renderPlanMejora();
+  }
+}
+
+function renderPlanMejora() {
+  const cont = document.getElementById('planMejoraContenido');
+  if (!cont) return;
+  
+  if (window._planMejoraEditable.length === 0) {
+    cont.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:40px;">No hay acciones. Click "+ Agregar acción"</div>';
+    return;
+  }
+  
+  let html = '<div style="display:flex; flex-direction:column; gap:10px;">';
+  
+  window._planMejoraEditable.forEach((item, idx) => {
+    const colorPri = item.prioridad === 'alta' ? '#DC2626' : item.prioridad === 'media' ? '#F59E0B' : '#3B82F6';
+    
+    html += `
+      <div style="background:rgba(0,0,0,0.3); border-left:4px solid ${colorPri}; border-radius:8px; padding:12px;">
+        <div style="display:grid; grid-template-columns:1fr auto; gap:10px;">
+          <div>
+            <input type="text" value="${escaparHTML(item.accion)}" 
+              onchange="actualizarItemPlan(${idx}, 'accion', this.value)"
+              style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:6px 10px; color:#fff; font-size:13px; font-weight:600; margin-bottom:6px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:6px;">
+              <input type="text" value="${escaparHTML(item.responsable)}" placeholder="Responsable"
+                onchange="actualizarItemPlan(${idx}, 'responsable', this.value)"
+                style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:6px 8px; color:#cbd5e1; font-size:11px;">
+              <input type="text" value="${escaparHTML(item.plazo)}" placeholder="Plazo"
+                onchange="actualizarItemPlan(${idx}, 'plazo', this.value)"
+                style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:6px 8px; color:#cbd5e1; font-size:11px;">
+              <input type="text" value="${escaparHTML(item.kpi)}" placeholder="KPI"
+                onchange="actualizarItemPlan(${idx}, 'kpi', this.value)"
+                style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:6px 8px; color:#cbd5e1; font-size:11px;">
+              <select onchange="actualizarItemPlan(${idx}, 'prioridad', this.value)"
+                style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:6px 8px; color:${colorPri}; font-size:11px; font-weight:600;">
+                <option value="alta" ${item.prioridad === 'alta' ? 'selected' : ''}>🔴 Alta</option>
+                <option value="media" ${item.prioridad === 'media' ? 'selected' : ''}>🟡 Media</option>
+                <option value="baja" ${item.prioridad === 'baja' ? 'selected' : ''}>🔵 Baja</option>
+              </select>
+            </div>
+          </div>
+          <button onclick="eliminarItemPlan(${idx})" style="background:rgba(220,38,38,0.2); border:1px solid rgba(220,38,38,0.4); color:#DC2626; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:12px; align-self:start;">✕</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+function agregarItemPlanMejora() {
+  window._planMejoraEditable.push({
+    accion: "Nueva acción de mejora",
+    responsable: "Por asignar",
+    plazo: "Por definir",
+    kpi: "Por definir",
+    prioridad: "media"
+  });
+  renderPlanMejora();
+}
+
+function eliminarItemPlan(idx) {
+  if (confirm('¿Eliminar esta acción del plan?')) {
+    window._planMejoraEditable.splice(idx, 1);
+    renderPlanMejora();
+  }
+}
+
+function actualizarItemPlan(idx, campo, valor) {
+  if (window._planMejoraEditable[idx]) {
+    window._planMejoraEditable[idx][campo] = valor;
+  }
+}
+
+async function guardarPlanMejora() {
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/analisis-calidad`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan_mejora: window._planMejoraEditable })
+    });
+    
+    const data = await resp.json();
+    if (resp.ok && data.exito) {
+      if (typeof toastExito === 'function') {
+        toastExito(`Plan guardado con ${data.items} acciones`, { titulo: '✅ Guardado' });
+      }
+    }
+  } catch(e) {
+    if (typeof toastWarning === 'function') {
+      toastWarning('Error al guardar', { titulo: 'Error' });
+    }
+  }
+}
+
+
 // =============================================================
 // SIMULADOR B2B - Empresa Externa
 // =============================================================
