@@ -79,6 +79,34 @@ body {
   overflow-y: auto;
 }
 
+/* Botón hamburguesa - oculto en desktop */
+.btn-hamburguesa {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 9001;
+  width: 44px;
+  height: 44px;
+  background: rgba(15,23,42,0.95);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.btn-hamburguesa:hover {
+  background: rgba(168,85,247,0.2);
+  border-color: rgba(168,85,247,0.5);
+}
+.btn-hamburguesa svg {
+  width: 24px;
+  height: 24px;
+  fill: #fff;
+}
+
 .brand {
   padding: 0 24px 24px;
   border-bottom: 1px solid var(--border);
@@ -892,35 +920,83 @@ tr:hover td {
 /* Responsive - Tablet */
 @media (max-width: 1100px) {
   .app { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; }
+  .sidebar { 
+    position: fixed; 
+    top: 0; left: -280px; 
+    height: 100vh;
+    width: 260px;
+    z-index: 9000;
+    transition: left 0.3s ease;
+    box-shadow: 4px 0 16px rgba(0,0,0,0.4);
+  }
+  .sidebar.sidebar-abierto {
+    left: 0;
+  }
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .grid-2 { grid-template-columns: 1fr; }
   .action-bar { grid-template-columns: repeat(2, 1fr); }
+  
+  /* Botón hamburguesa visible solo en mobile/tablet */
+  .btn-hamburguesa {
+    display: flex !important;
+  }
+  
+  /* Overlay cuando sidebar abierto */
+  .sidebar-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 8999;
+    display: none;
+  }
+  .sidebar-overlay.visible {
+    display: block;
+  }
+  
+  /* Selector de empresa más compacto en mobile */
+  #selectorEmpresaDemo {
+    top: 12px !important;
+    right: 12px !important;
+    padding: 6px 10px !important;
+    min-width: auto !important;
+    font-size: 11px !important;
+  }
+  #selectorEmpresaDemo > div > div:first-child {
+    display: none;  /* ocultar "Viendo empresa" en mobile */
+  }
+  
+  /* Header pages con menos padding */
+  .page-header {
+    padding: 12px 0 !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
 }
 
 /* Responsive - Móvil */
 @media (max-width: 640px) {
   .sidebar {
     padding: 16px;
+    width: 240px;
   }
   .main {
-    padding: 16px;
+    padding: 12px !important;
   }
   .page-title {
-    font-size: 22px !important;
+    font-size: 20px !important;
   }
   .page-subtitle {
-    font-size: 13px;
+    font-size: 12px;
   }
   .kpis { 
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
   }
   .kpi {
-    padding: 16px;
+    padding: 14px;
   }
   .kpi-value {
-    font-size: 28px;
+    font-size: 26px;
   }
   .action-bar {
     grid-template-columns: 1fr;
@@ -1155,6 +1231,14 @@ tr:hover td {
 <div class="app">
 
 <!-- SIDEBAR -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="cerrarSidebarMobile()"></div>
+
+<button class="btn-hamburguesa" onclick="toggleSidebarMobile()" aria-label="Menú">
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/>
+  </svg>
+</button>
+
 <aside class="sidebar">
   <div class="brand">
     <div class="logo">Agro<span class="accent">IA</span></div>
@@ -9674,7 +9758,8 @@ function renderIshikawa(data) {
     
     <!-- DIAGRAMA ISHIKAWA SVG (Espina de Pescado) INTERACTIVO -->
     <div style="background:rgba(0,0,0,0.3); border-radius:12px; padding:14px; overflow-x:auto; margin-bottom:16px; position:relative;">
-      <svg id="svgIshikawa" viewBox="0 0 1100 600" style="width:100%; height:auto; min-height:480px; max-width:1100px; display:block; margin:0 auto;" xmlns="http://www.w3.org/2000/svg">
+      <div style="min-width:1000px;">
+      <svg id="svgIshikawa" viewBox="0 0 1100 600" style="width:100%; height:auto; min-height:400px; max-width:1100px; display:block; margin:0 auto;" xmlns="http://www.w3.org/2000/svg">
         
         <defs>
           <linearGradient id="espinaGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -9808,6 +9893,7 @@ function renderIshikawa(data) {
   // Cerrar SVG
   html += `
       </svg>
+      </div>
       
       <!-- Tooltip flotante -->
       <div id="ishikawaTooltip" class="ishikawa-tooltip"></div>
@@ -10439,6 +10525,38 @@ async function descargarReporteCalidadPDF() {
   }
 }
 
+
+// =============================================================
+// SIDEBAR MOBILE (botón hamburguesa)
+// =============================================================
+function toggleSidebarMobile() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  if (!sidebar) return;
+  
+  const estaAbierto = sidebar.classList.contains('sidebar-abierto');
+  if (estaAbierto) {
+    cerrarSidebarMobile();
+  } else {
+    sidebar.classList.add('sidebar-abierto');
+    if (overlay) overlay.classList.add('visible');
+  }
+}
+
+function cerrarSidebarMobile() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  if (sidebar) sidebar.classList.remove('sidebar-abierto');
+  if (overlay) overlay.classList.remove('visible');
+}
+
+// Cerrar sidebar automáticamente cuando se hace click en un nav-item (mobile)
+document.addEventListener('click', (e) => {
+  const navItem = e.target.closest('.nav-item');
+  if (navItem && window.innerWidth <= 1100) {
+    setTimeout(cerrarSidebarMobile, 300);
+  }
+});
 
 // =============================================================
 // SIMULADOR B2B - Empresa Externa
