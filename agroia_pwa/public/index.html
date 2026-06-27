@@ -200,18 +200,34 @@ body {
   padding: 10px 24px;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   border-left: 2px solid transparent;
   display: flex;
   align-items: center;
   gap: 10px;
   color: var(--text-soft);
   position: relative;
+  overflow: hidden;
+}
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(168,85,247,0.1), transparent);
+  transition: width 0.3s ease;
 }
 
 .nav-item:hover {
   background: var(--bg-card);
   color: var(--text);
+  padding-left: 28px;
+}
+.nav-item:hover::before {
+  width: 100%;
 }
 
 .nav-item.active {
@@ -219,6 +235,10 @@ body {
   border-left-color: var(--accent);
   color: var(--accent);
   font-weight: 500;
+}
+.nav-item.active::before {
+  width: 100%;
+  background: linear-gradient(90deg, rgba(168,85,247,0.15), transparent);
 }
 
 .nav-icon {
@@ -764,9 +784,107 @@ tr:hover td {
 /* Page sections (single page navigation) */
 .page-section {
   display: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 .page-section.active {
   display: block;
+  animation: pageFadeIn 0.35s ease forwards;
+}
+
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading skeleton mejorado */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.skeleton-line {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.15), rgba(255,255,255,0.05));
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear;
+  border-radius: 4px;
+  height: 14px;
+  margin-bottom: 8px;
+}
+
+/* Loading spinner suave */
+.loading-spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(168,85,247,0.2);
+  border-top-color: #A855F7;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Botones con efecto press */
+button {
+  transition: transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+/* Cards con hover suave */
+.kpi, .worker-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.kpi:hover, .worker-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+/* Form inputs con focus suave */
+.form-input, .form-select, input[type="text"], input[type="number"], input[type="password"], select, textarea {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.form-input:focus, .form-select:focus, input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #A855F7 !important;
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.15);
+}
+
+/* Tabs animados (calidad y plan negocio) */
+.tab-calidad-btn, .plan-tab-btn {
+  transition: all 0.25s ease;
+  position: relative;
+}
+.tab-calidad-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: #A855F7;
+  transition: all 0.3s ease;
+  transform: translateX(-50%);
+}
+.tab-calidad-btn.active::after {
+  width: 80%;
+}
+
+/* Toast con animación más suave */
+.toast {
+  animation: toastInSmooth 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes toastInSmooth {
+  from { opacity: 0; transform: translateX(100%) scale(0.9); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 /* Live indicator */
