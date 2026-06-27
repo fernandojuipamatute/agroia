@@ -6230,22 +6230,26 @@ function renderPesadas(filtro = 'todas') {
 
   const nuevoHTML = filtradas.map(p => {
     const t = TRABAJADORES.find(t => t.dni === p.dni) || {};
-    const prod = (p.kg / p.horas).toFixed(1);
-    const statusClass = p.estado;
+    // PROTECCIÓN: asegurar números válidos
+    const kg = Number(p.kg) || 0;
+    const horas = Number(p.horas) || 1;
+    const z = Number(p.z) || 0;
+    const prod = (kg / horas).toFixed(1);
+    const statusClass = p.estado || 'green';
     const statusLabel = {
       green: '✅ Validado', yellow: '⚠ Observado',
       orange: '⚠ Observado', red: '❌ Bloqueado'
-    }[p.estado];
+    }[statusClass] || '✅ Validado';
     return `
       <tr>
-        <td class="mono">${p.hora}</td>
+        <td class="mono">${p.hora || '—'}</td>
         <td><strong>${t.nombre || p.nombre || '—'}</strong></td>
-        <td class="mono text-muted">${p.dni}</td>
+        <td class="mono text-muted">${p.dni || '—'}</td>
         <td><span class="cuadrilla-tag">${t.cuadrilla || p.cuadrilla || '—'}</span></td>
-        <td>${p.lote}</td>
-        <td><strong>${p.kg}</strong></td>
+        <td>${p.lote || '—'}</td>
+        <td><strong>${kg}</strong></td>
         <td class="mono">${prod} kg/h</td>
-        <td class="mono ${Math.abs(p.z) > 2 ? 'text-red' : Math.abs(p.z) > 1.5 ? 'text-orange' : ''}">${p.z >= 0 ? '+' : ''}${p.z.toFixed(2)}</td>
+        <td class="mono ${Math.abs(z) > 2 ? 'text-red' : Math.abs(z) > 1.5 ? 'text-orange' : ''}">${z >= 0 ? '+' : ''}${z.toFixed(2)}</td>
         <td><span class="status ${statusClass}"><span class="dot"></span> ${statusLabel}</span></td>
       </tr>
     `;
@@ -9557,15 +9561,15 @@ async function cargarPesadasDeEmpresa(empresaId) {
         
         pesadas.unshift({
           hora: p.hora || `${dia}/${mes} ${hh}:${mm}`,
-          dni: p.dni,
-          nombre: p.nombre,
-          cuadrilla: p.cuadrilla,
-          lote: p.lote,
-          kg: p.kg,
-          horas: p.horas,
-          productividad: p.productividad,
-          z: p.z_score,
-          estado: p.estado,
+          dni: p.dni || '',
+          nombre: p.nombre || 'Desconocido',
+          cuadrilla: p.cuadrilla || 'N/A',
+          lote: p.lote || '—',
+          kg: Number(p.kg) || 0,
+          horas: Number(p.horas) || 1,
+          productividad: Number(p.productividad) || 0,
+          z: Number(p.z_score) || 0,
+          estado: p.estado || 'green',
           _localTimestamp: p.timestamp
         });
       });
