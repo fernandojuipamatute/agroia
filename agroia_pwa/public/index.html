@@ -9795,6 +9795,11 @@ async function seleccionarEmpresa(empresaId) {
     if (empresa && typeof setNivelTecnologico === 'function') {
       setNivelTecnologico(empresa.nivel_tecnologico);
     }
+    
+    // 🎯 APLICAR RESTRICCIONES POR NIVEL (solo para clientes)
+    if (typeof aplicarRestriccionesPorNivel === 'function') {
+      aplicarRestriccionesPorNivel(empresa);
+    }
   }
   
   // Refrescar selector
@@ -9827,8 +9832,72 @@ async function seleccionarEmpresa(empresaId) {
   }
 }
 
+// =============================================================
+// 🎯 RESTRICCIONES POR NIVEL DE EMPRESA (CLIENTES)
+// Tu cuenta personal NO se ve afectada - sigue viendo todo
+// =============================================================
+function aplicarRestriccionesPorNivel(empresa) {
+  if (!empresa) return;
+  
+  // 🔒 PROTECCIÓN: tu cuenta personal NUNCA se restringe
+  // Detectamos si es tu cuenta por DNI o por flag de "desarrollador"
+  const perfil = window._perfilActual || {};
+  const esDesarrollador = perfil.dni === '74382418' || 
+                          perfil.rol === 'desarrollador' ||
+                          perfil.es_admin === true;
+  
+  if (esDesarrollador) {
+    // TU CUENTA → mostrar TODO sin restricciones
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.style.display = '';
+    });
+    console.log('[Restricciones] Cuenta admin/dev: sin restricciones');
+    return;
+  }
+  
+  // Para clientes (otras cuentas), aplicar restricciones según nivel
+  const nivel = empresa.nivel_tecnologico || 1;
+  
+  // Mapeo: qué páginas se ven en cada nivel
+  const PERMISOS_POR_NIVEL = {
+    1: [  // BÁSICO - Cerro Prieto
+      'dashboard', 'pesadas', 'trabajadores', 'lotes',
+      'reporte', 'plan_negocio'
+    ],
+    2: [  // PROFESIONAL - Hass Perú
+      'dashboard', 'pesadas', 'trabajadores', 'lotes',
+      'reporte', 'logs', 'vision', 'sostenibilidad',
+      'analisis_calidad', 'plan_negocio'
+    ],
+    3: [  // ENTERPRISE - AgroDemo
+      'dashboard', 'pesadas', 'trabajadores', 'lotes',
+      'reporte', 'logs', 'vision', 'sostenibilidad',
+      'predicciones', 'estado', 'parametros', 'clientes',
+      'plan_negocio', 'simulador_b2b', 'analisis_calidad',
+      'cerebro_agente', 'mapa_procesos'
+    ]
+  };
+  
+  const permitidas = PERMISOS_POR_NIVEL[nivel] || PERMISOS_POR_NIVEL[1];
+  
+  // Mostrar/ocultar items del sidebar
+  document.querySelectorAll('.nav-item').forEach(item => {
+    const onclick = item.getAttribute('onclick') || '';
+    const match = onclick.match(/switchPage\('([^']+)'\)/);
+    if (match) {
+      const page = match[1];
+      if (permitidas.includes(page)) {
+        item.style.display = '';
+      } else {
+        item.style.display = 'none';
+      }
+    }
+  });
+  
+  console.log(`[Restricciones] Nivel ${nivel} aplicado. Páginas permitidas:`, permitidas);
+}
 
-// Helper: leer nivel tecnológico actual del cliente
+
 function getNivelTecnologico() {
   try {
     const guardado = localStorage.getItem('agroia_nivel_tecnologico');
