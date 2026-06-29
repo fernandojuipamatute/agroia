@@ -10666,27 +10666,51 @@ async function cargarPlanMejora() {
     if (data.plan_mejora && data.plan_mejora.length > 0) {
       window._planMejoraEditable = data.plan_mejora;
     } else {
-      // Plan por defecto basado en problemas comunes
+      // Plan por defecto VINCULADO con causas raíz y problemas detectados
       window._planMejoraEditable = [
         {
-          accion: "Capacitación a supervisores en detección de fraude",
-          responsable: "Gerente RRHH",
-          plazo: "1 semana",
-          kpi: "100% supervisores capacitados",
-          prioridad: "alta"
-        },
-        {
-          accion: "Calibración de balanzas en lotes con anomalías",
-          responsable: "Jefe Mantenimiento",
-          plazo: "3 días",
-          kpi: "0 desviaciones >2% en próxima auditoría",
-          prioridad: "alta"
-        },
-        {
-          accion: "Implementar control de jornada (Ley 31110)",
+          accion: "Implementar control biométrico de jornada laboral",
+          problema_vinculado: "P001",
+          causa_raiz: "Falta de sistema de control horario que viole Ley 31110",
           responsable: "Jefe Operaciones",
           plazo: "2 semanas",
-          kpi: "0 casos de jornada >12h",
+          kpi: "0 casos de jornada >12h en próximo mes",
+          prioridad: "alta"
+        },
+        {
+          accion: "Calibración mensual de balanzas + anti-fraude",
+          problema_vinculado: "P002",
+          causa_raiz: "Balanzas sin calibración reciente o manipulación de sensores",
+          responsable: "Jefe Mantenimiento",
+          plazo: "1 semana",
+          kpi: "Reducir productividad sospechosa (z>2.5) en 80%",
+          prioridad: "alta"
+        },
+        {
+          accion: "Auditoría de calidad de fruta por lote",
+          problema_vinculado: "P003",
+          causa_raiz: "Variabilidad en calidad de fruta y madurez inadecuada",
+          responsable: "Ingeniero Agrónomo",
+          plazo: "3 semanas",
+          kpi: "Reducir productividad baja (z<-2.5) en 60%",
+          prioridad: "media"
+        },
+        {
+          accion: "Inspección técnica de lotes problemáticos",
+          problema_vinculado: "P004",
+          causa_raiz: "Problemas de drenaje, riego o calibración por lote",
+          responsable: "Supervisor de Campo",
+          plazo: "1 semana",
+          kpi: "Reducir tasa de anomalías por lote a <15%",
+          prioridad: "alta"
+        },
+        {
+          accion: "Capacitación urgente + investigación de reincidentes",
+          problema_vinculado: "P005",
+          causa_raiz: "Trabajadores con anomalías sistemáticas (capacitación o fraude)",
+          responsable: "Gerente RRHH",
+          plazo: "2 semanas",
+          kpi: "0 trabajadores con 3+ anomalías por semana",
           prioridad: "alta"
         }
       ];
@@ -10712,11 +10736,38 @@ function renderPlanMejora() {
   
   window._planMejoraEditable.forEach((item, idx) => {
     const colorPri = item.prioridad === 'alta' ? '#DC2626' : item.prioridad === 'media' ? '#F59E0B' : '#3B82F6';
+    const tieneVinculo = item.problema_vinculado || item.causa_raiz;
     
     html += `
       <div style="background:rgba(0,0,0,0.3); border-left:4px solid ${colorPri}; border-radius:8px; padding:12px;">
         <div style="display:grid; grid-template-columns:1fr auto; gap:10px;">
           <div>
+            <!-- Vinculación causa-acción (banner arriba) -->
+            ${tieneVinculo ? `
+              <div style="background:linear-gradient(90deg, rgba(168,85,247,0.15), rgba(59,130,246,0.05)); border:1px solid rgba(168,85,247,0.4); border-radius:6px; padding:8px 10px; margin-bottom:8px;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  ${item.problema_vinculado ? `<span style="background:#A855F7; color:white; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">⚡ Resuelve ${escaparHTML(item.problema_vinculado)}</span>` : ''}
+                  <span style="color:#94a3b8; font-size:10px;">→</span>
+                </div>
+                ${item.causa_raiz ? `
+                  <div style="margin-top:4px;">
+                    <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; margin-bottom:2px;">🌱 Causa raíz que ataca:</div>
+                    <input type="text" value="${escaparHTML(item.causa_raiz)}"
+                      onchange="actualizarItemPlan(${idx}, 'causa_raiz', this.value)"
+                      style="width:100%; background:rgba(0,0,0,0.4); border:1px dashed rgba(168,85,247,0.4); border-radius:3px; padding:4px 8px; color:#A855F7; font-size:11px; font-style:italic;">
+                  </div>
+                ` : ''}
+              </div>
+            ` : `
+              <div style="margin-bottom:8px;">
+                <button onclick="agregarCausaRaiz(${idx})" style="background:rgba(168,85,247,0.1); border:1px dashed rgba(168,85,247,0.3); color:#A855F7; border-radius:4px; padding:4px 10px; font-size:10px; cursor:pointer;">
+                  + Vincular con problema y causa raíz
+                </button>
+              </div>
+            `}
+            
+            <!-- Acción principal -->
+            <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; margin-bottom:2px;">🎯 Acción correctiva:</div>
             <input type="text" value="${escaparHTML(item.accion)}" 
               onchange="actualizarItemPlan(${idx}, 'accion', this.value)"
               style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:6px 10px; color:#fff; font-size:13px; font-weight:600; margin-bottom:6px;">
@@ -10745,12 +10796,58 @@ function renderPlanMejora() {
   });
   
   html += '</div>';
+  
+  // Tabla resumen causa-acción al final
+  const conVinculo = window._planMejoraEditable.filter(i => i.problema_vinculado);
+  if (conVinculo.length > 0) {
+    html += `
+      <div style="margin-top:20px; padding:14px; background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.3); border-radius:10px;">
+        <h4 style="color:#A855F7; font-size:13px; margin:0 0 10px 0;">🔗 Matriz Causa-Acción</h4>
+        <div style="overflow-x:auto;">
+          <table style="width:100%; min-width:500px; border-collapse:collapse; font-size:11px;">
+            <thead>
+              <tr style="border-bottom:1px solid rgba(168,85,247,0.3);">
+                <th style="text-align:left; padding:6px; color:#A855F7; font-weight:600;">Problema</th>
+                <th style="text-align:left; padding:6px; color:#A855F7; font-weight:600;">Causa Raíz</th>
+                <th style="text-align:left; padding:6px; color:#A855F7; font-weight:600;">Acción</th>
+                <th style="text-align:left; padding:6px; color:#A855F7; font-weight:600;">Prioridad</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${conVinculo.map(item => {
+                const colorP = item.prioridad === 'alta' ? '#DC2626' : item.prioridad === 'media' ? '#F59E0B' : '#3B82F6';
+                return `
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <td style="padding:6px;"><span style="background:#A855F7; color:white; padding:2px 5px; border-radius:3px; font-size:10px; font-weight:bold;">${escaparHTML(item.problema_vinculado || '-')}</span></td>
+                    <td style="padding:6px; color:#cbd5e1; font-style:italic;">${escaparHTML((item.causa_raiz || '-').substring(0, 60))}${(item.causa_raiz || '').length > 60 ? '...' : ''}</td>
+                    <td style="padding:6px; color:#fff;">${escaparHTML((item.accion || '-').substring(0, 50))}${(item.accion || '').length > 50 ? '...' : ''}</td>
+                    <td style="padding:6px; color:${colorP}; font-weight:bold;">${item.prioridad === 'alta' ? '🔴 Alta' : item.prioridad === 'media' ? '🟡 Media' : '🔵 Baja'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+  
   cont.innerHTML = html;
+}
+
+function agregarCausaRaiz(idx) {
+  if (window._planMejoraEditable[idx]) {
+    window._planMejoraEditable[idx].problema_vinculado = 'P???';
+    window._planMejoraEditable[idx].causa_raiz = 'Describe la causa raíz aquí...';
+    renderPlanMejora();
+  }
 }
 
 function agregarItemPlanMejora() {
   window._planMejoraEditable.push({
     accion: "Nueva acción de mejora",
+    problema_vinculado: "",
+    causa_raiz: "",
     responsable: "Por asignar",
     plazo: "Por definir",
     kpi: "Por definir",
