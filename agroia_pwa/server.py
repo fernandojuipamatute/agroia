@@ -2031,6 +2031,350 @@ PLAN_MEJORA_GUARDADO = []
 def obtener_plan_mejora():
     return jsonify({"plan_mejora": PLAN_MEJORA_GUARDADO})
 
+# ============================================================
+# 🤖 AGENTE IA AUTÓNOMO - CEREBRO DEL SISTEMA
+# Loop que corre cada 30s en background tomando decisiones
+# ============================================================
+import threading as _threading
+from collections import defaultdict
+from datetime import timedelta
+
+# Estado global del agente
+AGENTE_IA = {
+    "activo": True,  # arranca prendido por defecto
+    "ultima_ejecucion": None,
+    "ciclos_completados": 0,
+    "decisiones_tomadas": 0,
+    "acciones_ejecutadas": 0,
+    "patrones_aprendidos": 0,
+    "bitacora": [],  # últimas 100 decisiones
+    "memoria_trabajadores": {},  # patrones por trabajador
+    "memoria_lotes": {},  # patrones por lote
+    "trabajadores_bloqueados": set(),  # DNIs bloqueados
+    "alertas_pendientes": [],  # alertas para supervisor
+    "thread": None
+}
+
+def _log_decision(tipo, mensaje, razonamiento, accion=None, severidad="info", empresa_id=None):
+    """Registra una decisión del agente en la bitácora."""
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "tipo": tipo,
+        "mensaje": mensaje,
+        "razonamiento": razonamiento,
+        "accion": accion,
+        "severidad": severidad,
+        "empresa_id": empresa_id
+    }
+    AGENTE_IA["bitacora"].append(entry)
+    if len(AGENTE_IA["bitacora"]) > 100:
+        AGENTE_IA["bitacora"] = AGENTE_IA["bitacora"][-100:]
+    AGENTE_IA["decisiones_tomadas"] += 1
+    if accion:
+        AGENTE_IA["acciones_ejecutadas"] += 1
+    print(f"[Agente IA] {tipo}: {mensaje}")
+
+def _ciclo_agente():
+    """Loop principal del agente. Corre cada 30s."""
+    import time
+    while True:
+        try:
+            if AGENTE_IA["activo"] and supabase:
+                _ejecutar_ciclo()
+                AGENTE_IA["ciclos_completados"] += 1
+                AGENTE_IA["ultima_ejecucion"] = datetime.now().isoformat()
+        except Exception as e:
+            print(f"[Agente IA] Error en ciclo: {e}")
+        time.sleep(30)
+
+def _ejecutar_ciclo():
+    """Un ciclo de análisis y decisiones del agente."""
+    
+    # OBSERVAR: Leer pesadas de últimas 2 horas
+    from datetime import timezone
+    desde = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    
+    try:
+        res = supabase.table('pesadas')\
+            .select("*")\
+            .gt('timestamp_creacion', desde)\
+            .order('timestamp_creacion', desc=True)\
+            .limit(200)\
+            .execute()
+        pesadas_recientes = res.data or []
+    except Exception as e:
+        print(f"[Agente IA] No pudo leer pesadas: {e}")
+        return
+    
+    if not pesadas_recientes:
+        return
+    
+    # ANALIZAR: Agrupar por trabajador
+    por_trabajador = defaultdict(list)
+    por_lote = defaultdict(list)
+    por_empresa = defaultdict(list)
+    
+    for p in pesadas_recientes:
+        if p.get('dni'):
+            por_trabajador[p['dni']].append(p)
+        if p.get('lote'):
+            por_lote[p['lote']].append(p)
+        if p.get('empresa_id'):
+            por_empresa[p['empresa_id']].append(p)
+    
+    # ===== REGLA 1: BLOQUEAR TRABAJADORES SOSPECHOSOS =====
+    for dni, pesadas in por_trabajador.items():
+        if dni in AGENTE_IA["trabajadores_bloqueados"]:
+            continue  # ya está bloqueado
+        
+        # Contar anomalías en la última hora
+        ahora = datetime.now()
+        anomalias_ultima_hora = 0
+        for p in pesadas:
+            try:
+                ts = datetime.fromisoformat(p['timestamp_creacion'].replace('Z', '+00:00'))
+                if (ahora - ts.replace(tzinfo=None)).total_seconds() < 3600:
+                    if p.get('estado') in ['orange', 'red']:
+                        anomalias_ultima_hora += 1
+            except:
+                pass
+        
+        if anomalias_ultima_hora >= 3:
+            nombre = pesadas[0].get('nombre', 'Desconocido')
+            empresa_id = pesadas[0].get('empresa_id')
+            
+            AGENTE_IA["trabajadores_bloqueados"].add(dni)
+            
+            _log_decision(
+                tipo="🚨 BLOQUEO AUTOMÁTICO",
+                mensaje=f"Bloqueado trabajador {nombre} (DNI {dni})",
+                razonamiento=f"Detecté {anomalias_ultima_hora} anomalías en última hora. "
+                             f"Patrón sospechoso de fraude o error sistemático. "
+                             f"DECISIÓN: bloquear próximas pesadas hasta validación humana.",
+                accion=f"Trabajador {dni} agregado a lista bloqueada. Supervisor notificado.",
+                severidad="alta",
+                empresa_id=empresa_id
+            )
+            
+            AGENTE_IA["alertas_pendientes"].append({
+                "tipo": "bloqueo",
+                "mensaje": f"Trabajador {nombre} bloqueado por {anomalias_ultima_hora} anomalías",
+                "dni": dni,
+                "timestamp": datetime.now().isoformat()
+            })
+    
+    # ===== REGLA 2: ALERTAR JORNADA EXCESIVA (Ley 31110) =====
+    jornadas_excesivas = []
+    for p in pesadas_recientes:
+        horas = float(p.get('horas') or 0)
+        if horas > 12:
+            jornadas_excesivas.append(p)
+    
+    if jornadas_excesivas:
+        # Solo alertar 1 vez por ciclo (no spam)
+        casos = len(jornadas_excesivas)
+        ultimo = jornadas_excesivas[0]
+        
+        # Verificar si ya alerté esto recientemente
+        alertas_recientes = [a for a in AGENTE_IA["alertas_pendientes"][-10:] 
+                              if a.get('tipo') == 'jornada_excesiva']
+        if not alertas_recientes:
+            _log_decision(
+                tipo="⚠️ ALERTA LEGAL",
+                mensaje=f"{casos} casos de jornada >12h detectados (Ley 31110)",
+                razonamiento=f"La Ley 31110 establece máximo 8h con extras hasta 12h. "
+                             f"Detecté {casos} pesadas con horas excesivas. "
+                             f"DECISIÓN: alerta automática al supervisor para revisión.",
+                accion=f"Notificación enviada. Pesadas marcadas para auditoría.",
+                severidad="alta",
+                empresa_id=ultimo.get('empresa_id')
+            )
+            
+            AGENTE_IA["alertas_pendientes"].append({
+                "tipo": "jornada_excesiva",
+                "mensaje": f"{casos} casos de jornada excesiva",
+                "timestamp": datetime.now().isoformat()
+            })
+    
+    # ===== REGLA 3: DETECTAR LOTES SOSPECHOSOS =====
+    for lote, pesadas_lote in por_lote.items():
+        if len(pesadas_lote) < 5:
+            continue
+        
+        anomalias_lote = sum(1 for p in pesadas_lote if p.get('estado') in ['orange', 'red'])
+        tasa = anomalias_lote / len(pesadas_lote)
+        
+        if tasa > 0.4:  # más del 40% anómalo
+            # Verificar si ya alerté este lote
+            ya_alertado = any(
+                e.get('tipo') == 'lote_sospechoso' and e.get('lote') == lote 
+                for e in AGENTE_IA["bitacora"][-20:]
+            )
+            if not ya_alertado:
+                empresa_id = pesadas_lote[0].get('empresa_id')
+                _log_decision(
+                    tipo="🔧 RECOMENDACIÓN TÉCNICA",
+                    mensaje=f"Lote {lote} con tasa de anomalía del {tasa*100:.0f}%",
+                    razonamiento=f"Analicé {len(pesadas_lote)} pesadas del Lote {lote}. "
+                                 f"El {tasa*100:.0f}% son anómalas. Posibles causas: "
+                                 f"balanza descalibrada, fruta de mala calidad, o fraude sistemático. "
+                                 f"DECISIÓN: recomendar inspección técnica urgente.",
+                    accion=f"Lote {lote} marcado para inspección. Mantenimiento notificado.",
+                    severidad="media",
+                    empresa_id=empresa_id
+                )
+                
+                # Recordar este lote
+                AGENTE_IA["bitacora"][-1]["lote"] = lote
+    
+    # ===== REGLA 4: APRENDIZAJE - Ajustar umbrales =====
+    for dni, pesadas in por_trabajador.items():
+        if len(pesadas) < 10:
+            continue
+        if dni in AGENTE_IA["trabajadores_bloqueados"]:
+            continue
+        
+        # Calcular productividad promedio reciente
+        prods = []
+        for p in pesadas:
+            kg = float(p.get('kg') or 0)
+            horas = float(p.get('horas') or 1)
+            if horas > 0 and p.get('estado') == 'green':  # solo pesadas válidas
+                prods.append(kg / horas)
+        
+        if len(prods) >= 8:
+            nueva_media = sum(prods) / len(prods)
+            
+            # Comparar con histórico guardado
+            memoria = AGENTE_IA["memoria_trabajadores"].get(dni, {})
+            historico_actual = memoria.get('historico', None)
+            
+            if historico_actual is None:
+                # Primera vez que lo veo
+                AGENTE_IA["memoria_trabajadores"][dni] = {
+                    'historico': nueva_media,
+                    'muestras': len(prods)
+                }
+                AGENTE_IA["patrones_aprendidos"] += 1
+            else:
+                # Ajuste suave: 90% viejo + 10% nuevo (aprendizaje gradual)
+                diferencia = abs(nueva_media - historico_actual)
+                if diferencia > 2:  # cambio significativo
+                    nuevo_historico = historico_actual * 0.9 + nueva_media * 0.1
+                    nombre = pesadas[0].get('nombre', 'Desconocido')
+                    empresa_id = pesadas[0].get('empresa_id')
+                    
+                    # Solo loggeo si es un cambio importante
+                    ya_loggeado = any(
+                        e.get('tipo') == '🧠 APRENDIZAJE' and dni in str(e.get('razonamiento', ''))
+                        for e in AGENTE_IA["bitacora"][-20:]
+                    )
+                    if not ya_loggeado:
+                        _log_decision(
+                            tipo="🧠 APRENDIZAJE",
+                            mensaje=f"Ajusté umbral de {nombre}",
+                            razonamiento=f"Trabajador {nombre} (DNI {dni}) ha mejorado su productividad. "
+                                         f"Histórico anterior: {historico_actual:.1f} kg/h. "
+                                         f"Promedio reciente: {nueva_media:.1f} kg/h. "
+                                         f"DECISIÓN: ajustar gradualmente a {nuevo_historico:.1f} kg/h "
+                                         f"para evitar falsos positivos.",
+                            accion=f"Histórico actualizado: {historico_actual:.1f} → {nuevo_historico:.1f} kg/h",
+                            severidad="info",
+                            empresa_id=empresa_id
+                        )
+                    
+                    AGENTE_IA["memoria_trabajadores"][dni] = {
+                        'historico': nuevo_historico,
+                        'muestras': len(prods)
+                    }
+    
+    # ===== REGLA 5: DETECTAR PATRONES DE FRAUDE COLABORATIVO =====
+    # Si varios trabajadores tienen anomalías en el mismo lote → posible fraude grupal
+    for lote, pesadas_lote in por_lote.items():
+        trabajadores_anomalos = set()
+        for p in pesadas_lote:
+            if p.get('estado') in ['orange', 'red']:
+                trabajadores_anomalos.add(p.get('dni'))
+        
+        if len(trabajadores_anomalos) >= 3:
+            ya_alertado = any(
+                e.get('tipo') == '🕵️ INVESTIGACIÓN' and e.get('lote_inv') == lote
+                for e in AGENTE_IA["bitacora"][-30:]
+            )
+            if not ya_alertado:
+                empresa_id = pesadas_lote[0].get('empresa_id')
+                _log_decision(
+                    tipo="🕵️ INVESTIGACIÓN",
+                    mensaje=f"Posible fraude colaborativo en Lote {lote}",
+                    razonamiento=f"{len(trabajadores_anomalos)} trabajadores distintos con anomalías "
+                                 f"en el mismo lote ({lote}) en últimas 2 horas. "
+                                 f"Patrón sugiere fraude coordinado o problema sistemático. "
+                                 f"DECISIÓN: abrir investigación, marcar pesadas para auditoría.",
+                    accion=f"Investigación abierta. {len(trabajadores_anomalos)} trabajadores marcados.",
+                    severidad="alta",
+                    empresa_id=empresa_id
+                )
+                AGENTE_IA["bitacora"][-1]["lote_inv"] = lote
+
+# Endpoints del agente
+@app.route('/api/agente/estado', methods=['GET'])
+@rate_limit('default')
+def agente_estado():
+    """Estado actual del agente."""
+    empresa_id = request.args.get('empresa_id', type=int)
+    
+    # Filtrar bitácora por empresa si se especifica
+    bitacora = AGENTE_IA["bitacora"]
+    if empresa_id:
+        bitacora = [b for b in bitacora if b.get('empresa_id') == empresa_id or b.get('empresa_id') is None]
+    
+    return jsonify({
+        "activo": AGENTE_IA["activo"],
+        "ultima_ejecucion": AGENTE_IA["ultima_ejecucion"],
+        "stats": {
+            "ciclos_completados": AGENTE_IA["ciclos_completados"],
+            "decisiones_tomadas": AGENTE_IA["decisiones_tomadas"],
+            "acciones_ejecutadas": AGENTE_IA["acciones_ejecutadas"],
+            "patrones_aprendidos": AGENTE_IA["patrones_aprendidos"],
+            "trabajadores_bloqueados": len(AGENTE_IA["trabajadores_bloqueados"]),
+            "alertas_pendientes": len(AGENTE_IA["alertas_pendientes"])
+        },
+        "bitacora": bitacora[-30:],  # últimas 30
+        "alertas": AGENTE_IA["alertas_pendientes"][-10:]
+    })
+
+@app.route('/api/agente/toggle', methods=['POST'])
+@rate_limit('default')
+def agente_toggle():
+    """Activar/desactivar el agente."""
+    AGENTE_IA["activo"] = not AGENTE_IA["activo"]
+    estado = "activado" if AGENTE_IA["activo"] else "pausado"
+    return jsonify({
+        "exito": True,
+        "activo": AGENTE_IA["activo"],
+        "mensaje": f"Agente {estado}"
+    })
+
+@app.route('/api/agente/reset', methods=['POST'])
+@rate_limit('default')
+def agente_reset():
+    """Resetear el agente (limpiar bitácora y memoria)."""
+    AGENTE_IA["bitacora"] = []
+    AGENTE_IA["decisiones_tomadas"] = 0
+    AGENTE_IA["acciones_ejecutadas"] = 0
+    AGENTE_IA["patrones_aprendidos"] = 0
+    AGENTE_IA["trabajadores_bloqueados"] = set()
+    AGENTE_IA["alertas_pendientes"] = []
+    AGENTE_IA["memoria_trabajadores"] = {}
+    AGENTE_IA["memoria_lotes"] = {}
+    return jsonify({"exito": True, "mensaje": "Agente reseteado"})
+
+# Iniciar el thread del agente automáticamente al iniciar el servidor
+_thread_agente = _threading.Thread(target=_ciclo_agente, daemon=True)
+_thread_agente.start()
+AGENTE_IA["thread"] = _thread_agente
+print("[Agente IA] Cerebro autónomo iniciado (ciclos cada 30s)")
+
 @app.route('/api/reporte-calidad-pdf', methods=['GET'])
 @rate_limit('default')
 def generar_reporte_calidad_pdf():
