@@ -3099,6 +3099,9 @@ tr:hover td {
     <button onclick="cambiarTabCalidad('plan')" id="tabBtnPlan" class="tab-calidad-btn" style="background:transparent; border:none; color:#94a3b8; padding:10px 16px; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:500;">
       🎯 Plan de Mejora
     </button>
+    <button onclick="cambiarTabCalidad('trazabilidad')" id="tabBtnTrazabilidad" class="tab-calidad-btn" style="background:transparent; border:none; color:#94a3b8; padding:10px 16px; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:500;">
+      🔬 Trazabilidad
+    </button>
   </div>
 
   <!-- TAB 1: ISHIKAWA -->
@@ -3146,6 +3149,22 @@ tr:hover td {
       <button onclick="guardarPlanMejora()" style="background:linear-gradient(135deg, #3B82F6, #1D4ED8); color:white; border:none; border-radius:8px; padding:10px 24px; font-size:13px; font-weight:600; cursor:pointer;">
         💾 Guardar plan
       </button>
+    </div>
+  </div>
+
+  <!-- TAB 5: TRAZABILIDAD PROBLEMA-EVIDENCIA -->
+  <div id="tabCalidadTrazabilidad" class="tab-calidad-content" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div>
+        <h3 style="color:#fff; font-size:15px; margin:0;">🔬 Trazabilidad: Cada problema con su evidencia de datos</h3>
+        <div style="color:#94a3b8; font-size:11px; margin-top:4px;">Cumple punto 2 rúbrica: evidencia de datos y observaciones que respaldan cada hallazgo</div>
+      </div>
+      <button onclick="cargarTrazabilidad()" style="background:linear-gradient(135deg, #A855F7, #6366F1); color:white; border:none; border-radius:6px; padding:8px 16px; font-size:12px; font-weight:600; cursor:pointer;">
+        🔄 Actualizar
+      </button>
+    </div>
+    <div id="trazabilidadContenido" style="background:rgba(255,255,255,0.03); border-radius:12px; padding:18px;">
+      <div style="text-align:center; color:#64748B; padding:40px;">⏳ Cargando trazabilidad...</div>
     </div>
   </div>
 </div>
@@ -9902,6 +9921,11 @@ function cambiarTabCalidad(tab) {
     btn.style.color = '#A855F7';
     btn.style.borderBottom = '2px solid #A855F7';
   }
+  
+  // Si entra al tab trazabilidad, cargarla
+  if (tab === 'trazabilidad' && typeof cargarTrazabilidad === 'function') {
+    cargarTrazabilidad();
+  }
 }
 
 async function entrarAAnalisisCalidad() {
@@ -10766,6 +10790,138 @@ async function guardarPlanMejora() {
     if (typeof toastWarning === 'function') {
       toastWarning('Error al guardar', { titulo: 'Error' });
     }
+  }
+}
+
+// =============================================================
+// TRAZABILIDAD: Conectar problema con evidencia de datos
+// =============================================================
+async function cargarTrazabilidad() {
+  const cont = document.getElementById('trazabilidadContenido');
+  if (!cont) return;
+  
+  cont.innerHTML = '<div style="text-align:center; color:#64748B; padding:40px;">⏳ Cargando evidencias...</div>';
+  
+  try {
+    const empresaId = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+    let url = `${SERVIDOR_URL}/api/trazabilidad-problemas`;
+    if (empresaId) url += `?empresa_id=${empresaId}`;
+    
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    
+    const data = await resp.json();
+    
+    if (!data.exito || !data.problemas_evidenciados || data.problemas_evidenciados.length === 0) {
+      cont.innerHTML = `
+        <div style="text-align:center; color:#94a3b8; padding:40px;">
+          <div style="font-size:48px; margin-bottom:12px;">🔬</div>
+          <div style="font-size:14px;">Sin problemas detectados aún.</div>
+          <div style="font-size:12px; margin-top:8px;">Inicia el Simulador B2B con anomalías >20% para generar evidencias.</div>
+        </div>
+      `;
+      return;
+    }
+    
+    let html = `
+      <div style="margin-bottom:16px; padding:12px; background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.3); border-radius:8px;">
+        <div style="color:#A855F7; font-size:12px; font-weight:600;">
+          📊 ${data.total_problemas} problemas con evidencia de datos · ${data.total_pesadas_analizadas} pesadas analizadas
+        </div>
+      </div>
+    `;
+    
+    data.problemas_evidenciados.forEach((problema, idx) => {
+      const colorSev = problema.severidad === 'alta' ? '#DC2626' : '#F59E0B';
+      const iconSev = problema.severidad === 'alta' ? '🔴' : '🟡';
+      
+      html += `
+        <div style="background:rgba(0,0,0,0.3); border-left:4px solid ${colorSev}; border-radius:8px; padding:14px; margin-bottom:14px;">
+          <!-- Header del problema -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:10px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+              <div style="color:${colorSev}; font-size:11px; font-weight:600; text-transform:uppercase; margin-bottom:4px;">
+                ${escaparHTML(problema.id)} · ${iconSev} ${escaparHTML(problema.categoria)}
+              </div>
+              <div style="color:#fff; font-size:15px; font-weight:bold;">
+                ${escaparHTML(problema.titulo)}
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="color:${colorSev}; font-size:24px; font-weight:bold;">${problema.total_casos}</div>
+              <div style="color:#94a3b8; font-size:10px;">casos</div>
+            </div>
+          </div>
+          
+          <!-- Norma de referencia -->
+          <div style="background:rgba(168,85,247,0.08); border-radius:4px; padding:8px 10px; margin-bottom:10px;">
+            <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; margin-bottom:2px;">📋 Norma / Referencia:</div>
+            <div style="color:#A855F7; font-size:12px;">${escaparHTML(problema.norma_referencia)}</div>
+          </div>
+          
+          <!-- Tabla de evidencia -->
+          <div style="margin-bottom:10px;">
+            <div style="color:#10B981; font-size:11px; text-transform:uppercase; margin-bottom:6px; font-weight:600;">
+              🔍 Evidencia de datos (${problema.evidencia.length} de ${problema.total_casos}):
+            </div>
+            <div style="background:rgba(0,0,0,0.4); border-radius:6px; padding:8px; overflow-x:auto;">
+              <table style="width:100%; min-width:600px; border-collapse:collapse; font-size:11px;">
+                <thead>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <th style="text-align:left; padding:6px; color:#94a3b8;">Hora</th>
+                    <th style="text-align:left; padding:6px; color:#94a3b8;">DNI</th>
+                    <th style="text-align:left; padding:6px; color:#94a3b8;">Trabajador</th>
+                    <th style="text-align:left; padding:6px; color:#94a3b8;">Lote</th>
+                    <th style="text-align:right; padding:6px; color:#94a3b8;">Datos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${problema.evidencia.map(ev => {
+                    let datos = '';
+                    if (ev.exceso_horas !== undefined) {
+                      datos = `${ev.horas}h <span style="color:${colorSev};">(+${ev.exceso_horas.toFixed(1)}h)</span>`;
+                    } else if (ev.z_score !== undefined) {
+                      datos = `${ev.kg}kg / ${ev.horas}h = ${ev.productividad}kg/h <span style="color:${colorSev};">(z=${ev.z_score})</span>`;
+                    } else {
+                      datos = `${ev.kg}kg / ${ev.horas}h`;
+                    }
+                    return `
+                      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <td style="padding:6px; color:#cbd5e1;">${escaparHTML(ev.hora || '-')}</td>
+                        <td style="padding:6px; color:#cbd5e1; font-family:monospace;">${escaparHTML(ev.dni || '-')}</td>
+                        <td style="padding:6px; color:#fff;">${escaparHTML(ev.trabajador || '-')}</td>
+                        <td style="padding:6px; color:#3B82F6;">${escaparHTML(ev.lote || '-')}</td>
+                        <td style="padding:6px; color:#fff; text-align:right;">${datos}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Impacto económico -->
+          <div style="display:grid; grid-template-columns:auto 1fr; gap:10px; padding:10px; background:rgba(239,159,39,0.08); border-radius:6px;">
+            <div>
+              <div style="color:#94a3b8; font-size:10px; text-transform:uppercase;">💰 Impacto</div>
+              <div style="color:#EF9F27; font-size:18px; font-weight:bold;">${escaparHTML(problema.impacto_economico)}</div>
+            </div>
+            <div style="color:#cbd5e1; font-size:12px; align-self:center;">
+              ${escaparHTML(problema.impacto_descripcion)}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    cont.innerHTML = html;
+  } catch(e) {
+    console.error('Error trazabilidad:', e);
+    cont.innerHTML = `
+      <div style="text-align:center; color:#DC2626; padding:30px;">
+        ⚠ Error cargando trazabilidad. Genera datos en el Simulador B2B primero.
+      </div>
+    `;
   }
 }
 
