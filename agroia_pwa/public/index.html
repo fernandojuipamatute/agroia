@@ -1243,6 +1243,9 @@ tr:hover td {
     <div class="nav-item" onclick="switchPage('analisis_calidad')" data-permiso="analisis_calidad" style="background:linear-gradient(135deg, rgba(168,85,247,0.15), rgba(59,130,246,0.15)); border:1px solid rgba(168,85,247,0.3); margin-top:4px;">
       <span class="nav-icon">📊</span> Análisis Calidad
     </div>
+    <div class="nav-item" onclick="switchPage('cerebro_agente')" data-permiso="cerebro_agente" style="background:linear-gradient(135deg, rgba(16,185,129,0.2), rgba(168,85,247,0.2)); border:1px solid rgba(16,185,129,0.4); margin-top:4px;">
+      <span class="nav-icon">🤖</span> Cerebro del Agente
+    </div>
   </div>
 
   <!-- BOTÓN CERRAR SESIÓN -->
@@ -3142,6 +3145,96 @@ tr:hover td {
       </button>
     </div>
   </div>
+</div>
+
+<!-- ============= CEREBRO DEL AGENTE IA (DEMO) ============= -->
+<div class="page-section" id="page-cerebro_agente">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">🤖 Cerebro del Agente IA</h1>
+      <div class="page-subtitle">Vista en tiempo real de las decisiones autónomas que toma el agente sin intervención humana</div>
+    </div>
+  </div>
+
+  <!-- Banner principal -->
+  <div style="background:linear-gradient(135deg, rgba(16,185,129,0.1), rgba(168,85,247,0.1)); border:1px solid rgba(16,185,129,0.4); border-radius:14px; padding:18px; margin-bottom:18px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="font-size:36px;">🧠</div>
+      <div style="flex:1;">
+        <h3 style="color:#10B981; margin:0 0 6px 0; font-size:16px;">Agente IA Autónomo</h3>
+        <p style="color:#cbd5e1; font-size:13px; margin:0; line-height:1.5;">
+          Este agente trabaja <strong>SIN intervención humana</strong>. Cada 30 segundos analiza pesadas,
+          detecta patrones, toma decisiones y ejecuta acciones (bloqueos, alertas, ajustes de umbrales).
+          Aquí ves su razonamiento en tiempo real.
+        </p>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button onclick="toggleAgente()" id="btnToggleAgente" 
+                style="background:linear-gradient(135deg, #DC2626, #B91C1C); color:white; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer;">
+          ⏸ Pausar
+        </button>
+        <button onclick="resetAgente()" 
+                style="background:rgba(100,116,139,0.4); color:white; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer;">
+          🔄 Reset
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Indicador EN VIVO -->
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+    <div id="indicadorAgente" style="width:10px; height:10px; border-radius:50%; background:#10B981; box-shadow:0 0 8px #10B981; animation:pulse 1.5s infinite;"></div>
+    <span id="estadoAgenteTexto" style="color:#10B981; font-size:12px; font-weight:600;">🟢 Agente activo · Próximo ciclo en <span id="contadorCiclo">30</span>s</span>
+  </div>
+
+  <!-- 4 KPIs principales -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:18px;">
+    <div style="background:rgba(255,255,255,0.03); border-left:4px solid #10B981; border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">🔄 Ciclos</div>
+      <div id="kpiCiclos" style="color:#fff; font-size:32px; font-weight:bold; margin-top:4px;">0</div>
+      <div style="color:#94a3b8; font-size:11px;">completados</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03); border-left:4px solid #A855F7; border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">🧠 Decisiones</div>
+      <div id="kpiDecisiones" style="color:#A855F7; font-size:32px; font-weight:bold; margin-top:4px;">0</div>
+      <div style="color:#94a3b8; font-size:11px;">tomadas solo</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03); border-left:4px solid #F59E0B; border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">⚡ Acciones</div>
+      <div id="kpiAcciones" style="color:#F59E0B; font-size:32px; font-weight:bold; margin-top:4px;">0</div>
+      <div style="color:#94a3b8; font-size:11px;">ejecutadas</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03); border-left:4px solid #3B82F6; border-radius:10px; padding:14px;">
+      <div style="color:#94a3b8; font-size:11px; text-transform:uppercase;">🎓 Aprendizaje</div>
+      <div id="kpiAprendizaje" style="color:#3B82F6; font-size:32px; font-weight:bold; margin-top:4px;">0</div>
+      <div style="color:#94a3b8; font-size:11px;">patrones aprendidos</div>
+    </div>
+  </div>
+
+  <!-- Bitácora en vivo -->
+  <h3 style="color:#fff; font-size:15px; margin:20px 0 12px 0;">📜 Bitácora de Decisiones (en vivo)</h3>
+  <div id="bitacoraAgente" style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; max-height:600px; overflow-y:auto;">
+    <div style="color:#64748B; text-align:center; padding:40px;">
+      ⏳ Esperando primera decisión del agente...<br>
+      <span style="font-size:11px;">El agente analiza cada 30 segundos. Genera pesadas con el Simulador B2B para que el agente tome decisiones.</span>
+    </div>
+  </div>
+
+  <!-- Explicación técnica -->
+  <details style="margin-top:18px;">
+    <summary style="color:#A855F7; font-size:12px; cursor:pointer; padding:8px;">🔬 Cómo funciona técnicamente</summary>
+    <div style="background:rgba(168,85,247,0.05); border:1px solid rgba(168,85,247,0.2); border-radius:8px; padding:14px; margin-top:8px; color:#cbd5e1; font-size:12px; line-height:1.7;">
+      <strong style="color:#A855F7;">Reglas de decisión autónoma del agente:</strong><br><br>
+      
+      <strong>🚨 Bloqueo automático:</strong> Si un trabajador acumula 3+ anomalías en 1h → bloquear<br>
+      <strong>⚠️ Alerta Ley 31110:</strong> Si jornada >12h → notificar supervisor automáticamente<br>
+      <strong>🔧 Calibración:</strong> Si un lote >40% anómalo → recomendar inspección técnica<br>
+      <strong>🧠 Aprendizaje:</strong> Si productividad cambia consistentemente → ajustar umbrales<br>
+      <strong>🕵️ Investigación:</strong> Si 3+ trabajadores anómalos en mismo lote → investigar fraude grupal<br><br>
+      
+      <em>Todas estas decisiones se toman SIN que nadie le diga al agente qué hacer.</em>
+    </div>
+  </details>
 </div>
 
 <!-- ============= CONFIGURACIÓN DEL SISTEMA ============= -->
@@ -6204,6 +6297,16 @@ function switchPage(page) {
       detenerPollingAnalisisCalidad();
     }
   }
+  
+  // Si entra al Cerebro del Agente
+  if (page === 'cerebro_agente' && typeof entrarACerebroAgente === 'function') {
+    entrarACerebroAgente();
+  } else {
+    // Detener polling si sale del cerebro
+    if (typeof salirDeCerebroAgente === 'function') {
+      salirDeCerebroAgente();
+    }
+  }
 }
 
 // ============================================================
@@ -8908,7 +9011,7 @@ const PERMISOS_POR_ROL = {
   // ROL DEMO/DESARROLLADOR (solo para Jhonny)
   // Ve TODAS las funciones sin restricción. Es la vista interna completa.
   'demo': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes', 'plan_negocio', 'simulador_b2b', 'analisis_calidad'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes', 'plan_negocio', 'simulador_b2b', 'analisis_calidad', 'cerebro_agente'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
@@ -10440,6 +10543,179 @@ async function descargarReporteCalidadPDF() {
     if (typeof toastWarning === 'function') {
       toastWarning('No se pudo generar el PDF. Asegúrate de tener datos en el simulador.', { titulo: 'Error' });
     }
+  }
+}
+
+
+// =============================================================
+// 🤖 CEREBRO DEL AGENTE IA
+// =============================================================
+window._cerebroPolling = null;
+window._cerebroContador = null;
+window._contadorCiclo = 30;
+
+async function entrarACerebroAgente() {
+  await actualizarCerebroUI();
+  // Polling cada 5 segundos
+  if (window._cerebroPolling) clearInterval(window._cerebroPolling);
+  window._cerebroPolling = setInterval(actualizarCerebroUI, 5000);
+  // Contador visual cada segundo
+  if (window._cerebroContador) clearInterval(window._cerebroContador);
+  window._contadorCiclo = 30;
+  window._cerebroContador = setInterval(() => {
+    window._contadorCiclo--;
+    if (window._contadorCiclo < 0) window._contadorCiclo = 30;
+    const el = document.getElementById('contadorCiclo');
+    if (el) el.textContent = window._contadorCiclo;
+  }, 1000);
+}
+
+function salirDeCerebroAgente() {
+  if (window._cerebroPolling) clearInterval(window._cerebroPolling);
+  if (window._cerebroContador) clearInterval(window._cerebroContador);
+  window._cerebroPolling = null;
+  window._cerebroContador = null;
+}
+
+async function actualizarCerebroUI() {
+  try {
+    const empresaId = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+    let url = `${SERVIDOR_URL}/api/agente/estado`;
+    if (empresaId) url += `?empresa_id=${empresaId}`;
+    
+    const resp = await fetch(url);
+    if (!resp.ok) return;
+    
+    const data = await resp.json();
+    
+    // Actualizar indicador
+    const indicador = document.getElementById('indicadorAgente');
+    const estadoTexto = document.getElementById('estadoAgenteTexto');
+    const btnToggle = document.getElementById('btnToggleAgente');
+    
+    if (data.activo) {
+      if (indicador) {
+        indicador.style.background = '#10B981';
+        indicador.style.boxShadow = '0 0 8px #10B981';
+        indicador.style.animation = 'pulse 1.5s infinite';
+      }
+      if (estadoTexto) {
+        estadoTexto.innerHTML = `🟢 Agente activo · Próximo ciclo en <span id="contadorCiclo">${window._contadorCiclo}</span>s`;
+        estadoTexto.style.color = '#10B981';
+      }
+      if (btnToggle) {
+        btnToggle.innerHTML = '⏸ Pausar';
+        btnToggle.style.background = 'linear-gradient(135deg, #DC2626, #B91C1C)';
+      }
+    } else {
+      if (indicador) {
+        indicador.style.background = '#64748B';
+        indicador.style.boxShadow = 'none';
+        indicador.style.animation = 'none';
+      }
+      if (estadoTexto) {
+        estadoTexto.innerHTML = `⏸ Agente pausado`;
+        estadoTexto.style.color = '#94a3b8';
+      }
+      if (btnToggle) {
+        btnToggle.innerHTML = '▶ Activar';
+        btnToggle.style.background = 'linear-gradient(135deg, #10B981, #059669)';
+      }
+    }
+    
+    // KPIs
+    const stats = data.stats || {};
+    const elCiclos = document.getElementById('kpiCiclos');
+    const elDecisiones = document.getElementById('kpiDecisiones');
+    const elAcciones = document.getElementById('kpiAcciones');
+    const elAprendizaje = document.getElementById('kpiAprendizaje');
+    
+    if (elCiclos) elCiclos.textContent = stats.ciclos_completados || 0;
+    if (elDecisiones) elDecisiones.textContent = stats.decisiones_tomadas || 0;
+    if (elAcciones) elAcciones.textContent = stats.acciones_ejecutadas || 0;
+    if (elAprendizaje) elAprendizaje.textContent = stats.patrones_aprendidos || 0;
+    
+    // Bitácora
+    const bitacoraEl = document.getElementById('bitacoraAgente');
+    if (bitacoraEl) {
+      if (!data.bitacora || data.bitacora.length === 0) {
+        bitacoraEl.innerHTML = `
+          <div style="color:#64748B; text-align:center; padding:40px;">
+            ⏳ Esperando primera decisión del agente...<br>
+            <span style="font-size:11px;">Genera pesadas con el Simulador B2B para activar al agente.</span>
+          </div>
+        `;
+      } else {
+        // Mostrar más recientes primero
+        const entries = data.bitacora.slice().reverse();
+        bitacoraEl.innerHTML = entries.map(e => {
+          const colorMap = {
+            alta: { bg: 'rgba(220,38,38,0.1)', border: '#DC2626' },
+            media: { bg: 'rgba(245,158,11,0.1)', border: '#F59E0B' },
+            info: { bg: 'rgba(59,130,246,0.1)', border: '#3B82F6' }
+          };
+          const c = colorMap[e.severidad] || colorMap.info;
+          const hora = new Date(e.timestamp).toLocaleTimeString('es-PE');
+          
+          return `
+            <div style="background:${c.bg}; border-left:4px solid ${c.border}; padding:12px 14px; margin-bottom:10px; border-radius:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; gap:10px;">
+                <div style="color:${c.border}; font-weight:bold; font-size:13px;">
+                  ${escaparHTML(e.tipo || '')}
+                </div>
+                <div style="color:#94a3b8; font-size:11px; flex-shrink:0;">${hora}</div>
+              </div>
+              <div style="color:#fff; font-size:13px; margin-bottom:6px; font-weight:600;">
+                ${escaparHTML(e.mensaje || '')}
+              </div>
+              <div style="background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:4px; margin-bottom:6px;">
+                <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; margin-bottom:3px;">💭 Razonamiento del agente:</div>
+                <div style="color:#cbd5e1; font-size:12px; line-height:1.5;">${escaparHTML(e.razonamiento || '')}</div>
+              </div>
+              ${e.accion ? `
+                <div style="background:rgba(16,185,129,0.1); border-left:2px solid #10B981; padding:6px 10px; border-radius:3px;">
+                  <div style="color:#10B981; font-size:10px; text-transform:uppercase; margin-bottom:2px;">⚡ Acción ejecutada:</div>
+                  <div style="color:#fff; font-size:12px;">${escaparHTML(e.accion)}</div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  } catch(e) {
+    console.warn('Error actualizando cerebro:', e);
+  }
+}
+
+async function toggleAgente() {
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/agente/toggle`, { method: 'POST' });
+    const data = await resp.json();
+    if (resp.ok) {
+      if (typeof toastInfo === 'function') {
+        toastInfo(data.mensaje, { titulo: '🤖 Agente' });
+      }
+      actualizarCerebroUI();
+    }
+  } catch(e) {
+    console.error('Error toggle agente:', e);
+  }
+}
+
+async function resetAgente() {
+  if (!confirm('¿Resetear el agente?\n\nEsto borra toda la bitácora y memoria de aprendizaje.')) return;
+  
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/agente/reset`, { method: 'POST' });
+    if (resp.ok) {
+      if (typeof toastExito === 'function') {
+        toastExito('Agente reseteado', { titulo: '🔄 Reset' });
+      }
+      actualizarCerebroUI();
+    }
+  } catch(e) {
+    console.error('Error reset agente:', e);
   }
 }
 
