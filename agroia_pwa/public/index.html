@@ -1246,6 +1246,9 @@ tr:hover td {
     <div class="nav-item" onclick="switchPage('cerebro_agente')" data-permiso="cerebro_agente" style="background:linear-gradient(135deg, rgba(16,185,129,0.2), rgba(168,85,247,0.2)); border:1px solid rgba(16,185,129,0.4); margin-top:4px;">
       <span class="nav-icon">🤖</span> Cerebro del Agente
     </div>
+    <div class="nav-item" onclick="switchPage('mapa_procesos')" data-permiso="mapa_procesos" style="background:linear-gradient(135deg, rgba(239,159,39,0.15), rgba(168,85,247,0.15)); border:1px solid rgba(239,159,39,0.3); margin-top:4px;">
+      <span class="nav-icon">📊</span> Mapa de Procesos
+    </div>
   </div>
 
   <!-- BOTÓN CERRAR SESIÓN -->
@@ -3235,6 +3238,282 @@ tr:hover td {
       <em>Todas estas decisiones se toman SIN que nadie le diga al agente qué hacer.</em>
     </div>
   </details>
+</div>
+
+<!-- ============= MAPA DE PROCESOS (DEMO) ============= -->
+<div class="page-section" id="page-mapa_procesos">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">📊 Mapa de Procesos AgroIA</h1>
+      <div class="page-subtitle">Análisis del proceso operativo de cosecha de palta Hass con identificación de etapas críticas y herramientas IA</div>
+    </div>
+  </div>
+
+  <!-- Banner introductorio -->
+  <div style="background:linear-gradient(135deg, rgba(239,159,39,0.1), rgba(168,85,247,0.1)); border:1px solid rgba(239,159,39,0.4); border-radius:14px; padding:18px; margin-bottom:18px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="font-size:36px;">📋</div>
+      <div style="flex:1;">
+        <h3 style="color:#EF9F27; margin:0 0 6px 0; font-size:16px;">Análisis Exhaustivo del Proceso</h3>
+        <p style="color:#cbd5e1; font-size:13px; margin:0; line-height:1.5;">
+          Este mapa identifica las <strong>5 etapas críticas</strong> del proceso de cosecha de palta Hass,
+          mostrando <strong>entradas, actividades, salidas y herramientas IA</strong> utilizadas en cada una.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIAGRAMA DE FLUJO VISUAL -->
+  <div style="background:rgba(0,0,0,0.3); border-radius:12px; padding:20px; margin-bottom:24px; overflow-x:auto;">
+    <h3 style="color:#fff; font-size:15px; margin:0 0 16px 0; text-align:center;">🔄 Flujo del Proceso (Entradas → Actividades → Salidas)</h3>
+    
+    <div style="min-width:900px;">
+    <svg viewBox="0 0 1100 300" style="width:100%; height:auto; max-width:1100px; display:block; margin:0 auto;" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="entrada-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#3B82F6"/>
+          <stop offset="100%" stop-color="#1E40AF"/>
+        </linearGradient>
+        <linearGradient id="proceso-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#A855F7"/>
+          <stop offset="100%" stop-color="#7C3AED"/>
+        </linearGradient>
+        <linearGradient id="salida-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#10B981"/>
+          <stop offset="100%" stop-color="#059669"/>
+        </linearGradient>
+        <marker id="flecha" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L9,3 z" fill="#EF9F27"/>
+        </marker>
+      </defs>
+      
+      <!-- ENTRADAS (lado izquierdo) -->
+      <rect x="20" y="50" width="180" height="200" rx="12" fill="url(#entrada-grad)" opacity="0.9"/>
+      <text x="110" y="80" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">📥 ENTRADAS</text>
+      <text x="110" y="110" text-anchor="middle" fill="#fff" font-size="11">• Trabajadores cosechan</text>
+      <text x="110" y="130" text-anchor="middle" fill="#fff" font-size="11">• Cuadrillas asignadas</text>
+      <text x="110" y="150" text-anchor="middle" fill="#fff" font-size="11">• Lotes de palta</text>
+      <text x="110" y="170" text-anchor="middle" fill="#fff" font-size="11">• Balanzas + datos</text>
+      <text x="110" y="190" text-anchor="middle" fill="#fff" font-size="11">• Fotos del producto</text>
+      <text x="110" y="210" text-anchor="middle" fill="#fff" font-size="11">• Datos del clima</text>
+      <text x="110" y="230" text-anchor="middle" fill="#fff" font-size="11">• Normativa (Ley 31110)</text>
+      
+      <!-- Flecha izquierda → centro -->
+      <line x1="200" y1="150" x2="280" y2="150" stroke="#EF9F27" stroke-width="3" marker-end="url(#flecha)"/>
+      
+      <!-- ACTIVIDADES (centro) -->
+      <rect x="290" y="50" width="520" height="200" rx="12" fill="url(#proceso-grad)" opacity="0.9"/>
+      <text x="550" y="80" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">⚙ ACTIVIDADES (5 ETAPAS CRÍTICAS)</text>
+      
+      <!-- Subdivisiones de etapas -->
+      <rect x="305" y="100" width="95" height="135" rx="6" fill="rgba(255,255,255,0.15)"/>
+      <text x="352" y="120" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">E1</text>
+      <text x="352" y="138" text-anchor="middle" fill="#fff" font-size="9">Registro</text>
+      <text x="352" y="151" text-anchor="middle" fill="#fff" font-size="9">de pesada</text>
+      <text x="352" y="180" text-anchor="middle" fill="#FBBF24" font-size="9" font-weight="bold">🤖 IA</text>
+      <text x="352" y="195" text-anchor="middle" fill="#fff" font-size="8">Validación</text>
+      <text x="352" y="208" text-anchor="middle" fill="#fff" font-size="8">z-score</text>
+      
+      <rect x="405" y="100" width="95" height="135" rx="6" fill="rgba(255,255,255,0.15)"/>
+      <text x="452" y="120" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">E2</text>
+      <text x="452" y="138" text-anchor="middle" fill="#fff" font-size="9">Captura</text>
+      <text x="452" y="151" text-anchor="middle" fill="#fff" font-size="9">de imagen</text>
+      <text x="452" y="180" text-anchor="middle" fill="#FBBF24" font-size="9" font-weight="bold">🤖 IA</text>
+      <text x="452" y="195" text-anchor="middle" fill="#fff" font-size="8">Gemini</text>
+      <text x="452" y="208" text-anchor="middle" fill="#fff" font-size="8">Vision</text>
+      
+      <rect x="505" y="100" width="95" height="135" rx="6" fill="rgba(255,255,255,0.15)"/>
+      <text x="552" y="120" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">E3</text>
+      <text x="552" y="138" text-anchor="middle" fill="#fff" font-size="9">Análisis</text>
+      <text x="552" y="151" text-anchor="middle" fill="#fff" font-size="9">en vivo</text>
+      <text x="552" y="180" text-anchor="middle" fill="#FBBF24" font-size="9" font-weight="bold">🤖 IA</text>
+      <text x="552" y="195" text-anchor="middle" fill="#fff" font-size="8">Agente</text>
+      <text x="552" y="208" text-anchor="middle" fill="#fff" font-size="8">Autónomo</text>
+      
+      <rect x="605" y="100" width="95" height="135" rx="6" fill="rgba(255,255,255,0.15)"/>
+      <text x="652" y="120" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">E4</text>
+      <text x="652" y="138" text-anchor="middle" fill="#fff" font-size="9">Decisión</text>
+      <text x="652" y="151" text-anchor="middle" fill="#fff" font-size="9">y acción</text>
+      <text x="652" y="180" text-anchor="middle" fill="#FBBF24" font-size="9" font-weight="bold">🤖 IA</text>
+      <text x="652" y="195" text-anchor="middle" fill="#fff" font-size="8">Reglas</text>
+      <text x="652" y="208" text-anchor="middle" fill="#fff" font-size="8">heurísticas</text>
+      
+      <rect x="705" y="100" width="95" height="135" rx="6" fill="rgba(255,255,255,0.15)"/>
+      <text x="752" y="120" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">E5</text>
+      <text x="752" y="138" text-anchor="middle" fill="#fff" font-size="9">Aprendizaje</text>
+      <text x="752" y="151" text-anchor="middle" fill="#fff" font-size="9">continuo</text>
+      <text x="752" y="180" text-anchor="middle" fill="#FBBF24" font-size="9" font-weight="bold">🤖 IA</text>
+      <text x="752" y="195" text-anchor="middle" fill="#fff" font-size="8">Ajuste</text>
+      <text x="752" y="208" text-anchor="middle" fill="#fff" font-size="8">umbrales</text>
+      
+      <!-- Flecha centro → derecha -->
+      <line x1="810" y1="150" x2="890" y2="150" stroke="#EF9F27" stroke-width="3" marker-end="url(#flecha)"/>
+      
+      <!-- SALIDAS (lado derecho) -->
+      <rect x="900" y="50" width="180" height="200" rx="12" fill="url(#salida-grad)" opacity="0.9"/>
+      <text x="990" y="80" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">📤 SALIDAS</text>
+      <text x="990" y="110" text-anchor="middle" fill="#fff" font-size="11">• Pesadas validadas</text>
+      <text x="990" y="130" text-anchor="middle" fill="#fff" font-size="11">• Anomalías detectadas</text>
+      <text x="990" y="150" text-anchor="middle" fill="#fff" font-size="11">• Acciones ejecutadas</text>
+      <text x="990" y="170" text-anchor="middle" fill="#fff" font-size="11">• Plan de mejora</text>
+      <text x="990" y="190" text-anchor="middle" fill="#fff" font-size="11">• Reportes PDF</text>
+      <text x="990" y="210" text-anchor="middle" fill="#fff" font-size="11">• KPIs en vivo</text>
+      <text x="990" y="230" text-anchor="middle" fill="#fff" font-size="11">• Cumplimiento legal</text>
+    </svg>
+    </div>
+  </div>
+
+  <!-- DETALLE DE CADA ETAPA -->
+  <h3 style="color:#fff; font-size:16px; margin:20px 0 12px 0;">🔍 Detalle de cada Etapa Crítica</h3>
+
+  <!-- E1: Registro de pesada -->
+  <div style="background:rgba(168,85,247,0.05); border-left:4px solid #A855F7; border-radius:8px; padding:16px; margin-bottom:14px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="background:#A855F7; color:white; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px; flex-shrink:0;">E1</div>
+      <div style="flex:1;">
+        <h4 style="color:#A855F7; margin:0 0 6px 0; font-size:14px;">Registro de Pesada</h4>
+        <div style="color:#cbd5e1; font-size:12px; margin-bottom:8px;"><strong>Criticidad:</strong> 🔴 Alta — Punto de captura de datos primarios</div>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-size:12px; color:#fff;">
+          <strong>📥 Entradas:</strong> Trabajador, lote, balanza, peso bruto en kg<br>
+          <strong>⚙ Actividad:</strong> Capturar peso, calcular productividad (kg/h), validar contra histórico<br>
+          <strong>📤 Salida:</strong> Pesada registrada con z-score<br>
+          <strong>🤖 Herramienta IA:</strong> Validación estadística (z-score), detecta anomalías a >2σ
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E2: Captura de imagen -->
+  <div style="background:rgba(168,85,247,0.05); border-left:4px solid #A855F7; border-radius:8px; padding:16px; margin-bottom:14px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="background:#A855F7; color:white; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px; flex-shrink:0;">E2</div>
+      <div style="flex:1;">
+        <h4 style="color:#A855F7; margin:0 0 6px 0; font-size:14px;">Captura y Análisis de Imagen</h4>
+        <div style="color:#cbd5e1; font-size:12px; margin-bottom:8px;"><strong>Criticidad:</strong> 🟡 Media — Verifica calidad y variedad de la fruta</div>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-size:12px; color:#fff;">
+          <strong>📥 Entradas:</strong> Foto del producto cosechado<br>
+          <strong>⚙ Actividad:</strong> Análisis visual: variedad Hass, calibre, madurez, defectos<br>
+          <strong>📤 Salida:</strong> Clasificación + recomendaciones automáticas<br>
+          <strong>🤖 Herramienta IA:</strong> Google Gemini Vision API
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E3: Análisis en vivo -->
+  <div style="background:rgba(168,85,247,0.05); border-left:4px solid #A855F7; border-radius:8px; padding:16px; margin-bottom:14px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="background:#A855F7; color:white; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px; flex-shrink:0;">E3</div>
+      <div style="flex:1;">
+        <h4 style="color:#A855F7; margin:0 0 6px 0; font-size:14px;">Análisis Ishikawa en Tiempo Real</h4>
+        <div style="color:#cbd5e1; font-size:12px; margin-bottom:8px;"><strong>Criticidad:</strong> 🔴 Alta — Identificación de causas raíz</div>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-size:12px; color:#fff;">
+          <strong>📥 Entradas:</strong> Últimas 500 pesadas + histórico<br>
+          <strong>⚙ Actividad:</strong> Categorización 6M, detección de patrones, cálculo de KPIs<br>
+          <strong>📤 Salida:</strong> Diagrama Ishikawa actualizado + top problemas<br>
+          <strong>🤖 Herramienta IA:</strong> Reglas heurísticas + análisis estadístico multivariable
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E4: Decisión autónoma -->
+  <div style="background:rgba(16,185,129,0.05); border-left:4px solid #10B981; border-radius:8px; padding:16px; margin-bottom:14px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="background:#10B981; color:white; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px; flex-shrink:0;">E4</div>
+      <div style="flex:1;">
+        <h4 style="color:#10B981; margin:0 0 6px 0; font-size:14px;">Decisión Autónoma y Acción ⭐</h4>
+        <div style="color:#cbd5e1; font-size:12px; margin-bottom:8px;"><strong>Criticidad:</strong> 🔴 CRÍTICA — Núcleo del Agente IA</div>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-size:12px; color:#fff;">
+          <strong>📥 Entradas:</strong> Análisis previo + memoria del agente<br>
+          <strong>⚙ Actividad:</strong> Loop autónomo cada 30s. Aplica 5 reglas. Decide y EJECUTA<br>
+          <strong>📤 Salida:</strong> Bloqueos automáticos, alertas, recomendaciones, registros<br>
+          <strong>🤖 Herramienta IA:</strong> Agente autónomo (5 reglas heurísticas en backend)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E5: Aprendizaje continuo -->
+  <div style="background:rgba(59,130,246,0.05); border-left:4px solid #3B82F6; border-radius:8px; padding:16px; margin-bottom:14px;">
+    <div style="display:flex; gap:14px; align-items:flex-start;">
+      <div style="background:#3B82F6; color:white; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px; flex-shrink:0;">E5</div>
+      <div style="flex:1;">
+        <h4 style="color:#3B82F6; margin:0 0 6px 0; font-size:14px;">Aprendizaje Continuo</h4>
+        <div style="color:#cbd5e1; font-size:12px; margin-bottom:8px;"><strong>Criticidad:</strong> 🟡 Media — Mejora la precisión con el tiempo</div>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-size:12px; color:#fff;">
+          <strong>📥 Entradas:</strong> Histórico del trabajador + patrones nuevos<br>
+          <strong>⚙ Actividad:</strong> Comparar histórico vs reciente. Ajuste suave 0.9·viejo + 0.1·nuevo<br>
+          <strong>📤 Salida:</strong> Umbrales personalizados por trabajador<br>
+          <strong>🤖 Herramienta IA:</strong> Promedio móvil ponderado (EWMA)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERRAMIENTAS IA UTILIZADAS -->
+  <h3 style="color:#fff; font-size:16px; margin:24px 0 12px 0;">🛠 Herramientas Analíticas Avanzadas Utilizadas</h3>
+  
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(168,85,247,0.3); border-radius:10px; padding:14px;">
+      <div style="font-size:24px; margin-bottom:6px;">📊</div>
+      <h4 style="color:#A855F7; margin:0 0 4px 0; font-size:13px;">Análisis Estadístico (z-score)</h4>
+      <p style="color:#cbd5e1; font-size:11px; margin:0; line-height:1.5;">
+        Detecta desviaciones >2σ del histórico individual de cada trabajador. Identifica anomalías matemáticamente.
+      </p>
+    </div>
+    
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(59,130,246,0.3); border-radius:10px; padding:14px;">
+      <div style="font-size:24px; margin-bottom:6px;">🐟</div>
+      <h4 style="color:#3B82F6; margin:0 0 4px 0; font-size:13px;">Diagrama Ishikawa (6M)</h4>
+      <p style="color:#cbd5e1; font-size:11px; margin:0; line-height:1.5;">
+        Causa-efecto en 6 categorías: Mano de Obra, Método, Materia Prima, Medio Ambiente, Maquinaria, Money.
+      </p>
+    </div>
+    
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:14px;">
+      <div style="font-size:24px; margin-bottom:6px;">🤖</div>
+      <h4 style="color:#10B981; margin:0 0 4px 0; font-size:13px;">Agente IA Autónomo</h4>
+      <p style="color:#cbd5e1; font-size:11px; margin:0; line-height:1.5;">
+        5 reglas heurísticas que ejecutan acciones sin intervención humana. Ciclo cada 30s.
+      </p>
+    </div>
+    
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(239,159,39,0.3); border-radius:10px; padding:14px;">
+      <div style="font-size:24px; margin-bottom:6px;">👁</div>
+      <h4 style="color:#EF9F27; margin:0 0 4px 0; font-size:13px;">Visión Computacional (Gemini)</h4>
+      <p style="color:#cbd5e1; font-size:11px; margin:0; line-height:1.5;">
+        Análisis de fotos: variedad Hass, calibre, defectos, madurez.
+      </p>
+    </div>
+    
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(220,38,38,0.3); border-radius:10px; padding:14px;">
+      <div style="font-size:24px; margin-bottom:6px;">📈</div>
+      <h4 style="color:#DC2626; margin:0 0 4px 0; font-size:13px;">Promedio Móvil (EWMA)</h4>
+      <p style="color:#cbd5e1; font-size:11px; margin:0; line-height:1.5;">
+        Aprendizaje continuo de umbrales: 90% histórico + 10% nuevo. Evita falsos positivos.
+      </p>
+    </div>
+    
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(168,85,247,0.3); border-radius:10px; padding:14px;">
+      <div style="font-size:24px; margin-bottom:6px;">🏢</div>
+      <h4 style="color:#A855F7; margin:0 0 4px 0; font-size:13px;">Multi-Tenant (RLS Supabase)</h4>
+      <p style="color:#cbd5e1; font-size:11px; margin:0; line-height:1.5;">
+        Aislamiento de datos por empresa con Row Level Security a nivel de base de datos.
+      </p>
+    </div>
+  </div>
+
+  <!-- CONCLUSIÓN -->
+  <div style="background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(168,85,247,0.08)); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:18px; margin-top:24px;">
+    <h4 style="color:#10B981; margin:0 0 8px 0; font-size:14px;">📌 Conclusión del Análisis</h4>
+    <p style="color:#cbd5e1; font-size:13px; margin:0; line-height:1.6;">
+      El proceso operativo de cosecha tiene <strong>5 etapas críticas</strong>, de las cuales 3 son CRÍTICAS (E1, E3, E4)
+      por su impacto directo en cumplimiento legal y rentabilidad. Las <strong>6 herramientas IA</strong> integradas
+      cubren validación, predicción, análisis causal y aprendizaje, demostrando un sistema <strong>analítico avanzado</strong>
+      que respalda decisiones operativas automatizadas.
+    </p>
+  </div>
 </div>
 
 <!-- ============= CONFIGURACIÓN DEL SISTEMA ============= -->
@@ -8978,8 +9257,8 @@ function mostrarUsuarioEnSidebar(perfil) {
     setTimeout(() => cargarDatosDeEmpresaActiva(), 500);
   }
   
-  // MULTI-TENANT: Si es rol demo, cargar lista de empresas para selector
-  if (perfil.rol === 'demo' && typeof cargarEmpresasParaDemo === 'function') {
+  // MULTI-TENANT: Si es rol demo o desarrollador, cargar lista de empresas para selector
+  if ((perfil.rol === 'demo' || perfil.rol === 'desarrollador') && typeof cargarEmpresasParaDemo === 'function') {
     setTimeout(() => cargarEmpresasParaDemo(), 800);
   }
   
@@ -9011,7 +9290,7 @@ const PERMISOS_POR_ROL = {
   // ROL DEMO/DESARROLLADOR (solo para Jhonny)
   // Ve TODAS las funciones sin restricción. Es la vista interna completa.
   'demo': {
-    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes', 'plan_negocio', 'simulador_b2b', 'analisis_calidad', 'cerebro_agente'],
+    nav: ['dashboard', 'pesadas', 'trabajadores', 'lotes', 'reporte', 'logs', 'vision', 'sostenibilidad', 'predicciones', 'estado', 'parametros', 'clientes', 'plan_negocio', 'simulador_b2b', 'analisis_calidad', 'cerebro_agente', 'mapa_procesos'],
     paginaInicial: 'dashboard',
     puede: {
       registrarPesada: true,
