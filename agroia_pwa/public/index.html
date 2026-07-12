@@ -3236,8 +3236,13 @@ tr:hover td {
   <!-- 💬 CHAT CON EL AGENTE (IA Gemini) -->
   <h3 style="color:#fff; font-size:15px; margin:20px 0 12px 0;">💬 Pregúntale al Agente (razonamiento con IA generativa)</h3>
   <div style="background:linear-gradient(135deg, rgba(168,85,247,0.06), rgba(16,185,129,0.06)); border:1px solid rgba(168,85,247,0.3); border-radius:12px; padding:16px; margin-bottom:20px;">
-    <div style="color:#94a3b8; font-size:12px; margin-bottom:10px;">
-      El agente responde usando <strong style="color:#A855F7;">Gemini (LLM)</strong> + los <strong style="color:#10B981;">datos reales</strong> del sistema.
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+      <div style="color:#94a3b8; font-size:12px;">
+        El agente responde usando <strong style="color:#A855F7;">Gemini (LLM)</strong> + los <strong style="color:#10B981;">datos reales</strong> del sistema.
+      </div>
+      <div id="chatNivelBadge" style="font-size:11px; font-weight:600; padding:4px 10px; border-radius:12px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#6EE7B7;">
+        ⭐ Agente Ejecutivo
+      </div>
     </div>
     
     <!-- Preguntas rápidas (chips) -->
@@ -9846,6 +9851,11 @@ async function seleccionarEmpresa(empresaId) {
     if (typeof aplicarRestriccionesPorNivel === 'function') {
       aplicarRestriccionesPorNivel(empresa);
     }
+    
+    // Actualizar badge del chat según el nivel de la empresa elegida
+    if (typeof actualizarBadgeNivelChat === 'function') {
+      actualizarBadgeNivelChat();
+    }
   }
   
   // Refrescar selector
@@ -9884,20 +9894,19 @@ async function seleccionarEmpresa(empresaId) {
 // =============================================================
 function aplicarRestriccionesPorNivel(empresa) {
   // =============================================================
-  // 🎯 2 PRODUCTOS:
-  //   ADMIN (tu cuenta) → ve TODO (centro de control completo)
-  //   CLIENTE (cualquier otra cuenta) → ve solo lo VENDIBLE
+  // 🎯 PRODUCTOS:
+  //   ADMIN (tu cuenta) → ve TODO (centro de control)
+  //   CLIENTE → secciones según su NIVEL de plan
+  //   El Cerebro del Agente (chat IA) está en TODOS los niveles,
+  //   pero con capacidades diferenciadas (ver getNivelClienteActual)
   // =============================================================
   
-  // 🔒 PROTECCIÓN: tu cuenta NUNCA se restringe
-  // FIX: la variable correcta es window._perfilUsuario (no _perfilActual)
   const perfil = window._perfilUsuario || {};
   const esAdmin = perfil.dni === '74382418' || 
                   perfil.rol === 'desarrollador' ||
                   perfil.es_admin === true;
   
   if (esAdmin) {
-    // ADMIN → mostrar TODO sin restricciones
     document.querySelectorAll('.nav-item').forEach(item => {
       item.style.display = '';
     });
@@ -9905,30 +9914,50 @@ function aplicarRestriccionesPorNivel(empresa) {
     return;
   }
   
-  // 🏢 PRODUCTO CLIENTE: solo las 8 secciones esenciales vendibles
-  // (las 3 empresas ven lo mismo — un solo producto claro)
-  const PAGINAS_CLIENTE = [
-    'dashboard',         // KPIs de su operación
-    'pesadas',           // registro y validación
-    'trabajadores',      // su personal
-    'lotes',             // sus campos
-    'reporte',           // entregables
-    'vision',            // cámara IA para validar fruta
-    'analisis_calidad',  // Ishikawa + plan de mejora
-    'cerebro_agente'     // ⭐ el producto estrella: decisiones IA 24/7
-  ];
+  // 🏢 CLIENTE: secciones según nivel del plan
+  const nivel = getNivelClienteActual();
   
-  // Mostrar/ocultar items del sidebar
+  const PAGINAS_POR_NIVEL = {
+    1: [  // 🔹 BÁSICO: lo esencial + asistente IA de consulta
+      'dashboard', 'pesadas', 'trabajadores', 'lotes',
+      'reporte', 'cerebro_agente'
+    ],
+    2: [  // 🔷 PROFESIONAL: + visión IA + análisis de calidad
+      'dashboard', 'pesadas', 'trabajadores', 'lotes',
+      'reporte', 'vision', 'analisis_calidad', 'cerebro_agente'
+    ],
+    3: [  // ⭐ ENTERPRISE: igual que Pro + chat EJECUTIVO (acciones reales)
+      'dashboard', 'pesadas', 'trabajadores', 'lotes',
+      'reporte', 'vision', 'analisis_calidad', 'cerebro_agente'
+    ]
+  };
+  
+  const permitidas = PAGINAS_POR_NIVEL[nivel] || PAGINAS_POR_NIVEL[1];
+  
   document.querySelectorAll('.nav-item').forEach(item => {
     const onclick = item.getAttribute('onclick') || '';
     const match = onclick.match(/switchPage\('([^']+)'\)/);
     if (match) {
-      const page = match[1];
-      item.style.display = PAGINAS_CLIENTE.includes(page) ? '' : 'none';
+      item.style.display = permitidas.includes(match[1]) ? '' : 'none';
     }
   });
   
-  console.log('[Producto] Vista CLIENTE: 8 secciones esenciales');
+  console.log(`[Producto] Vista CLIENTE Nivel ${nivel}:`, permitidas);
+}
+
+// Nivel del plan de la empresa activa (para diferenciar el chat)
+function getNivelClienteActual() {
+  const perfil = window._perfilUsuario || {};
+  const empId = (typeof getEmpresaActivaId === 'function' ? getEmpresaActivaId() : null) || perfil.empresa_id;
+  
+  // Buscar en las empresas cargadas
+  const emp = (window._empresasDisponibles || []).find(e => e.id === empId);
+  if (emp && [1, 2, 3].includes(emp.nivel_tecnologico)) return emp.nivel_tecnologico;
+  
+  // Fallback: en la BD demo, empresa 1=Nivel1, 2=Nivel2, 3=Nivel3
+  if ([1, 2, 3].includes(empId)) return empId;
+  
+  return 3;  // default: Enterprise
 }
 
 
@@ -11190,6 +11219,9 @@ window._cerebroContador = null;
 window._contadorCiclo = 30;
 
 async function entrarACerebroAgente() {
+  // Actualizar badge del nivel del chat
+  actualizarBadgeNivelChat();
+  
   await actualizarCerebroUI();
   // Polling cada 5 segundos
   if (window._cerebroPolling) clearInterval(window._cerebroPolling);
@@ -11336,6 +11368,28 @@ function preguntaRapidaAgente(texto) {
   }
 }
 
+// Badge visual del nivel del chat según el plan de la empresa activa
+function actualizarBadgeNivelChat() {
+  const badge = document.getElementById('chatNivelBadge');
+  if (!badge) return;
+  
+  const perfil = window._perfilUsuario || {};
+  const esAdmin = perfil.dni === '74382418' || perfil.rol === 'desarrollador' || perfil.es_admin === true;
+  const nivel = (typeof getNivelClienteActual === 'function') ? getNivelClienteActual() : 3;
+  
+  const CONFIG_NIVEL = {
+    1: { texto: '🔹 Plan Básico — Asistente de consulta', bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)', color: '#93C5FD' },
+    2: { texto: '🔷 Plan Profesional — Analista IA', bg: 'rgba(168,85,247,0.15)', border: 'rgba(168,85,247,0.4)', color: '#C084FC' },
+    3: { texto: '⭐ Plan Enterprise — Agente Ejecutivo (ejecuta acciones)', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.4)', color: '#6EE7B7' }
+  };
+  
+  const c = CONFIG_NIVEL[nivel] || CONFIG_NIVEL[3];
+  badge.textContent = (esAdmin ? '👨‍💻 ' : '') + c.texto;
+  badge.style.background = c.bg;
+  badge.style.border = '1px solid ' + c.border;
+  badge.style.color = c.color;
+}
+
 // Formatea la respuesta del agente: escapa HTML y respeta saltos de línea/negritas
 function formatearRespuestaAgente(texto) {
   let t = escaparHTML(texto || '');
@@ -11379,12 +11433,13 @@ async function enviarPreguntaAgente() {
   
   try {
     const empresaId = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+    const nivel = (typeof getNivelClienteActual === 'function') ? getNivelClienteActual() : 3;
     
     const resp = await fetch(`${SERVIDOR_URL}/api/agente/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pregunta: pregunta, empresa_id: empresaId }),
-      signal: AbortSignal.timeout(35000)
+      body: JSON.stringify({ pregunta: pregunta, empresa_id: empresaId, nivel: nivel }),
+      signal: AbortSignal.timeout(45000)
     });
     
     const data = await resp.json();
@@ -11392,10 +11447,25 @@ async function enviarPreguntaAgente() {
     
     if (resp.ok && data.exito) {
       if (burbujaPensando) {
-        burbujaPensando.innerHTML = `
+        let html = `
           <div style="color:#A855F7; font-size:10px; text-transform:uppercase; margin-bottom:4px; font-weight:600;">🤖 AgroIA (razonamiento Gemini + datos reales):</div>
           <div style="color:#fff; line-height:1.6;">${formatearRespuestaAgente(data.respuesta)}</div>
         `;
+        // ⚡ Si el agente EJECUTÓ una acción real, mostrarla destacada
+        if (data.accion_ejecutada) {
+          html += `
+            <div style="margin-top:8px; background:rgba(16,185,129,0.15); border-left:3px solid #10B981; border-radius:4px; padding:8px 10px;">
+              <div style="color:#10B981; font-size:10px; text-transform:uppercase; font-weight:700; margin-bottom:2px;">⚡ ACCIÓN EJECUTADA EN EL SISTEMA:</div>
+              <div style="color:#fff; font-size:12px;">${escaparHTML(data.accion_ejecutada)}</div>
+              <div style="color:#6EE7B7; font-size:10px; margin-top:3px;">Registrada en la bitácora del agente ↓</div>
+            </div>
+          `;
+        }
+        burbujaPensando.innerHTML = html;
+      }
+      // Refrescar bitácora si hubo acción
+      if (data.accion_ejecutada && typeof actualizarCerebroUI === 'function') {
+        setTimeout(actualizarCerebroUI, 500);
       }
     } else {
       if (burbujaPensando) {
