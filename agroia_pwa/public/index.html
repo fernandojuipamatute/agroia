@@ -3233,6 +3233,28 @@ tr:hover td {
     </div>
   </div>
 
+  <!-- 💬 CHAT CON EL AGENTE (IA Gemini) -->
+  <h3 style="color:#fff; font-size:15px; margin:20px 0 12px 0;">💬 Pregúntale al Agente (razonamiento con IA generativa)</h3>
+  <div style="background:linear-gradient(135deg, rgba(168,85,247,0.06), rgba(16,185,129,0.06)); border:1px solid rgba(168,85,247,0.3); border-radius:12px; padding:16px; margin-bottom:20px;">
+    <div style="color:#94a3b8; font-size:12px; margin-bottom:10px;">
+      El agente responde usando <strong style="color:#A855F7;">Gemini (LLM)</strong> + los <strong style="color:#10B981;">datos reales</strong> del sistema. Prueba: <em>"¿Cuál es el principal problema ahora?"</em>, <em>"¿Por qué bloqueaste trabajadores?"</em>, <em>"¿Qué me recomiendas hacer hoy?"</em>
+    </div>
+    
+    <!-- Historial de mensajes -->
+    <div id="chatAgenteHistorial" style="max-height:400px; overflow-y:auto; margin-bottom:12px; display:flex; flex-direction:column; gap:10px;"></div>
+    
+    <!-- Input -->
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="chatAgenteInput" placeholder="Escribe tu pregunta al agente..." maxlength="500"
+        onkeydown="if(event.key==='Enter') enviarPreguntaAgente()"
+        style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(168,85,247,0.3); border-radius:8px; padding:10px 14px; color:#fff; font-size:13px;">
+      <button onclick="enviarPreguntaAgente()" id="btnChatAgente"
+        style="background:linear-gradient(135deg, #A855F7, #6366F1); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer;">
+        Enviar
+      </button>
+    </div>
+  </div>
+
   <!-- Bitácora en vivo -->
   <h3 style="color:#fff; font-size:15px; margin:20px 0 12px 0;">📜 Bitácora de Decisiones (en vivo)</h3>
   <div id="bitacoraAgente" style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; max-height:600px; overflow-y:auto;">
@@ -11286,6 +11308,79 @@ async function actualizarCerebroUI() {
     }
   } catch(e) {
     console.warn('Error actualizando cerebro:', e);
+  }
+}
+
+// =============================================================
+// 💬 CHAT CON EL AGENTE (Gemini)
+// =============================================================
+window._chatAgenteOcupado = false;
+
+async function enviarPreguntaAgente() {
+  if (window._chatAgenteOcupado) return;
+  
+  const input = document.getElementById('chatAgenteInput');
+  const historial = document.getElementById('chatAgenteHistorial');
+  const btn = document.getElementById('btnChatAgente');
+  if (!input || !historial) return;
+  
+  const pregunta = input.value.trim();
+  if (!pregunta) return;
+  
+  // Agregar burbuja del usuario
+  historial.innerHTML += `
+    <div style="align-self:flex-end; max-width:80%; background:linear-gradient(135deg, #3B82F6, #1D4ED8); color:white; padding:10px 14px; border-radius:12px 12px 2px 12px; font-size:13px; line-height:1.5;">
+      ${escaparHTML(pregunta)}
+    </div>
+  `;
+  
+  // Burbuja "pensando" del agente
+  const idPensando = 'pensando_' + Date.now();
+  historial.innerHTML += `
+    <div id="${idPensando}" style="align-self:flex-start; max-width:80%; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3); color:#cbd5e1; padding:10px 14px; border-radius:12px 12px 12px 2px; font-size:13px;">
+      <span style="color:#A855F7;">🤖 El agente está razonando con Gemini...</span>
+    </div>
+  `;
+  historial.scrollTop = historial.scrollHeight;
+  
+  input.value = '';
+  window._chatAgenteOcupado = true;
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  
+  try {
+    const empresaId = (typeof getEmpresaActivaId === 'function') ? getEmpresaActivaId() : null;
+    
+    const resp = await fetch(`${SERVIDOR_URL}/api/agente/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pregunta: pregunta, empresa_id: empresaId }),
+      signal: AbortSignal.timeout(35000)
+    });
+    
+    const data = await resp.json();
+    const burbujaPensando = document.getElementById(idPensando);
+    
+    if (resp.ok && data.exito) {
+      if (burbujaPensando) {
+        burbujaPensando.innerHTML = `
+          <div style="color:#A855F7; font-size:10px; text-transform:uppercase; margin-bottom:4px; font-weight:600;">🤖 AgroIA (razonamiento Gemini + datos reales):</div>
+          <div style="color:#fff; line-height:1.6;">${escaparHTML(data.respuesta)}</div>
+        `;
+      }
+    } else {
+      if (burbujaPensando) {
+        burbujaPensando.innerHTML = `<span style="color:#DC2626;">⚠ ${escaparHTML(data.error || 'El agente no pudo responder. Intenta de nuevo.')}</span>`;
+      }
+    }
+  } catch(e) {
+    const burbujaPensando = document.getElementById(idPensando);
+    if (burbujaPensando) {
+      burbujaPensando.innerHTML = '<span style="color:#DC2626;">⚠ Error de conexión con el agente. El servidor puede estar despertando (30-60s), intenta de nuevo.</span>';
+    }
+  } finally {
+    window._chatAgenteOcupado = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+    historial.scrollTop = historial.scrollHeight;
   }
 }
 
