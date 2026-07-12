@@ -2676,26 +2676,40 @@ def agente_chat():
                 anomalias = sum(1 for p in pesadas if p.get('estado') in ['orange', 'red'])
                 jornadas = sum(1 for p in pesadas if float(p.get('horas') or 0) > 12)
                 kg_total = sum(float(p.get('kg') or 0) for p in pesadas)
+                prod_alta = sum(1 for p in pesadas if float(p.get('z_score') or 0) > 2.5)
+                prod_baja = sum(1 for p in pesadas if float(p.get('z_score') or 0) < -2.5)
+                
+                # Productividad promedio de pesadas válidas
+                prods_validas = [float(p.get('kg') or 0) / float(p.get('horas') or 1) 
+                                 for p in pesadas if p.get('estado') == 'green' and float(p.get('horas') or 0) > 0]
+                prod_promedio = sum(prods_validas) / len(prods_validas) if prods_validas else 0
                 
                 # Top trabajadores y lotes con anomalías
                 trab_anom = {}
                 lote_anom = {}
+                lote_total = {}
                 for p in pesadas:
+                    l = p.get('lote', 'N/A')
+                    lote_total[l] = lote_total.get(l, 0) + 1
                     if p.get('estado') in ['orange', 'red']:
                         n = p.get('nombre', 'N/A')
-                        l = p.get('lote', 'N/A')
                         trab_anom[n] = trab_anom.get(n, 0) + 1
                         lote_anom[l] = lote_anom.get(l, 0) + 1
                 
                 top_t = sorted(trab_anom.items(), key=lambda x: x[1], reverse=True)[:5]
-                top_l = sorted(lote_anom.items(), key=lambda x: x[1], reverse=True)[:5]
+                top_l = [(l, c, lote_total.get(l, 0)) for l, c in 
+                         sorted(lote_anom.items(), key=lambda x: x[1], reverse=True)[:5]]
                 
                 contexto_datos = f"""DATOS REALES DEL SISTEMA (últimas {total} pesadas):
 - Total kg cosechados: {kg_total:,.0f} kg
-- Anomalías: {anomalias} ({anomalias/total*100:.0f}%)
-- Jornadas >12h (Ley 31110): {jornadas}
-- Top trabajadores con anomalías: {top_t}
-- Top lotes con anomalías: {top_l}"""
+- Productividad promedio (pesadas válidas): {prod_promedio:.1f} kg/h
+- Anomalías: {anomalias} ({anomalias/total*100:.0f}% — benchmark sector: <15%)
+- Jornadas >12h (violan Ley 31110): {jornadas}
+- Productividad sospechosamente ALTA (z>2.5, posible fraude): {prod_alta}
+- Productividad anormalmente BAJA (z<-2.5, posible problema de fruta): {prod_baja}
+- Top trabajadores con anomalías (nombre, casos): {top_t}
+- Top lotes con anomalías (lote, anomalías, total pesadas): {top_l}
+- Pérdida económica estimada por anomalías: S/ {anomalias * 70 * 4.20:,.0f} (precio palta S/4.20/kg)"""
         
         # Bitácora reciente del agente (sus propias decisiones)
         bitacora_txt = "\n".join([
@@ -2703,7 +2717,7 @@ def agente_chat():
             for b in AGENTE_IA["bitacora"][-8:]
         ]) or "Sin decisiones registradas aún."
         
-        prompt = f"""Eres AgroIA, un agente IA autónomo que supervisa la cosecha de palta Hass en el Valle de Virú, Perú. Tomas decisiones solo (bloqueos, alertas, ajustes) cada 30 segundos sin intervención humana.
+        prompt = f"""Eres AgroIA, un agente IA autónomo que supervisa la cosecha de palta Hass en el Valle de Virú, Perú. Tomas decisiones solo (bloqueos, alertas, ajustes) cada 30 segundos sin intervención humana. Hablas con el gerente de la empresa agrícola.
 
 {contexto_datos}
 
@@ -2715,14 +2729,18 @@ ESTADÍSTICAS DE TU OPERACIÓN:
 - Decisiones tomadas: {AGENTE_IA['decisiones_tomadas']}
 - Trabajadores bloqueados: {len(AGENTE_IA['trabajadores_bloqueados'])}
 
-PREGUNTA DEL SUPERVISOR: "{pregunta}"
+PREGUNTA DEL GERENTE: "{pregunta}"
 
-INSTRUCCIONES:
+INSTRUCCIONES DE RESPUESTA:
 - Responde en español, en primera persona (eres el agente)
-- Basa tu respuesta SOLO en los datos reales de arriba
-- Sé directo y experto, máximo 150 palabras
-- Si te preguntan por qué tomaste una decisión, explica tu razonamiento
-- Si no tienes datos para responder, dilo honestamente"""
+- Estructura tu respuesta así (usa estos títulos con **negritas**):
+  **📊 Situación:** resumen con NÚMEROS CONCRETOS de los datos
+  **🔍 Hallazgo clave:** el patrón o insight más importante que detectas
+  **🎯 Mi recomendación:** 1-2 acciones específicas y priorizadas
+- Usa cifras reales de los datos (kg, %, cantidad de casos, nombres de lotes)
+- Sé un consultor experto: directo, específico, accionable
+- Máximo 180 palabras
+- Si la pregunta es sobre algo que no está en los datos, dilo honestamente y ofrece lo que SÍ puedes analizar"""
         
         respuesta = _gemini_generar_texto(prompt, max_tokens=600)
         
