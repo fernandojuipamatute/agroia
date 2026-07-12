@@ -342,23 +342,25 @@ def validar_numero(valor, minimo, maximo, campo='valor', tipo='float'):
 
 
 def validar_cuadrilla(valor, campo='cuadrilla'):
-    """Cuadrilla valida: C3, C5 o C7."""
+    """Cuadrilla valida: legacy (C3, C5, C7) o multi-tenant (CP-1, HP-2, AD-3...)."""
     if not valor:
         raise ValidacionError(f'La cuadrilla es obligatoria', campo)
     valor_str = str(valor).strip().upper()
-    if valor_str not in ('C3', 'C5', 'C7'):
-        raise ValidacionError(f'Cuadrilla inválida. Debe ser C3, C5 o C7', campo)
-    return valor_str
+    # Legacy: C3, C5, C7 | Multi-tenant: 2-3 letras + guión + número (CP-1, AD-12)
+    if valor_str in ('C3', 'C5', 'C7') or re.match(r'^[A-Z]{2,3}-\d{1,2}$', valor_str):
+        return valor_str
+    raise ValidacionError(f'Cuadrilla inválida (formato: C3 o CP-1)', campo)
 
 
 def validar_lote(valor, campo='lote'):
-    """Lote valido (formato L-XX)."""
+    """Lote valido: legacy (L-XX) o multi-tenant (CP-L01, AD-L05...)."""
     if not valor:
         raise ValidacionError(f'El lote es obligatorio', campo)
     valor_str = str(valor).strip().upper()
-    if not re.match(r'^L-\d{1,3}$', valor_str):
-        raise ValidacionError(f'Formato de lote inválido (debe ser L-XX)', campo)
-    return valor_str
+    # Legacy: L-01 | Multi-tenant: prefijo empresa + L + número (CP-L01, HP-L12)
+    if re.match(r'^L-\d{1,3}$', valor_str) or re.match(r'^[A-Z]{2,3}-L\d{1,3}$', valor_str):
+        return valor_str
+    raise ValidacionError(f'Formato de lote inválido (debe ser L-XX o CP-LXX)', campo)
 
 
 def validar_email(valor, campo='email'):
