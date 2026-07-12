@@ -2555,11 +2555,13 @@ def _ejecutar_ciclo():
     except Exception as e:
         print(f"[Agente IA] Error en razonamiento Gemini: {e}")
 
-def _gemini_generar_texto(prompt, max_tokens=800):
-    """Llama a Gemini para generar texto en lenguaje natural (sin imagen)."""
+def _gemini_generar_texto(prompt, max_tokens=2048, modelo="gemini-2.5-flash"):
+    """Llama a Gemini para generar texto en lenguaje natural (sin imagen).
+    max_tokens alto porque Gemini 2.5 usa 'thinking tokens' que se
+    descuentan de este límite — si es bajo, la respuesta sale cortada."""
     import requests as http_requests
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={GEMINI_API_KEY}"
     
     payload = {
         "contents": [{
@@ -2571,10 +2573,21 @@ def _gemini_generar_texto(prompt, max_tokens=800):
         }
     }
     
-    response = http_requests.post(url, json=payload, timeout=25)
+    response = http_requests.post(url, json=payload, timeout=45)
     response.raise_for_status()
     result = response.json()
-    return result['candidates'][0]['content']['parts'][0]['text'].strip()
+    
+    # Extracción robusta: si el modelo agotó tokens pensando, 'parts' puede faltar
+    try:
+        candidato = result['candidates'][0]
+        partes = candidato.get('content', {}).get('parts', [])
+        textos = [p.get('text', '') for p in partes if p.get('text')]
+        texto = "\n".join(textos).strip()
+        if not texto:
+            raise ValueError(f"Respuesta vacía (finishReason: {candidato.get('finishReason')})")
+        return texto
+    except (KeyError, IndexError) as e:
+        raise ValueError(f"Estructura inesperada de Gemini: {e}")
 
 def _razonar_con_gemini(pesadas_recientes, por_trabajador, por_lote):
     """El agente usa Gemini (LLM real) para analizar el contexto completo
@@ -2628,7 +2641,7 @@ TAREA: Como agente autónomo, analiza este contexto y responde en español, máx
 Responde directo, sin saludos, como análisis experto."""
     
     try:
-        analisis = _gemini_generar_texto(contexto, max_tokens=500)
+        analisis = _gemini_generar_texto(contexto, max_tokens=1500)
         
         _log_decision(
             tipo="🧠 ANÁLISIS IA (Gemini)",
@@ -2742,12 +2755,21 @@ INSTRUCCIONES DE RESPUESTA:
 - Máximo 180 palabras
 - Si la pregunta es sobre algo que no está en los datos, dilo honestamente y ofrece lo que SÍ puedes analizar"""
         
-        respuesta = _gemini_generar_texto(prompt, max_tokens=600)
+        # 🧠 Cerebro potente: gemini-2.5-pro para el chat (máxima calidad)
+        # Fallback automático a flash si Pro falla (rate limit del free tier)
+        modelo_usado = "gemini-2.5-pro"
+        try:
+            respuesta = _gemini_generar_texto(prompt, max_tokens=3000, modelo="gemini-2.5-pro")
+        except Exception as e_pro:
+            print(f"[agente-chat] Pro no disponible ({e_pro}), usando Flash")
+            modelo_usado = "gemini-2.5-flash"
+            respuesta = _gemini_generar_texto(prompt, max_tokens=2048, modelo="gemini-2.5-flash")
         
         return jsonify({
             "exito": True,
             "respuesta": respuesta,
             "contexto_usado": {
+                "modelo": modelo_usado,
                 "pesadas_analizadas": len(pesadas) if supabase and 'pesadas' in dir() else 0,
                 "decisiones_en_bitacora": len(AGENTE_IA["bitacora"])
             }
