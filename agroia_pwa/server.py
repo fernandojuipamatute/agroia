@@ -1393,6 +1393,65 @@ def listar_trabajadores():
         ]
     })
 
+@app.route('/api/trabajadores', methods=['POST'])
+@rate_limit('default')
+@manejar_error_validacion
+def crear_trabajador():
+    """Crea un trabajador nuevo en una empresa (multi-tenant).
+    Body: { dni, nombre, empresa_id, cuadrilla_id (opcional) }"""
+    if not supabase:
+        return jsonify({"error": "Supabase no disponible"}), 503
+    
+    data = request.json or {}
+    dni = validar_dni(data.get('dni', ''))
+    nombre = limpiar_string(data.get('nombre', ''), max_largo=100)
+    if not nombre or len(nombre) < 3:
+        return jsonify({"error": "El nombre es obligatorio (mínimo 3 caracteres)"}), 400
+    
+    try:
+        empresa_id = int(data.get('empresa_id'))
+    except (TypeError, ValueError):
+        return jsonify({"error": "empresa_id es obligatorio"}), 400
+    
+    cuadrilla_id = data.get('cuadrilla_id')
+    try:
+        cuadrilla_id = int(cuadrilla_id) if cuadrilla_id else None
+    except (TypeError, ValueError):
+        cuadrilla_id = None
+    
+    try:
+        # Verificar que no exista ya en esa empresa
+        existe = supabase.table('trabajadores')\
+            .select('dni')\
+            .eq('dni', dni)\
+            .eq('empresa_id', empresa_id)\
+            .limit(1)\
+            .execute()
+        if existe.data:
+            return jsonify({"error": f"Ya existe un trabajador con DNI {dni} en esta empresa"}), 409
+        
+        nuevo = {
+            "dni": dni,
+            "nombre": nombre,
+            "empresa_id": empresa_id,
+            "historico": 15,   # umbral inicial; el agente lo ajustará con EWMA
+            "sigma": 2,
+            "activo": True
+        }
+        if cuadrilla_id:
+            nuevo["cuadrilla_id"] = cuadrilla_id
+        
+        result = supabase.table('trabajadores').insert(nuevo).execute()
+        
+        return jsonify({
+            "exito": True,
+            "mensaje": f"Trabajador {nombre} creado",
+            "trabajador": result.data[0] if result.data else nuevo
+        })
+    except Exception as e:
+        print(f"[crear-trabajador] Error: {e}")
+        return jsonify({"error": "No se pudo crear el trabajador", "detalle": str(e)}), 500
+
 @app.route('/api/lotes', methods=['GET'])
 @rate_limit('default')
 def listar_lotes():
@@ -1434,6 +1493,58 @@ def listar_lotes():
             {"codigo": cod, **datos} for cod, datos in LOTES.items()
         ]
     })
+
+@app.route('/api/lotes', methods=['POST'])
+@rate_limit('default')
+@manejar_error_validacion
+def crear_lote():
+    """Crea un lote/fundo nuevo en una empresa (multi-tenant).
+    Body: { codigo, hectareas, empresa_id }"""
+    if not supabase:
+        return jsonify({"error": "Supabase no disponible"}), 503
+    
+    data = request.json or {}
+    codigo = validar_lote(data.get('codigo', ''))
+    
+    try:
+        empresa_id = int(data.get('empresa_id'))
+    except (TypeError, ValueError):
+        return jsonify({"error": "empresa_id es obligatorio"}), 400
+    
+    try:
+        hectareas = float(data.get('hectareas') or 0)
+        if hectareas < 0 or hectareas > 10000:
+            return jsonify({"error": "Hectáreas fuera de rango (0-10000)"}), 400
+    except (TypeError, ValueError):
+        hectareas = 0
+    
+    try:
+        # Verificar que no exista ya en esa empresa
+        existe = supabase.table('lotes')\
+            .select('id')\
+            .eq('codigo', codigo)\
+            .eq('empresa_id', empresa_id)\
+            .limit(1)\
+            .execute()
+        if existe.data:
+            return jsonify({"error": f"Ya existe el lote {codigo} en esta empresa"}), 409
+        
+        nuevo = {
+            "codigo": codigo,
+            "empresa_id": empresa_id,
+            "hectareas": hectareas
+        }
+        
+        result = supabase.table('lotes').insert(nuevo).execute()
+        
+        return jsonify({
+            "exito": True,
+            "mensaje": f"Lote {codigo} creado",
+            "lote": result.data[0] if result.data else nuevo
+        })
+    except Exception as e:
+        print(f"[crear-lote] Error: {e}")
+        return jsonify({"error": "No se pudo crear el lote", "detalle": str(e)}), 500
 
 @app.route('/api/cuadrillas', methods=['GET'])
 @rate_limit('default')
@@ -2557,22 +2668,27 @@ def _ejecutar_ciclo():
     except Exception as e:
         print(f"[Agente IA] Error en razonamiento Gemini: {e}")
 
-def _gemini_generar_texto(prompt, max_tokens=2048, modelo="gemini-2.5-flash"):
+def _gemini_generar_texto(prompt, max_tokens=2048, modelo="gemini-2.5-flash", json_mode=False):
     """Llama a Gemini para generar texto en lenguaje natural (sin imagen).
     max_tokens alto porque Gemini 2.5 usa 'thinking tokens' que se
-    descuentan de este límite — si es bajo, la respuesta sale cortada."""
+    descuentan de este límite — si es bajo, la respuesta sale cortada.
+    json_mode=True fuerza respuesta JSON nativa."""
     import requests as http_requests
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={GEMINI_API_KEY}"
+    
+    gen_config = {
+        "temperature": 0.4,
+        "maxOutputTokens": max_tokens
+    }
+    if json_mode:
+        gen_config["responseMimeType"] = "application/json"
     
     payload = {
         "contents": [{
             "parts": [{"text": prompt}]
         }],
-        "generationConfig": {
-            "temperature": 0.4,
-            "maxOutputTokens": max_tokens
-        }
+        "generationConfig": gen_config
     }
     
     response = http_requests.post(url, json=payload, timeout=45)
@@ -2658,11 +2774,115 @@ Responde directo, sin saludos, como análisis experto."""
         print(f"[Agente IA] Gemini no disponible: {e}")
 
 # ===== 💬 CHAT CONVERSACIONAL CON EL AGENTE =====
+
+def _ejecutar_accion_chat(accion, empresa_id):
+    """Ejecuta una acción REAL solicitada vía chat (solo Plan Enterprise/Nivel 3).
+    Devuelve descripción del resultado, o None si no se ejecutó."""
+    if not isinstance(accion, dict):
+        return None
+    
+    tipo = accion.get('tipo', '')
+    
+    try:
+        if tipo == 'bloquear_trabajador':
+            dni = str(accion.get('dni', '')).strip()
+            if not re.match(r'^\d{8}$', dni):
+                return None
+            AGENTE_IA["trabajadores_bloqueados"].add(dni)
+            _log_decision(
+                tipo="💬 ACCIÓN VÍA CHAT",
+                mensaje=f"Bloqueado trabajador DNI {dni} (orden del gerente)",
+                razonamiento=f"El gerente solicitó el bloqueo vía chat. Motivo: {accion.get('motivo', 'no especificado')}",
+                accion=f"DNI {dni} agregado a lista de bloqueados",
+                severidad="alta", empresa_id=empresa_id
+            )
+            return f"Trabajador DNI {dni} BLOQUEADO. Sus próximas pesadas serán rechazadas hasta validación."
+        
+        elif tipo == 'desbloquear_trabajador':
+            dni = str(accion.get('dni', '')).strip()
+            if not re.match(r'^\d{8}$', dni):
+                return None
+            AGENTE_IA["trabajadores_bloqueados"].discard(dni)
+            _log_decision(
+                tipo="💬 ACCIÓN VÍA CHAT",
+                mensaje=f"Desbloqueado trabajador DNI {dni} (orden del gerente)",
+                razonamiento="El gerente autorizó el desbloqueo vía chat tras revisión.",
+                accion=f"DNI {dni} removido de lista de bloqueados",
+                severidad="info", empresa_id=empresa_id
+            )
+            return f"Trabajador DNI {dni} DESBLOQUEADO. Puede registrar pesadas nuevamente."
+        
+        elif tipo == 'marcar_lote_inspeccion':
+            lote = str(accion.get('lote', '')).strip().upper()[:15]
+            if not lote:
+                return None
+            AGENTE_IA["alertas_pendientes"].append({
+                "tipo": "inspeccion_lote",
+                "mensaje": f"Lote {lote} marcado para inspección (orden del gerente)",
+                "timestamp": datetime.now().isoformat()
+            })
+            _log_decision(
+                tipo="💬 ACCIÓN VÍA CHAT",
+                mensaje=f"Lote {lote} marcado para inspección técnica",
+                razonamiento=f"El gerente lo solicitó vía chat. Motivo: {accion.get('motivo', 'revisión preventiva')}",
+                accion=f"Lote {lote} en cola de inspección. Mantenimiento notificado.",
+                severidad="media", empresa_id=empresa_id
+            )
+            return f"Lote {lote} marcado para INSPECCIÓN TÉCNICA. Alerta enviada a mantenimiento."
+        
+        elif tipo == 'agregar_accion_plan':
+            texto_accion = limpiar_string(str(accion.get('accion', '')), max_largo=200)
+            if not texto_accion:
+                return None
+            PLAN_MEJORA_GUARDADO.append({
+                "accion": texto_accion,
+                "problema_vinculado": str(accion.get('problema', ''))[:10],
+                "causa_raiz": limpiar_string(str(accion.get('causa_raiz', '')), max_largo=200),
+                "responsable": limpiar_string(str(accion.get('responsable', 'Por asignar')), max_largo=60),
+                "plazo": limpiar_string(str(accion.get('plazo', 'Por definir')), max_largo=40),
+                "kpi": limpiar_string(str(accion.get('kpi', 'Por definir')), max_largo=100),
+                "prioridad": accion.get('prioridad') if accion.get('prioridad') in ('alta', 'media', 'baja') else 'media'
+            })
+            _log_decision(
+                tipo="💬 ACCIÓN VÍA CHAT",
+                mensaje="Acción agregada al Plan de Mejora",
+                razonamiento=f"El gerente solicitó vía chat agregar: '{texto_accion}'",
+                accion="Plan de Mejora actualizado",
+                severidad="info", empresa_id=empresa_id
+            )
+            return f"Acción agregada al Plan de Mejora: '{texto_accion}'. Revísala en Análisis Calidad → Plan de Mejora."
+        
+        elif tipo == 'generar_alerta':
+            msg = limpiar_string(str(accion.get('mensaje', '')), max_largo=200)
+            if not msg:
+                return None
+            AGENTE_IA["alertas_pendientes"].append({
+                "tipo": "alerta_gerente",
+                "mensaje": msg,
+                "timestamp": datetime.now().isoformat()
+            })
+            _log_decision(
+                tipo="💬 ACCIÓN VÍA CHAT",
+                mensaje=f"Alerta generada: {msg[:60]}",
+                razonamiento="El gerente solicitó generar esta alerta vía chat.",
+                accion="Alerta registrada y visible para supervisores",
+                severidad="media", empresa_id=empresa_id
+            )
+            return f"Alerta generada: '{msg}'"
+    except Exception as e:
+        print(f"[accion-chat] Error ejecutando {tipo}: {e}")
+    
+    return None
+
 @app.route('/api/agente/chat', methods=['POST'])
 @rate_limit('default')
 def agente_chat():
     """El usuario conversa con el agente IA. El agente responde con Gemini
-    usando los datos REALES del sistema como contexto."""
+    usando los datos REALES del sistema como contexto.
+    DIFERENCIADO POR NIVEL:
+       Nivel 1 (Básico): Asistente de consulta
+       Nivel 2 (Profesional): Analista IA
+       Nivel 3 (Enterprise): Agente Ejecutivo — EJECUTA acciones reales"""
     
     if not GEMINI_API_KEY:
         return jsonify({"error": "GEMINI_API_KEY no configurada"}), 503
@@ -2670,6 +2890,22 @@ def agente_chat():
     data = request.json or {}
     pregunta = (data.get('pregunta') or '').strip()
     empresa_id = data.get('empresa_id')
+    
+    # Determinar nivel del plan (1, 2 o 3)
+    try:
+        nivel = int(data.get('nivel') or 0)
+    except (TypeError, ValueError):
+        nivel = 0
+    if nivel not in (1, 2, 3):
+        # Deducir de la empresa en BD; si no se puede, Enterprise
+        nivel = 3
+        if empresa_id and supabase:
+            try:
+                emp_res = supabase.table('empresas').select('nivel_tecnologico').eq('id', empresa_id).single().execute()
+                if emp_res.data and emp_res.data.get('nivel_tecnologico') in (1, 2, 3):
+                    nivel = emp_res.data['nivel_tecnologico']
+            except Exception:
+                pass
     
     if not pregunta:
         return jsonify({"error": "Pregunta vacía"}), 400
@@ -2679,7 +2915,28 @@ def agente_chat():
     try:
         # Recopilar contexto REAL del sistema
         contexto_datos = "Sin datos de pesadas disponibles."
+        contexto_totales = ""
         if supabase:
+            # Totales REALES de la empresa (para responder "cuántos trabajadores hay")
+            try:
+                q_trab = supabase.table('trabajadores').select('dni', count='exact').eq('activo', True)
+                if empresa_id:
+                    q_trab = q_trab.eq('empresa_id', empresa_id)
+                total_trabajadores = q_trab.execute().count or 0
+                
+                q_lotes = supabase.table('lotes').select('id', count='exact')
+                if empresa_id:
+                    q_lotes = q_lotes.eq('empresa_id', empresa_id)
+                total_lotes = q_lotes.execute().count or 0
+                
+                contexto_totales = f"""
+TOTALES REALES DE LA EMPRESA (base de datos):
+- Trabajadores activos registrados: {total_trabajadores}
+- Lotes registrados: {total_lotes}
+- NOTA: la app puede mostrar listas parciales/paginadas en pantalla; estos son los totales reales."""
+            except Exception as e:
+                print(f"[agente-chat] No pudo contar totales: {e}")
+            
             query = supabase.table('pesadas').select("*").order('timestamp_creacion', desc=True).limit(200)
             if empresa_id:
                 query = query.eq('empresa_id', empresa_id)
@@ -2732,47 +2989,96 @@ def agente_chat():
             for b in AGENTE_IA["bitacora"][-8:]
         ]) or "Sin decisiones registradas aún."
         
-        prompt = f"""Eres AgroIA, un agente IA autónomo que supervisa la cosecha de palta Hass en el Valle de Virú, Perú. Tomas decisiones solo (bloqueos, alertas, ajustes) cada 30 segundos sin intervención humana. Hablas con el gerente de la empresa agrícola.
+        # ===== PROMPT DIFERENCIADO POR NIVEL =====
+        ROLES_NIVEL = {
+            1: ("Asistente AgroIA (Plan Básico)", 
+                """- Eres un ASISTENTE DE CONSULTA: respondes preguntas sobre los datos de forma clara y simple
+- NO puedes ejecutar acciones. Si el gerente pide una acción (bloquear, marcar, agregar), responde amablemente que la ejecución de acciones está disponible en el Plan Enterprise, y dile qué haría esa acción
+- El campo "accion" SIEMPRE debe ser null"""),
+            2: ("Analista IA AgroIA (Plan Profesional)",
+                """- Eres un ANALISTA EXPERTO: das análisis profundos con causas raíz, comparaciones y proyecciones
+- NO puedes ejecutar acciones. Si el gerente pide una acción, explica el análisis que la respalda y menciona que la ejecución automática está en el Plan Enterprise
+- El campo "accion" SIEMPRE debe ser null"""),
+            3: ("Agente Ejecutivo AgroIA (Plan Enterprise)",
+                """- Eres un AGENTE EJECUTIVO con PODER DE ACCIÓN REAL sobre el sistema
+- Si el gerente te pide ejecutar algo, INCLUYE la acción en el campo "accion" con este esquema exacto:
+  * Bloquear: {"tipo":"bloquear_trabajador","dni":"12345678","motivo":"..."}
+  * Desbloquear: {"tipo":"desbloquear_trabajador","dni":"12345678"}
+  * Inspeccionar lote: {"tipo":"marcar_lote_inspeccion","lote":"AD-L01","motivo":"..."}
+  * Agregar al plan: {"tipo":"agregar_accion_plan","accion":"...","responsable":"...","plazo":"...","kpi":"...","prioridad":"alta|media|baja","causa_raiz":"..."}
+  * Alerta: {"tipo":"generar_alerta","mensaje":"..."}
+- SOLO ejecuta si el gerente lo pide claramente. Si es ambiguo, pregunta antes (accion: null)
+- Si ejecutas, menciónalo en tu respuesta ("He bloqueado a...", "He marcado el lote...")
+- Si no hay acción que ejecutar, accion debe ser null""")
+        }
+        rol_nombre, instrucciones_nivel = ROLES_NIVEL[nivel]
+        
+        prompt = f"""Eres {rol_nombre}, parte del sistema AgroIA que supervisa la cosecha de palta Hass en el Valle de Virú, Perú. El agente autónomo toma decisiones solo cada 30 segundos. Hablas con el gerente de la empresa agrícola.
 
 {contexto_datos}
+{contexto_totales}
 
-TUS DECISIONES RECIENTES (bitácora):
+TUS DECISIONES RECIENTES (bitácora del agente autónomo):
 {bitacora_txt}
 
 ESTADÍSTICAS DE TU OPERACIÓN:
 - Ciclos completados: {AGENTE_IA['ciclos_completados']}
 - Decisiones tomadas: {AGENTE_IA['decisiones_tomadas']}
-- Trabajadores bloqueados: {len(AGENTE_IA['trabajadores_bloqueados'])}
+- Trabajadores bloqueados actualmente: {len(AGENTE_IA['trabajadores_bloqueados'])} (DNIs: {list(AGENTE_IA['trabajadores_bloqueados'])[:10]})
 
 PREGUNTA DEL GERENTE: "{pregunta}"
 
-INSTRUCCIONES DE RESPUESTA:
-- Responde en español, en primera persona (eres el agente)
-- Estructura tu respuesta así (usa estos títulos con **negritas**):
-  **📊 Situación:** resumen con NÚMEROS CONCRETOS de los datos
-  **🔍 Hallazgo clave:** el patrón o insight más importante que detectas
-  **🎯 Mi recomendación:** 1-2 acciones específicas y priorizadas
-- Usa cifras reales de los datos (kg, %, cantidad de casos, nombres de lotes)
-- Sé un consultor experto: directo, específico, accionable
+TU ROL Y CAPACIDADES:
+{instrucciones_nivel}
+
+FORMATO DE RESPUESTA — responde SOLO con JSON válido:
+{{"respuesta": "tu respuesta aquí", "accion": null}}
+
+INSTRUCCIONES PARA "respuesta":
+- Español, primera persona (eres el agente)
+- Si la pregunta pide análisis, estructura con **negritas**: **📊 Situación:** / **🔍 Hallazgo clave:** / **🎯 Mi recomendación:**
+- Si la pregunta es simple o directa (un dato, un total, una aclaración), responde DIRECTO sin la estructura
+- Usa cifras reales de los datos (kg, %, casos, S/, nombres)
 - Máximo 180 palabras
-- Si la pregunta es sobre algo que no está en los datos, dilo honestamente y ofrece lo que SÍ puedes analizar"""
+- Si algo no está en los datos, dilo honestamente"""
         
         # 🧠 Cerebro potente: gemini-2.5-pro para el chat (máxima calidad)
         # Fallback automático a flash si Pro falla (rate limit del free tier)
         modelo_usado = "gemini-2.5-pro"
         try:
-            respuesta = _gemini_generar_texto(prompt, max_tokens=3000, modelo="gemini-2.5-pro")
+            respuesta_cruda = _gemini_generar_texto(prompt, max_tokens=3000, modelo="gemini-2.5-pro", json_mode=True)
         except Exception as e_pro:
             print(f"[agente-chat] Pro no disponible ({e_pro}), usando Flash")
             modelo_usado = "gemini-2.5-flash"
-            respuesta = _gemini_generar_texto(prompt, max_tokens=2048, modelo="gemini-2.5-flash")
+            respuesta_cruda = _gemini_generar_texto(prompt, max_tokens=2048, modelo="gemini-2.5-flash", json_mode=True)
+        
+        # Parsear el JSON (limpiar fences por si acaso)
+        import json as _json
+        texto_limpio = respuesta_cruda.strip()
+        if texto_limpio.startswith('```'):
+            texto_limpio = re.sub(r'^```(?:json)?\s*|\s*```$', '', texto_limpio, flags=re.MULTILINE).strip()
+        
+        try:
+            parsed = _json.loads(texto_limpio)
+            respuesta = str(parsed.get('respuesta', '')).strip() or respuesta_cruda
+            accion_solicitada = parsed.get('accion')
+        except Exception:
+            # Si no es JSON válido, usar el texto tal cual (sin acción)
+            respuesta = respuesta_cruda
+            accion_solicitada = None
+        
+        # ⚡ EJECUTAR acción SOLO en Plan Enterprise (nivel 3)
+        accion_ejecutada = None
+        if nivel == 3 and accion_solicitada:
+            accion_ejecutada = _ejecutar_accion_chat(accion_solicitada, empresa_id)
         
         return jsonify({
             "exito": True,
             "respuesta": respuesta,
+            "accion_ejecutada": accion_ejecutada,
+            "nivel": nivel,
             "contexto_usado": {
                 "modelo": modelo_usado,
-                "pesadas_analizadas": len(pesadas) if supabase and 'pesadas' in dir() else 0,
                 "decisiones_en_bitacora": len(AGENTE_IA["bitacora"])
             }
         })
