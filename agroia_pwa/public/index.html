@@ -1538,6 +1538,11 @@ tr:hover td {
       <h1 class="page-title">Maestra de Trabajadores</h1>
       <div class="page-subtitle">35 trabajadores activos · 3 cuadrillas</div>
     </div>
+    <div>
+      <button onclick="abrirModalNuevoTrabajador()" style="background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer;">
+        + Agregar trabajador
+      </button>
+    </div>
   </div>
 
   <div class="section">
@@ -1571,6 +1576,11 @@ tr:hover td {
     <div>
       <h1 class="page-title">Lotes en producción</h1>
       <div class="page-subtitle">Maestra de parcelas activas</div>
+    </div>
+    <div>
+      <button onclick="abrirModalNuevoLote()" style="background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer;">
+        + Agregar lote
+      </button>
     </div>
   </div>
 
@@ -11365,6 +11375,165 @@ function preguntaRapidaAgente(texto) {
   if (input) {
     input.value = texto;
     enviarPreguntaAgente();
+  }
+}
+
+// =============================================================
+// ➕ AGREGAR TRABAJADOR Y LOTE (multi-tenant)
+// =============================================================
+function _crearModalBase(id, titulo, cuerpoHTML, onGuardar) {
+  // Eliminar modal previo si existe
+  const prev = document.getElementById(id);
+  if (prev) prev.remove();
+  
+  const overlay = document.createElement('div');
+  overlay.id = id;
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9500; display:flex; align-items:center; justify-content:center; padding:16px;';
+  overlay.innerHTML = `
+    <div style="background:#0F172A; border:1px solid rgba(16,185,129,0.4); border-radius:14px; padding:22px; max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="color:#fff; font-size:16px; margin:0;">${titulo}</h3>
+        <button onclick="document.getElementById('${id}').remove()" style="background:transparent; border:none; color:#94a3b8; font-size:20px; cursor:pointer;">✕</button>
+      </div>
+      ${cuerpoHTML}
+      <div style="display:flex; gap:8px; margin-top:16px;">
+        <button onclick="document.getElementById('${id}').remove()" style="flex:1; background:rgba(100,116,139,0.3); color:#cbd5e1; border:none; border-radius:8px; padding:10px; font-size:13px; cursor:pointer;">Cancelar</button>
+        <button id="${id}_guardar" style="flex:1; background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:10px; font-size:13px; font-weight:600; cursor:pointer;">💾 Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById(id + '_guardar').onclick = onGuardar;
+}
+
+function abrirModalNuevoTrabajador() {
+  const empresaId = (typeof getEmpresaActivaId === 'function' ? getEmpresaActivaId() : null) 
+                    || (window._perfilUsuario || {}).empresa_id;
+  if (!empresaId) {
+    if (typeof toastWarning === 'function') toastWarning('Selecciona primero una empresa en el selector superior', { titulo: '⚠ Sin empresa' });
+    return;
+  }
+  
+  const inputStyle = 'width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:10px 12px; color:#fff; font-size:13px; margin-bottom:10px;';
+  
+  _crearModalBase('modalNuevoTrabajador', '👷 Nuevo Trabajador', `
+    <label style="color:#94a3b8; font-size:11px; text-transform:uppercase;">DNI (8 dígitos) *</label>
+    <input type="text" id="ntDni" maxlength="8" placeholder="Ej: 45678912" style="${inputStyle}">
+    <label style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Nombre completo *</label>
+    <input type="text" id="ntNombre" maxlength="100" placeholder="Ej: Juan Pérez García" style="${inputStyle}">
+    <label style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Cuadrilla (opcional)</label>
+    <select id="ntCuadrilla" style="${inputStyle}">
+      <option value="">Sin cuadrilla</option>
+    </select>
+    <div style="color:#64748B; font-size:11px;">El histórico de productividad inicia en 15 kg/h y el agente lo ajustará automáticamente con el tiempo (aprendizaje EWMA).</div>
+  `, guardarNuevoTrabajador);
+  
+  // Cargar cuadrillas de la empresa activa
+  fetch(`${SERVIDOR_URL}/api/cuadrillas?empresa_id=${empresaId}`)
+    .then(r => r.json())
+    .then(data => {
+      const sel = document.getElementById('ntCuadrilla');
+      if (sel && data.cuadrillas) {
+        data.cuadrillas.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.codigo + (c.nombre ? ' — ' + c.nombre : '');
+          sel.appendChild(opt);
+        });
+      }
+    })
+    .catch(() => {});
+}
+
+async function guardarNuevoTrabajador() {
+  const dni = (document.getElementById('ntDni')?.value || '').trim();
+  const nombre = (document.getElementById('ntNombre')?.value || '').trim();
+  const cuadrillaId = document.getElementById('ntCuadrilla')?.value || null;
+  const empresaId = (typeof getEmpresaActivaId === 'function' ? getEmpresaActivaId() : null) 
+                    || (window._perfilUsuario || {}).empresa_id;
+  
+  if (!/^\d{8}$/.test(dni)) {
+    if (typeof toastWarning === 'function') toastWarning('El DNI debe tener exactamente 8 dígitos', { titulo: '⚠ DNI inválido' });
+    return;
+  }
+  if (nombre.length < 3) {
+    if (typeof toastWarning === 'function') toastWarning('Ingresa el nombre completo', { titulo: '⚠ Nombre inválido' });
+    return;
+  }
+  
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/trabajadores`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dni, nombre, empresa_id: empresaId, cuadrilla_id: cuadrillaId || null })
+    });
+    const data = await resp.json();
+    
+    if (resp.ok && data.exito) {
+      document.getElementById('modalNuevoTrabajador')?.remove();
+      if (typeof toastExito === 'function') toastExito(data.mensaje, { titulo: '✅ Trabajador creado' });
+      // Recargar trabajadores de la empresa
+      if (typeof cargarDatosDeEmpresaActiva === 'function') cargarDatosDeEmpresaActiva();
+    } else {
+      if (typeof toastWarning === 'function') toastWarning(data.error || 'No se pudo crear', { titulo: '⚠ Error' });
+    }
+  } catch(e) {
+    if (typeof toastWarning === 'function') toastWarning('Error de conexión', { titulo: '⚠ Error' });
+  }
+}
+
+function abrirModalNuevoLote() {
+  const empresaId = (typeof getEmpresaActivaId === 'function' ? getEmpresaActivaId() : null) 
+                    || (window._perfilUsuario || {}).empresa_id;
+  if (!empresaId) {
+    if (typeof toastWarning === 'function') toastWarning('Selecciona primero una empresa en el selector superior', { titulo: '⚠ Sin empresa' });
+    return;
+  }
+  
+  // Prefijo sugerido según empresa (CP, HP, AD)
+  const emp = (window._empresasDisponibles || []).find(e => e.id === empresaId);
+  const prefijos = {1: 'CP', 2: 'HP', 3: 'AD'};
+  const prefijo = prefijos[empresaId] || (emp?.nombre || 'XX').substring(0, 2).toUpperCase();
+  
+  const inputStyle = 'width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:10px 12px; color:#fff; font-size:13px; margin-bottom:10px;';
+  
+  _crearModalBase('modalNuevoLote', '📍 Nuevo Lote / Fundo', `
+    <label style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Código del lote *</label>
+    <input type="text" id="nlCodigo" maxlength="10" placeholder="Ej: ${prefijo}-L09" value="${prefijo}-L" style="${inputStyle}">
+    <div style="color:#64748B; font-size:11px; margin-top:-6px; margin-bottom:10px;">Formato: ${prefijo}-L + número (ej. ${prefijo}-L09)</div>
+    <label style="color:#94a3b8; font-size:11px; text-transform:uppercase;">Hectáreas</label>
+    <input type="number" id="nlHectareas" min="0" max="10000" step="0.1" placeholder="Ej: 12.5" style="${inputStyle}">
+  `, guardarNuevoLote);
+}
+
+async function guardarNuevoLote() {
+  const codigo = (document.getElementById('nlCodigo')?.value || '').trim().toUpperCase();
+  const hectareas = parseFloat(document.getElementById('nlHectareas')?.value || '0') || 0;
+  const empresaId = (typeof getEmpresaActivaId === 'function' ? getEmpresaActivaId() : null) 
+                    || (window._perfilUsuario || {}).empresa_id;
+  
+  if (!/^([A-Z]{2,3}-L\d{1,3}|L-\d{1,3})$/.test(codigo)) {
+    if (typeof toastWarning === 'function') toastWarning('Formato inválido. Usa por ejemplo CP-L09 o L-09', { titulo: '⚠ Código inválido' });
+    return;
+  }
+  
+  try {
+    const resp = await fetch(`${SERVIDOR_URL}/api/lotes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, hectareas, empresa_id: empresaId })
+    });
+    const data = await resp.json();
+    
+    if (resp.ok && data.exito) {
+      document.getElementById('modalNuevoLote')?.remove();
+      if (typeof toastExito === 'function') toastExito(data.mensaje, { titulo: '✅ Lote creado' });
+      if (typeof cargarDatosDeEmpresaActiva === 'function') cargarDatosDeEmpresaActiva();
+    } else {
+      if (typeof toastWarning === 'function') toastWarning(data.error || 'No se pudo crear', { titulo: '⚠ Error' });
+    }
+  } catch(e) {
+    if (typeof toastWarning === 'function') toastWarning('Error de conexión', { titulo: '⚠ Error' });
   }
 }
 
