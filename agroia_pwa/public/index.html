@@ -1193,14 +1193,14 @@ tr:hover td {
       <span class="nav-icon">📊</span> Dashboard
     </div>
     <div class="nav-item" onclick="switchPage('pesadas')" data-permiso="pesadas">
-      <span class="nav-icon">⚖</span> Pesadas
+      <span class="nav-icon">⚖</span> Pesadas del Día
       <span class="badge alert" id="badgePesadas">2</span>
     </div>
     <div class="nav-item" onclick="switchPage('trabajadores')" data-permiso="trabajadores">
-      <span class="nav-icon">👥</span> Trabajadores
+      <span class="nav-icon">👥</span> Mi Personal
     </div>
     <div class="nav-item" onclick="switchPage('lotes')" data-permiso="lotes">
-      <span class="nav-icon">🌳</span> Lotes
+      <span class="nav-icon">🌳</span> Mis Lotes
     </div>
   </div>
 
@@ -1486,8 +1486,8 @@ tr:hover td {
 <div class="page-section" id="page-pesadas">
   <div class="page-header">
     <div>
-      <h1 class="page-title">Registro de pesadas</h1>
-      <div class="page-subtitle">Validadas en tiempo real por el agente IA</div>
+      <h1 class="page-title">⚖️ Pesadas del Día</h1>
+      <div class="page-subtitle">Cada pesada que registras es validada al instante por el agente IA. Verde = normal, naranja/rojo = revisar.</div>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <input type="file" id="inputImportarExcel" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importarExcel(this)">
@@ -1535,8 +1535,8 @@ tr:hover td {
 <div class="page-section" id="page-trabajadores">
   <div class="page-header">
     <div>
-      <h1 class="page-title">Maestra de Trabajadores</h1>
-      <div class="page-subtitle">35 trabajadores activos · 3 cuadrillas</div>
+      <h1 class="page-title">👷 Mi Personal</h1>
+      <div class="page-subtitle">Aquí gestionas a tus trabajadores y cuadrillas. El agente aprende la productividad de cada uno automáticamente.</div>
       <button onclick="abrirModalNuevoTrabajador()" style="margin-top:10px; background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer;">
         + Agregar trabajador
       </button>
@@ -1572,8 +1572,8 @@ tr:hover td {
 <div class="page-section" id="page-lotes">
   <div class="page-header">
     <div>
-      <h1 class="page-title">Lotes en producción</h1>
-      <div class="page-subtitle">Maestra de parcelas activas</div>
+      <h1 class="page-title">🌱 Mis Lotes y Fundos</h1>
+      <div class="page-subtitle">Aquí ves tus parcelas. El agente vigila cada lote y te avisa si alguno concentra problemas.</div>
       <button onclick="abrirModalNuevoLote()" style="margin-top:10px; background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer;">
         + Agregar lote
       </button>
@@ -4140,6 +4140,10 @@ tr:hover td {
 
 <!-- BOTÓN FLOTANTE: REPORTAR PROBLEMA                            -->
 <!-- ============================================================ -->
+<button id="btnAgenteFlotante" onclick="irAlChatDelAgente()" title="Hablar con mi Agente IA"
+  style="display:none; position:fixed; bottom:92px; right:24px; z-index:8900; width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg, #10B981, #A855F7); color:white; border:none; box-shadow:0 8px 24px rgba(16,185,129,0.45); cursor:pointer; font-size:26px; align-items:center; justify-content:center; transition:transform 0.2s, box-shadow 0.2s;"
+  onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">🤖</button>
+
 <button id="btnReportarProblema" onclick="abrirModalReporte()" style="display:none; position:fixed; bottom:24px; right:24px; z-index:9990; width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg, #EF9F27, #DC2626); color:white; border:none; box-shadow:0 8px 24px rgba(220,38,38,0.4); cursor:pointer; font-size:24px; display:none; align-items:center; justify-content:center; transition:transform 0.2s, box-shadow 0.2s;" 
         onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 12px 30px rgba(220,38,38,0.5)';"
         onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 8px 24px rgba(220,38,38,0.4)';"
@@ -4373,6 +4377,43 @@ const SERVIDOR_URL = (
 );
 let servidorConectado = false;
 let ultimoTimestamp = Date.now() / 1000; // Para polling de pesadas nuevas
+
+// =============================================================
+// 🌱 AVISO "DESPERTANDO SERVIDOR" (hosting gratuito duerme)
+// Evita que el usuario crea que la app está rota los primeros
+// 30-60 segundos mientras Render despierta el backend.
+// =============================================================
+(function avisarServidorDespertando() {
+  let banner = null;
+  
+  // Si en 2.5s el servidor no respondió, mostrar el aviso
+  const timerAviso = setTimeout(() => {
+    banner = document.createElement('div');
+    banner.id = 'bannerDespertando';
+    banner.style.cssText = 'position:fixed; top:0; left:0; right:0; z-index:100000; background:linear-gradient(90deg, #065F46, #10B981); color:#fff; text-align:center; padding:9px 14px; font-size:13px; font-weight:500; box-shadow:0 2px 12px rgba(0,0,0,0.4);';
+    banner.innerHTML = '🌱 Despertando el servidor (hosting demo)... puede tardar <strong>30-60 segundos</strong>. La app funcionará normal enseguida.';
+    document.body.appendChild(banner);
+  }, 2500);
+  
+  // Ping inicial al servidor
+  fetch(SERVIDOR_URL + '/api/health', { signal: AbortSignal.timeout(90000) })
+    .then(() => {
+      clearTimeout(timerAviso);
+      if (banner) {
+        banner.style.background = 'linear-gradient(90deg, #059669, #10B981)';
+        banner.innerHTML = '✅ Servidor listo';
+        setTimeout(() => banner.remove(), 2000);
+      }
+    })
+    .catch(() => {
+      clearTimeout(timerAviso);
+      if (banner) {
+        banner.style.background = 'linear-gradient(90deg, #B45309, #F59E0B)';
+        banner.innerHTML = '⚠ El servidor tarda más de lo normal. Espera unos segundos y recarga la página.';
+        setTimeout(() => banner.remove(), 10000);
+      }
+    });
+})();
 
 async function verificarServidor() {
   try {
@@ -9338,6 +9379,10 @@ function mostrarUsuarioEnSidebar(perfil) {
     setTimeout(() => aplicarRestriccionesPorNivel(), 900);
   }
   
+  // 🤖 Mostrar botón flotante del agente (acceso directo al chat desde cualquier página)
+  const btnAgente = document.getElementById('btnAgenteFlotante');
+  if (btnAgente) btnAgente.style.display = 'flex';
+  
   // Si es rol trabajador, activar modo trabajador (UI simplificada)
   if (perfil.rol === 'trabajador') {
     activarModoTrabajador(perfil);
@@ -11372,6 +11417,22 @@ function preguntaRapidaAgente(texto) {
     input.value = texto;
     enviarPreguntaAgente();
   }
+}
+
+// =============================================================
+// 🤖 BOTÓN FLOTANTE: acceso directo al chat del agente
+// =============================================================
+function irAlChatDelAgente() {
+  switchPage('cerebro_agente');
+  if (typeof entrarACerebroAgente === 'function') entrarACerebroAgente();
+  // Llevar al usuario directo al chat y enfocar el input
+  setTimeout(() => {
+    const input = document.getElementById('chatAgenteInput');
+    if (input) {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus();
+    }
+  }, 450);
 }
 
 // =============================================================
