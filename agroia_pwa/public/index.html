@@ -1537,9 +1537,7 @@ tr:hover td {
     <div>
       <h1 class="page-title">Maestra de Trabajadores</h1>
       <div class="page-subtitle">35 trabajadores activos · 3 cuadrillas</div>
-    </div>
-    <div>
-      <button onclick="abrirModalNuevoTrabajador()" style="background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer;">
+      <button onclick="abrirModalNuevoTrabajador()" style="margin-top:10px; background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer;">
         + Agregar trabajador
       </button>
     </div>
@@ -1576,9 +1574,7 @@ tr:hover td {
     <div>
       <h1 class="page-title">Lotes en producción</h1>
       <div class="page-subtitle">Maestra de parcelas activas</div>
-    </div>
-    <div>
-      <button onclick="abrirModalNuevoLote()" style="background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer;">
+      <button onclick="abrirModalNuevoLote()" style="margin-top:10px; background:linear-gradient(135deg, #10B981, #059669); color:white; border:none; border-radius:8px; padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer;">
         + Agregar lote
       </button>
     </div>
@@ -11388,7 +11384,7 @@ function _crearModalBase(id, titulo, cuerpoHTML, onGuardar) {
   
   const overlay = document.createElement('div');
   overlay.id = id;
-  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9500; display:flex; align-items:center; justify-content:center; padding:16px;';
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:99995; display:flex; align-items:center; justify-content:center; padding:16px;';
   overlay.innerHTML = `
     <div style="background:#0F172A; border:1px solid rgba(16,185,129,0.4); border-radius:14px; padding:22px; max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
